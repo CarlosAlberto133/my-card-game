@@ -10,7 +10,7 @@ public class CardManager : MonoBehaviour
 
     [Header("Configurações de Spawn")]
     public int numberOfCards = 5;
-    public Vector3 centerPosition = new Vector3(0, 0.5f, 0);
+    public Vector3 centerPosition = new Vector3(0, 1.5f, 0);
     public float cardSpacing = 4f;
     public float cardScale = 1.5f;
 
@@ -58,7 +58,7 @@ public class CardManager : MonoBehaviour
 
             if (randomCard != null)
             {
-                Vector3 position = startPosition + new Vector3(i * cardSpacing, 0, 0);
+                Vector3 position = startPosition + new Vector3(i * cardSpacing, 0, 0); // Mantém a altura do startPosition
                 GameObject cardObject = SpawnCard(randomCard.cardData, position);
                 spawnedCards.Add(cardObject);
 

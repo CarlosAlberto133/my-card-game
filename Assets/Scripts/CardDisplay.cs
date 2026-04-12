@@ -9,6 +9,8 @@ public class CardDisplay : MonoBehaviour
     [Header("Estado da Carta")]
     public bool isInHand = false;
     public bool isOnBoard = false;
+    public bool isInShop = true; // Começa na loja (fase de compra)
+    public CardTile currentTile; // Tile onde a carta está atualmente
     private HandManager handManager;
     private Vector3 originalScale;
 
@@ -176,11 +178,11 @@ public class CardDisplay : MonoBehaviour
         {
             if (GameManager.Instance != null)
             {
-                // Encontra o CardTile onde a carta está
-                CardTile currentTile = FindCurrentTile();
-                if (currentTile != null)
+                // Usa o tile armazenado ou tenta encontrar
+                CardTile tile = currentTile != null ? currentTile : FindCurrentTile();
+                if (tile != null)
                 {
-                    GameManager.Instance.SelectCardFromBoard(gameObject, this, currentTile);
+                    GameManager.Instance.SelectCardFromBoard(gameObject, this, tile);
                 }
                 else
                 {
@@ -190,7 +192,14 @@ public class CardDisplay : MonoBehaviour
             return;
         }
 
-        // Se a carta ainda não está na mão, adiciona
+        // Se a carta está na loja (fase de compra)
+        if (isInShop)
+        {
+            TryBuyCard();
+            return;
+        }
+
+        // Se a carta ainda não está na mão, adiciona (fluxo antigo)
         if (!isInHand)
         {
             if (handManager == null)
@@ -230,29 +239,101 @@ public class CardDisplay : MonoBehaviour
         }
     }
 
+    void TryBuyCard()
+    {
+        if (TurnManager.Instance == null)
+        {
+            Debug.LogError("TurnManager não encontrado!");
+            return;
+        }
+
+        PlayerData currentPlayer = TurnManager.Instance.GetCurrentPlayer();
+
+        // Verifica se o jogador já comprou sua carta neste turno
+        if (!currentPlayer.CanBuyCard())
+        {
+            Debug.Log($"{currentPlayer.playerName} já comprou 1 carta neste turno!");
+            return;
+        }
+
+        int cost = card.GetGoldCost();
+
+        // Verifica se o jogador tem ouro suficiente
+        if (!currentPlayer.HasEnoughGold(cost))
+        {
+            Debug.Log($"{currentPlayer.playerName} não tem ouro suficiente! Precisa de {cost}, tem {currentPlayer.gold}");
+            return;
+        }
+
+        // Compra a carta
+        currentPlayer.BuyCard(cost);
+
+        // Remove da loja e adiciona à mão
+        isInShop = false;
+
+        if (handManager == null)
+        {
+            handManager = FindObjectOfType<HandManager>();
+        }
+
+        if (handManager != null)
+        {
+            bool added = handManager.AddCardToHand(gameObject);
+            if (added)
+            {
+                isInHand = true;
+                if (originalScale != Vector3.zero)
+                {
+                    transform.localScale = originalScale;
+                }
+                Debug.Log($"{currentPlayer.playerName} comprou '{card.cardName}' por {cost} ouro! Ouro restante: {currentPlayer.gold}");
+            }
+        }
+    }
+
     // Encontra o tile atual onde a carta está posicionada
     CardTile FindCurrentTile()
     {
-        // Raycast para baixo para encontrar o tile
+        // Primeiro tenta com raycast na direção para baixo
         RaycastHit hit;
-        Vector3 rayOrigin = transform.position + Vector3.up * 2f;
+        Vector3 rayOrigin = transform.position;
+
+        // Faz raycast para baixo com distância suficiente
         if (Physics.Raycast(rayOrigin, Vector3.down, out hit, 10f))
         {
             CardTile tile = hit.collider.GetComponent<CardTile>();
-            if (tile != null && tile.occupiedCard == gameObject)
+            if (tile != null)
             {
                 return tile;
             }
         }
 
-        // Se não encontrar com raycast, busca manualmente
+        // Se não encontrar com raycast, busca o tile mais próximo
         CardTile[] allTiles = FindObjectsOfType<CardTile>();
+        CardTile closestTile = null;
+        float closestDistance = float.MaxValue;
+
         foreach (CardTile tile in allTiles)
         {
-            if (tile.occupiedCard == gameObject)
+            // Calcula distância horizontal (ignora Y)
+            Vector3 tilePos = tile.transform.position;
+            Vector3 cardPos = transform.position;
+            float distance = Vector2.Distance(
+                new Vector2(tilePos.x, tilePos.z),
+                new Vector2(cardPos.x, cardPos.z)
+            );
+
+            if (distance < closestDistance)
             {
-                return tile;
+                closestDistance = distance;
+                closestTile = tile;
             }
+        }
+
+        // Retorna o tile mais próximo se estiver a menos de 1.5 unidades
+        if (closestTile != null && closestDistance < 1.5f)
+        {
+            return closestTile;
         }
 
         return null;

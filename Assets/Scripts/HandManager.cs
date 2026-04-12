@@ -4,7 +4,7 @@ using System.Collections.Generic;
 public class HandManager : MonoBehaviour
 {
     [Header("Configurações da Mão")]
-    public float handYPosition = 0.5f;
+    public float handYPosition = 1.5f;
     public float handZPosition = -12f; // Parte inferior da tela
     public float cardSpacing = 3f;
     public float cardScale = 1.5f;

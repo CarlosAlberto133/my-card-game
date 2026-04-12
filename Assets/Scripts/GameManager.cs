@@ -43,6 +43,7 @@ public class GameManager : MonoBehaviour
         selectedCardDisplay = cardDisplay;
         isMovingCard = false;
 
+        HighlightValidTiles(); // Destaca tiles válidos/inválidos
         Debug.Log($"Carta '{cardDisplay.card.cardName}' selecionada da mão. Clique em um tile válido (2 primeiras fileiras) para colocar.");
     }
 
@@ -56,6 +57,7 @@ public class GameManager : MonoBehaviour
         currentTile = tile;
         isMovingCard = true;
 
+        HighlightValidTiles(); // Destaca tiles válidos/inválidos
         Debug.Log($"Carta '{cardDisplay.card.cardName}' selecionada para mover. Clique em um tile adjacente (+) para mover.");
     }
 
@@ -158,14 +160,20 @@ public class GameManager : MonoBehaviour
         // Libera o tile atual
         currentTile.FreeTile();
 
-        // Move a carta para a nova posição
-        Vector3 cardPosition = targetTile.transform.position + new Vector3(0, 0.6f, 0);
+        // Move a carta para a nova posição (altura maior para não enterrar no chão)
+        Vector3 cardPosition = targetTile.transform.position + new Vector3(0, 1.5f, 0);
         selectedCard.transform.position = cardPosition;
 
         // Ocupa o novo tile
         targetTile.OccupyTile(selectedCard);
 
+        // Atualiza a referência do tile na carta
+        selectedCardDisplay.currentTile = targetTile;
+
         Debug.Log($"Carta '{selectedCardDisplay.card.cardName}' movida de [{currentTile.row},{currentTile.column}] para [{targetTile.row},{targetTile.column}]");
+
+        // Limpa os destaques
+        ClearTileHighlights();
 
         // Limpa a seleção
         selectedCard = null;
@@ -182,8 +190,8 @@ public class GameManager : MonoBehaviour
             handManager.RemoveCardFromHand(selectedCard);
         }
 
-        // Move a carta para a posição do tile
-        Vector3 cardPosition = tile.transform.position + new Vector3(0, 0.6f, 0); // Um pouco acima do tile
+        // Move a carta para a posição do tile (altura maior para não enterrar no chão)
+        Vector3 cardPosition = tile.transform.position + new Vector3(0, 1.5f, 0);
         selectedCard.transform.position = cardPosition;
 
         // Marca o tile como ocupado
@@ -192,8 +200,12 @@ public class GameManager : MonoBehaviour
         // Atualiza o estado da carta
         selectedCardDisplay.isInHand = false;
         selectedCardDisplay.isOnBoard = true;
+        selectedCardDisplay.currentTile = tile; // Armazena referência do tile
 
         Debug.Log($"Carta '{selectedCardDisplay.card.cardName}' colocada no tile [{tile.row}, {tile.column}]");
+
+        // Limpa os destaques
+        ClearTileHighlights();
 
         // Limpa a seleção
         selectedCard = null;
@@ -203,13 +215,61 @@ public class GameManager : MonoBehaviour
     // Cancela a seleção atual
     public void CancelSelection()
     {
+        ClearTileHighlights(); // Remove os destaques dos tiles
         selectedCard = null;
         selectedCardDisplay = null;
+        currentTile = null;
+        isMovingCard = false;
         Debug.Log("Seleção cancelada.");
     }
 
     public bool HasSelectedCard()
     {
         return selectedCard != null;
+    }
+
+    // Verifica se um tile é válido para a seleção atual
+    public bool IsValidTileForCurrentSelection(CardTile tile)
+    {
+        if (selectedCard == null) return false;
+
+        // Se está movendo uma carta do tabuleiro
+        if (isMovingCard)
+        {
+            if (currentTile == null) return false;
+            if (tile == currentTile) return false; // Não pode mover para o mesmo lugar
+            if (tile.occupiedCard != null) return false; // Não pode mover para tile ocupado
+            return IsValidMovement(currentTile, tile); // Verifica movimento em +
+        }
+        else
+        {
+            // Se está colocando da mão
+            if (tile.row >= maxPlacementRows) return false; // Só pode colocar nas 2 primeiras fileiras
+            if (tile.occupiedCard != null) return false; // Não pode colocar em tile ocupado
+            return true;
+        }
+    }
+
+    // Destaca todos os tiles do tabuleiro (verde = válido, vermelho = inválido)
+    void HighlightValidTiles()
+    {
+        if (boardManager == null) return;
+
+        CardTile[] allTiles = FindObjectsOfType<CardTile>();
+        foreach (CardTile tile in allTiles)
+        {
+            bool isValid = IsValidTileForCurrentSelection(tile);
+            tile.SetHighlight(isValid);
+        }
+    }
+
+    // Remove o destaque de todos os tiles
+    void ClearTileHighlights()
+    {
+        CardTile[] allTiles = FindObjectsOfType<CardTile>();
+        foreach (CardTile tile in allTiles)
+        {
+            tile.ClearHighlight();
+        }
     }
 }
