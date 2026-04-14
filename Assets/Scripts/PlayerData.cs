@@ -16,6 +16,21 @@ public class PlayerData
         cardsBoughtThisTurn = 0;
     }
 
+    public PlayerData(string name)
+    {
+        playerName = name;
+        // Extrai número do nome se possível
+        if (name.Contains("1"))
+            playerNumber = 1;
+        else if (name.Contains("2"))
+            playerNumber = 2;
+        else
+            playerNumber = 1;
+
+        gold = 10;
+        cardsBoughtThisTurn = 0;
+    }
+
     public bool CanBuyCard()
     {
         return cardsBoughtThisTurn < 1; // Apenas 1 carta por turno

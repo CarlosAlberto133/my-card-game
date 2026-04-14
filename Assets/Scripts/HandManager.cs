@@ -3,6 +3,9 @@ using System.Collections.Generic;
 
 public class HandManager : MonoBehaviour
 {
+    [Header("Jogador")]
+    public int playerNumber = 1; // 1 ou 2
+
     [Header("Configurações da Mão")]
     public float handYPosition = 1.5f;
     public float handZPosition = -12f; // Parte inferior da tela

@@ -35,37 +35,67 @@ public class CameraController : MonoBehaviour
 
     void Update()
     {
-        MoveCameraWithMouse();
-        HandleZoom();
+        // Só processa input se o mouse estiver na área desta câmera
+        if (IsMouseInViewport())
+        {
+            MoveCameraWithMouse();
+            HandleZoom();
+        }
+    }
+
+    bool IsMouseInViewport()
+    {
+        if (Mouse.current == null || cam == null) return false;
+
+        Vector2 mousePosition = Mouse.current.position.ReadValue();
+
+        // Converte posição do mouse para viewport space (0-1)
+        // Considera o rect da câmera para split screen
+        Rect viewportRect = cam.rect;
+
+        float viewportMinX = viewportRect.x * Screen.width;
+        float viewportMaxX = (viewportRect.x + viewportRect.width) * Screen.width;
+        float viewportMinY = viewportRect.y * Screen.height;
+        float viewportMaxY = (viewportRect.y + viewportRect.height) * Screen.height;
+
+        return mousePosition.x >= viewportMinX && mousePosition.x <= viewportMaxX &&
+               mousePosition.y >= viewportMinY && mousePosition.y <= viewportMaxY;
     }
 
     void MoveCameraWithMouse()
     {
         // Verifica se o mouse existe (necessário para novo Input System)
-        if (Mouse.current == null)
+        if (Mouse.current == null || cam == null)
             return;
 
         Vector3 movement = Vector3.zero;
         Vector2 mousePosition = Mouse.current.position.ReadValue();
 
-        // Verifica borda esquerda
-        if (mousePosition.x < edgeSize)
+        // Calcula os limites do viewport desta câmera
+        Rect viewportRect = cam.rect;
+        float viewportMinX = viewportRect.x * Screen.width;
+        float viewportMaxX = (viewportRect.x + viewportRect.width) * Screen.width;
+        float viewportMinY = viewportRect.y * Screen.height;
+        float viewportMaxY = (viewportRect.y + viewportRect.height) * Screen.height;
+
+        // Verifica borda esquerda (relativa ao viewport)
+        if (mousePosition.x < viewportMinX + edgeSize)
         {
             movement.x = -1;
         }
-        // Verifica borda direita
-        else if (mousePosition.x > Screen.width - edgeSize)
+        // Verifica borda direita (relativa ao viewport)
+        else if (mousePosition.x > viewportMaxX - edgeSize)
         {
             movement.x = 1;
         }
 
-        // Verifica borda inferior
-        if (mousePosition.y < edgeSize)
+        // Verifica borda inferior (relativa ao viewport)
+        if (mousePosition.y < viewportMinY + edgeSize)
         {
             movement.z = -1;
         }
-        // Verifica borda superior
-        else if (mousePosition.y > Screen.height - edgeSize)
+        // Verifica borda superior (relativa ao viewport)
+        else if (mousePosition.y > viewportMaxY - edgeSize)
         {
             movement.z = 1;
         }

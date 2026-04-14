@@ -202,8 +202,15 @@ public class CardDisplay : MonoBehaviour
         // Se a carta ainda não está na mão, adiciona (fluxo antigo)
         if (!isInHand)
         {
-            if (handManager == null)
+            // Busca HandManager do jogador atual se estiver em modo multiplayer
+            if (TurnManager.Instance != null)
             {
+                PlayerData currentPlayer = TurnManager.Instance.GetCurrentPlayer();
+                handManager = GetHandManagerForPlayer(currentPlayer.playerNumber);
+            }
+            else if (handManager == null)
+            {
+                // Fallback para modo single player
                 handManager = FindObjectOfType<HandManager>();
             }
 
@@ -268,20 +275,19 @@ public class CardDisplay : MonoBehaviour
         // Compra a carta
         currentPlayer.BuyCard(cost);
 
-        // Remove da loja e adiciona à mão
+        // Remove da loja e adiciona à mão DO JOGADOR CORRETO
         isInShop = false;
 
-        if (handManager == null)
-        {
-            handManager = FindObjectOfType<HandManager>();
-        }
+        // Busca o HandManager do jogador correto
+        HandManager correctHandManager = GetHandManagerForPlayer(currentPlayer.playerNumber);
 
-        if (handManager != null)
+        if (correctHandManager != null)
         {
-            bool added = handManager.AddCardToHand(gameObject);
+            bool added = correctHandManager.AddCardToHand(gameObject);
             if (added)
             {
                 isInHand = true;
+                handManager = correctHandManager; // Atualiza a referência
                 if (originalScale != Vector3.zero)
                 {
                     transform.localScale = originalScale;
@@ -289,6 +295,24 @@ public class CardDisplay : MonoBehaviour
                 Debug.Log($"{currentPlayer.playerName} comprou '{card.cardName}' por {cost} ouro! Ouro restante: {currentPlayer.gold}");
             }
         }
+        else
+        {
+            Debug.LogError($"HandManager para {currentPlayer.playerName} não encontrado!");
+        }
+    }
+
+    // Busca o HandManager correto para o jogador
+    HandManager GetHandManagerForPlayer(int playerNum)
+    {
+        HandManager[] allHandManagers = FindObjectsOfType<HandManager>();
+        foreach (HandManager hm in allHandManagers)
+        {
+            if (hm.playerNumber == playerNum)
+            {
+                return hm;
+            }
+        }
+        return null;
     }
 
     // Encontra o tile atual onde a carta está posicionada
