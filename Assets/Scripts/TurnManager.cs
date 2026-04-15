@@ -19,8 +19,8 @@ public class TurnManager : MonoBehaviour
     public int currentRound = 0;
 
     // Controle de quem está pronto para iniciar
-    private bool player1Ready = false;
-    private bool player2Ready = false;
+    public bool player1Ready = false;
+    public bool player2Ready = false;
 
     void Awake()
     {
@@ -37,10 +37,10 @@ public class TurnManager : MonoBehaviour
         player1 = new PlayerData("Jogador 1");
         player2 = new PlayerData("Jogador 2");
 
-        // TEMPORÁRIO: Inicia o jogo automaticamente para testes
-        gameState = GameState.Playing;
-        currentRound = 1;
-        Debug.Log("Jogo iniciado automaticamente (modo teste)");
+        // Começa no LOBBY - aguardando jogadores iniciarem
+        gameState = GameState.Lobby;
+        currentRound = 0;
+        Debug.Log("Aguardando jogadores clicarem em 'Iniciar Partida'");
     }
 
     void Update()
@@ -54,49 +54,75 @@ public class TurnManager : MonoBehaviour
 
     public void OnPlayerReadyToStart(int playerNumber)
     {
-        if (gameState != GameState.Lobby) return;
+        Debug.Log($"OnPlayerReadyToStart chamado. Estado atual: {gameState}");
 
-        if (playerNumber == 1)
+        if (gameState != GameState.Lobby)
+        {
+            Debug.LogWarning($"Não está no Lobby! Estado: {gameState}");
+            return;
+        }
+
+        // Se nenhum jogador está pronto, marca o primeiro
+        if (!player1Ready && !player2Ready)
         {
             player1Ready = true;
-            Debug.Log("Jogador 1 está pronto!");
+            Debug.Log($"Primeiro clique! Jogador 1 marcado como pronto. Clique novamente para iniciar.");
         }
-        else if (playerNumber == 2)
+        // Se já tem um pronto, marca o segundo e inicia
+        else if (player1Ready && !player2Ready)
         {
             player2Ready = true;
-            Debug.Log("Jogador 2 está pronto!");
-        }
-
-        // Se ambos prontos, iniciar jogo
-        if (player1Ready && player2Ready)
-        {
+            Debug.Log($"Segundo clique! Ambos jogadores prontos. Iniciando jogo...");
             StartGame();
         }
+        // Se já marcou o P2 mas não o P1 (caso improvável)
+        else if (!player1Ready && player2Ready)
+        {
+            player1Ready = true;
+            Debug.Log($"Ambos jogadores prontos! Iniciando jogo...");
+            StartGame();
+        }
+        // Se ambos já estão prontos (não deveria chegar aqui)
         else
         {
-            // Passar para o próximo jogador aguardar
-            currentPlayerNumber = (playerNumber == 1) ? 2 : 1;
+            Debug.Log("Ambos já estavam prontos, iniciando...");
+            StartGame();
         }
     }
 
     private void StartGame()
     {
-        Debug.Log("Iniciando partida!");
+        Debug.Log("========== INICIANDO PARTIDA ==========");
+        Debug.Log("Ambos jogadores prontos!");
+
         gameState = GameState.Playing;
         currentRound = 1;
         currentPlayerNumber = 1;
 
-        // Resetar dados dos jogadores
-        player1.gold = 10;
+        // Resetar flags de ready
+        player1Ready = false;
+        player2Ready = false;
+
+        // Resetar contador de cartas compradas neste turno
         player1.cardsBoughtThisTurn = 0;
-        player2.gold = 10;
         player2.cardsBoughtThisTurn = 0;
 
-        // Notificar CardManager
+        Debug.Log($"Estado mudou para: {gameState}");
+        Debug.Log($"Round: {currentRound}");
+        Debug.Log($"Jogador atual: {currentPlayerNumber}");
+
+        // Notificar CardManager para mover cartas para a direita
         if (CardManager.Instance != null)
         {
+            Debug.Log("Notificando CardManager...");
             CardManager.Instance.OnGameStart();
         }
+        else
+        {
+            Debug.LogError("CardManager.Instance é NULL!");
+        }
+
+        Debug.Log("========== PARTIDA INICIADA ==========");
     }
 
     public PlayerData GetCurrentPlayer()
@@ -111,7 +137,16 @@ public class TurnManager : MonoBehaviour
 
     public void EndTurn()
     {
-        // Reseta o turno do jogador atual
+        // No Lobby, reseta cartas compradas e passa a vez (não conta rounds)
+        if (gameState == GameState.Lobby)
+        {
+            GetCurrentPlayer().ResetTurn(); // ✅ Permite comprar 1 carta no próximo turno
+            currentPlayerNumber = currentPlayerNumber == 1 ? 2 : 1;
+            Debug.Log($"Lobby: Turno passou para {GetCurrentPlayer().playerName}");
+            return;
+        }
+
+        // Durante o jogo, reseta o turno e conta rounds
         GetCurrentPlayer().ResetTurn();
 
         // Rastrear quem passou a vez

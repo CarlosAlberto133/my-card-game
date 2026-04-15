@@ -75,6 +75,14 @@ public class SplitScreenManager : MonoBehaviour
             player2Camera.enabled = true;
             // Mantém controle de câmera ativo no split screen
             EnableCameraControl(player2Camera, true);
+
+            // Remove Audio Listener da segunda câmera para evitar warnings
+            AudioListener listener = player2Camera.GetComponent<AudioListener>();
+            if (listener != null)
+            {
+                Destroy(listener);
+                Debug.Log("Audio Listener removido da Player2Camera");
+            }
         }
 
         Debug.Log("Split screen configurado: Player 1 (esquerda) | Player 2 (direita)");

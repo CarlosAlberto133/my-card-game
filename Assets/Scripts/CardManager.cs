@@ -88,27 +88,57 @@ public class CardManager : MonoBehaviour
 
     public void OnGameStart()
     {
-        Debug.Log("CardManager: Jogo iniciado! Movendo cartas para a direita.");
+        Debug.Log("========== CardManager: OnGameStart ==========");
+        Debug.Log($"Posição anterior: {currentSpawnPosition}");
+        Debug.Log($"Nova posição (shopPosition): {shopPosition}");
+
         currentSpawnPosition = shopPosition;
+
+        Debug.Log($"Spawning novas cartas em: {currentSpawnPosition}");
         SpawnRandomCards();
+        Debug.Log("========== CardManager: OnGameStart Completo ==========");
     }
 
     public void RefreshShop()
     {
         Debug.Log("CardManager: Refresh da loja com 5 novas cartas!");
+        Debug.Log($"Cartas antes do refresh: {spawnedCards.Count}");
         SpawnRandomCards();
+        Debug.Log($"Cartas após refresh: {spawnedCards.Count}");
     }
 
     void ClearSpawnedCards()
     {
+        int destroyed = 0;
+        int preserved = 0;
+
         foreach (GameObject card in spawnedCards)
         {
             if (card != null)
             {
+                // Verifica se a carta está na mão ou no tabuleiro
+                CardDisplay cardDisplay = card.GetComponent<CardDisplay>();
+                if (cardDisplay != null && (cardDisplay.isInHand || cardDisplay.isOnBoard))
+                {
+                    // NÃO destrói cartas que estão nas mãos ou no tabuleiro
+                    Debug.Log($"Preservando carta '{cardDisplay.card.cardName}' (na mão ou tabuleiro)");
+                    preserved++;
+                    continue;
+                }
+
+                // Só destrói cartas que ainda estão na loja
                 Destroy(card);
+                destroyed++;
             }
         }
-        spawnedCards.Clear();
+
+        Debug.Log($"Limpeza da loja: {destroyed} destruídas, {preserved} preservadas");
+        spawnedCards.RemoveAll(card =>
+        {
+            if (card == null) return true;
+            CardDisplay display = card.GetComponent<CardDisplay>();
+            return display != null && (display.isInHand || display.isOnBoard);
+        });
     }
 
     public GameObject SpawnCard(Card card, Vector3 position)

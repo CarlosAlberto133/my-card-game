@@ -27,12 +27,21 @@ public class GameUIManager : MonoBehaviour
         if (startGameButton != null)
         {
             startGameButton.onClick.AddListener(OnStartGameButtonClicked);
+            Debug.Log($"StartGameButton encontrado e configurado. Ativo: {startGameButton.gameObject.activeSelf}");
+        }
+        else
+        {
+            Debug.LogError("StartGameButton é NULL!");
         }
 
         if (endTurnButton != null)
         {
             endTurnButton.onClick.AddListener(OnEndTurnButtonClicked);
-            endTurnButton.gameObject.SetActive(false); // Escondido no início
+            Debug.Log($"EndTurnButton encontrado e configurado. Ativo: {endTurnButton.gameObject.activeSelf}");
+        }
+        else
+        {
+            Debug.LogError("EndTurnButton é NULL!");
         }
     }
 
@@ -73,11 +82,15 @@ public class GameUIManager : MonoBehaviour
         // Controlar visibilidade dos botões
         if (startGameButton != null)
         {
-            startGameButton.gameObject.SetActive(TurnManager.Instance.gameState == GameState.Lobby);
+            // Botão "Iniciar Partida" só no lobby
+            bool shouldShow = TurnManager.Instance.gameState == GameState.Lobby;
+            startGameButton.gameObject.SetActive(shouldShow);
         }
+
         if (endTurnButton != null)
         {
-            endTurnButton.gameObject.SetActive(TurnManager.Instance.gameState == GameState.Playing);
+            // Botão "Passar a Vez" aparece sempre
+            endTurnButton.gameObject.SetActive(true);
         }
     }
 
@@ -86,12 +99,20 @@ public class GameUIManager : MonoBehaviour
         if (turnInfoText != null)
         {
             PlayerData currentPlayer = TurnManager.Instance.GetCurrentPlayer();
-            turnInfoText.text = $"Aguardando: {currentPlayer.playerName}\nClique em 'Iniciar Partida'";
+
+            // Conta quantos jogadores estão prontos
+            int readyCount = 0;
+            if (TurnManager.Instance.player1Ready) readyCount++;
+            if (TurnManager.Instance.player2Ready) readyCount++;
+
+            string readyMsg = readyCount == 0 ? "Clique 2x em 'Iniciar Partida'" : "Clique mais 1x para iniciar!";
+
+            turnInfoText.text = $"Turno: {currentPlayer.playerName}\nCartas: {currentPlayer.cardsBoughtThisTurn}/1\n{readyMsg}";
         }
 
         if (roundText != null)
         {
-            roundText.text = "LOBBY";
+            roundText.text = "FASE DE COMPRA";
         }
     }
 
@@ -111,9 +132,16 @@ public class GameUIManager : MonoBehaviour
 
     void OnStartGameButtonClicked()
     {
+        Debug.Log("Botão 'Iniciar Partida' foi clicado!");
+
         if (TurnManager.Instance != null)
         {
+            Debug.Log($"Chamando OnPlayerReadyToStart para jogador {TurnManager.Instance.currentPlayerNumber}");
             TurnManager.Instance.OnPlayerReadyToStart(TurnManager.Instance.currentPlayerNumber);
+        }
+        else
+        {
+            Debug.LogError("TurnManager.Instance é NULL!");
         }
     }
 
