@@ -4,13 +4,17 @@ using UnityEngine.UI;
 
 public class GameUIManager : MonoBehaviour
 {
+    public static GameUIManager Instance { get; private set; }
+
     [Header("Player 1 UI")]
     public TextMeshProUGUI player1NameText;
     public TextMeshProUGUI player1GoldText;
+    public TextMeshProUGUI player1HealthText;
 
     [Header("Player 2 UI")]
     public TextMeshProUGUI player2NameText;
     public TextMeshProUGUI player2GoldText;
+    public TextMeshProUGUI player2HealthText;
 
     [Header("Turn & Round Info")]
     public TextMeshProUGUI turnInfoText;
@@ -19,7 +23,26 @@ public class GameUIManager : MonoBehaviour
     [Header("Botões")]
     public Button startGameButton;
     public Button endTurnButton;
+    public Button resetStoreButton;
     public TextMeshProUGUI startGameButtonText;
+
+    [Header("Tela de Vitória")]
+    public GameObject victoryPanel;
+    public TextMeshProUGUI victoryMessageText;
+    public Button restartButton;
+
+    void Awake()
+    {
+        // Singleton pattern
+        if (Instance == null)
+        {
+            Instance = this;
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
 
     void Start()
     {
@@ -43,6 +66,16 @@ public class GameUIManager : MonoBehaviour
         {
             Debug.LogError("EndTurnButton é NULL!");
         }
+
+        if (resetStoreButton != null)
+        {
+            resetStoreButton.onClick.AddListener(OnResetStoreButtonClicked);
+            Debug.Log($"ResetStoreButton encontrado e configurado. Ativo: {resetStoreButton.gameObject.activeSelf}");
+        }
+        else
+        {
+            Debug.LogError("ResetStoreButton é NULL!");
+        }
     }
 
     void Update()
@@ -58,6 +91,10 @@ public class GameUIManager : MonoBehaviour
         {
             player1GoldText.text = $"Ouro: {TurnManager.Instance.player1.gold}";
         }
+        if (player1HealthText != null)
+        {
+            player1HealthText.text = $"Vida: {TurnManager.Instance.player1.health}/10";
+        }
 
         // Atualiza UI do Jogador 2
         if (player2NameText != null)
@@ -67,6 +104,10 @@ public class GameUIManager : MonoBehaviour
         if (player2GoldText != null)
         {
             player2GoldText.text = $"Ouro: {TurnManager.Instance.player2.gold}";
+        }
+        if (player2HealthText != null)
+        {
+            player2HealthText.text = $"Vida: {TurnManager.Instance.player2.health}/10";
         }
 
         // Atualiza informação de turno e round baseado no estado do jogo
@@ -91,6 +132,12 @@ public class GameUIManager : MonoBehaviour
         {
             // Botão "Passar a Vez" aparece sempre
             endTurnButton.gameObject.SetActive(true);
+        }
+
+        if (resetStoreButton != null)
+        {
+            // Botão "Reset Store" aparece sempre
+            resetStoreButton.gameObject.SetActive(true);
         }
     }
 
@@ -145,11 +192,62 @@ public class GameUIManager : MonoBehaviour
         }
     }
 
+    void OnResetStoreButtonClicked()
+    {
+        if (TurnManager.Instance != null)
+        {
+            TurnManager.Instance.TryResetStore();
+        }
+        else
+        {
+            Debug.LogError("TurnManager.Instance é NULL!");
+        }
+    }
+
     void OnEndTurnButtonClicked()
     {
         if (TurnManager.Instance != null)
         {
             TurnManager.Instance.EndTurn();
+        }
+    }
+
+    public void ShowVictoryScreen(int winnerPlayerNumber)
+    {
+        if (victoryPanel != null)
+        {
+            victoryPanel.SetActive(true);
+        }
+
+        if (victoryMessageText != null)
+        {
+            victoryMessageText.text = $"Parabéns, jogador {winnerPlayerNumber} venceu!";
+        }
+
+        if (restartButton != null && !restartButton.onClick.GetPersistentEventCount().Equals(0) == false)
+        {
+            restartButton.onClick.RemoveAllListeners();
+            restartButton.onClick.AddListener(OnRestartButtonClicked);
+        }
+
+        Debug.Log($"Tela de vitória mostrada para Jogador {winnerPlayerNumber}");
+    }
+
+    public void HideVictoryScreen()
+    {
+        if (victoryPanel != null)
+        {
+            victoryPanel.SetActive(false);
+        }
+    }
+
+    void OnRestartButtonClicked()
+    {
+        Debug.Log("Botão Restart foi clicado!");
+
+        if (TurnManager.Instance != null)
+        {
+            TurnManager.Instance.RestartGame();
         }
     }
 }

@@ -1,5 +1,6 @@
 using UnityEngine;
 using TMPro;
+using UnityEngine.InputSystem;
 
 public class CardDisplay : MonoBehaviour
 {
@@ -11,8 +12,18 @@ public class CardDisplay : MonoBehaviour
     public bool isOnBoard = false;
     public bool isInShop = true; // Começa na loja (fase de compra)
     public CardTile currentTile; // Tile onde a carta está atualmente
+    public int ownerPlayerNumber = 0; // 0 = sem dono (loja), 1 = Player1, 2 = Player2
+    public int lastMovedRound = -1; // Em qual round a carta se moveu pela última vez (-1 = nunca)
+    public int lastAttackedRound = -1; // Em qual round a carta atacou pela última vez (-1 = nunca)
+
+    // Stats atuais (mudam durante o jogo)
+    public int currentHealth;
+    public int currentShield;
+    public int currentAttack;
+
     private HandManager handManager;
     private Vector3 originalScale;
+    private bool isMouseOver = false; // Flag para saber se o mouse está sobre a carta
 
     [Header("UI Elements (Assign in Inspector)")]
     public TextMeshPro cardNameText;
@@ -47,6 +58,61 @@ public class CardDisplay : MonoBehaviour
 
         // Encontra o HandManager
         handManager = FindObjectOfType<HandManager>();
+    }
+
+    void Update()
+    {
+        // Se a carta está no tabuleiro e pertence ao jogador atual, permite atacar com botão direito ou tecla A
+        if (isOnBoard && isMouseOver && TurnManager.Instance != null)
+        {
+            int currentPlayerNumber = TurnManager.Instance.currentPlayerNumber;
+            if (ownerPlayerNumber == currentPlayerNumber)
+            {
+                // Verifica inputs com o novo Input System
+                Mouse mouse = Mouse.current;
+                Keyboard keyboard = Keyboard.current;
+
+                if (mouse != null && keyboard != null)
+                {
+                    // Botão direito do mouse ou tecla A para atacar
+                    if (mouse.rightButton.wasPressedThisFrame || keyboard.aKey.wasPressedThisFrame)
+                    {
+                        Debug.Log($"Tentando atacar com {card.cardName}!");
+                        AttackAdjacentEnemy();
+                    }
+                }
+            }
+        }
+    }
+
+    // Verifica se a carta pode se mover neste round
+    public bool CanMoveThisRound()
+    {
+        if (TurnManager.Instance == null) return true;
+
+        // Se nunca se moveu ou se moveu em um round anterior, pode mover
+        return lastMovedRound < TurnManager.Instance.currentRound;
+    }
+
+    // Verifica se a carta pode atacar neste round
+    public bool CanAttackThisRound()
+    {
+        if (TurnManager.Instance == null)
+        {
+            Debug.Log($"{card.cardName}: TurnManager é null, permitindo ataque");
+            return true;
+        }
+
+        if (!isOnBoard)
+        {
+            Debug.Log($"{card.cardName}: Não está no tabuleiro, não pode atacar");
+            return false;
+        }
+
+        bool canAttack = lastAttackedRound < TurnManager.Instance.currentRound;
+        Debug.Log($"{card.cardName}: lastAttackedRound={lastAttackedRound}, currentRound={TurnManager.Instance.currentRound}, canAttack={canAttack}");
+
+        return canAttack;
     }
 
     void AutoAssignElements()
@@ -98,6 +164,15 @@ public class CardDisplay : MonoBehaviour
     public void SetCard(Card newCard)
     {
         card = newCard;
+
+        // Inicializa stats atuais com os valores base da carta
+        if (card != null)
+        {
+            currentHealth = card.health;
+            currentShield = card.shield;
+            currentAttack = card.attack;
+        }
+
         UpdateCardDisplay();
     }
 
@@ -105,11 +180,11 @@ public class CardDisplay : MonoBehaviour
     {
         if (card == null) return;
 
-        // Atualiza textos
+        // Atualiza textos usando stats atuais (não os base)
         if (cardNameText != null) cardNameText.text = card.cardName;
-        if (attackText != null) attackText.text = card.attack.ToString("00");
-        if (shieldText != null) shieldText.text = card.shield.ToString("00");
-        if (healthText != null) healthText.text = card.health.ToString("00");
+        if (attackText != null) attackText.text = currentAttack.ToString("00");
+        if (shieldText != null) shieldText.text = currentShield.ToString("00");
+        if (healthText != null) healthText.text = currentHealth.ToString("00");
         if (tierText != null) tierText.text = ((int)card.tier).ToString();
 
         // Atualiza artwork
@@ -148,6 +223,8 @@ public class CardDisplay : MonoBehaviour
     // Para interação com o mouse
     void OnMouseEnter()
     {
+        isMouseOver = true;
+
         // Destaque visual quando passar o mouse (apenas se não estiver na mão)
         if (!isInHand && originalScale != Vector3.zero)
         {
@@ -157,6 +234,8 @@ public class CardDisplay : MonoBehaviour
 
     void OnMouseExit()
     {
+        isMouseOver = false;
+
         // Volta ao tamanho normal (apenas se não estiver na mão)
         if (!isInHand && originalScale != Vector3.zero)
         {
@@ -171,6 +250,28 @@ public class CardDisplay : MonoBehaviour
         {
             Debug.LogWarning("Carta não foi inicializada ainda!");
             return;
+        }
+
+        // Se a carta NÃO está na loja (está na mão ou tabuleiro), verifica se pertence ao jogador atual
+        if (!isInShop && TurnManager.Instance != null)
+        {
+            int currentPlayerNumber = TurnManager.Instance.currentPlayerNumber;
+
+            if (ownerPlayerNumber != 0 && ownerPlayerNumber != currentPlayerNumber)
+            {
+                // Carta inimiga clicada - tenta atacar se houver uma carta selecionada
+                if (GameManager.Instance != null && GameManager.Instance.HasSelectedCard())
+                {
+                    Debug.Log($"Tentando atacar carta inimiga {card.cardName}!");
+                    GameManager.Instance.TryAttackEnemyCard(this);
+                    return;
+                }
+                else
+                {
+                    Debug.Log($"Esta carta pertence ao Jogador {ownerPlayerNumber}! Você é o Jogador {currentPlayerNumber}.");
+                    return; // Bloqueia a interação
+                }
+            }
         }
 
         // Se a carta está no tabuleiro, seleciona para mover
@@ -207,6 +308,7 @@ public class CardDisplay : MonoBehaviour
             {
                 PlayerData currentPlayer = TurnManager.Instance.GetCurrentPlayer();
                 handManager = GetHandManagerForPlayer(currentPlayer.playerNumber);
+                ownerPlayerNumber = currentPlayer.playerNumber; // Define o dono
             }
             else if (handManager == null)
             {
@@ -220,6 +322,7 @@ public class CardDisplay : MonoBehaviour
                 if (added)
                 {
                     isInHand = true;
+                    isInShop = false;
                     if (originalScale != Vector3.zero)
                     {
                         transform.localScale = originalScale; // Reseta o tamanho
@@ -277,6 +380,7 @@ public class CardDisplay : MonoBehaviour
 
         // Remove da loja e adiciona à mão DO JOGADOR CORRETO
         isInShop = false;
+        ownerPlayerNumber = currentPlayer.playerNumber; // Define o dono da carta
 
         // Busca o HandManager do jogador correto
         HandManager correctHandManager = GetHandManagerForPlayer(currentPlayer.playerNumber);
@@ -361,5 +465,152 @@ public class CardDisplay : MonoBehaviour
         }
 
         return null;
+    }
+
+    // ============ SISTEMA DE COMBATE ============
+
+    // Retorna lista de cartas inimigas adjacentes (somente adjacentes ortogonais: cima, baixo, esquerda, direita)
+    public System.Collections.Generic.List<CardDisplay> GetAdjacentEnemies()
+    {
+        System.Collections.Generic.List<CardDisplay> enemies = new System.Collections.Generic.List<CardDisplay>();
+
+        if (!isOnBoard || currentTile == null)
+        {
+            Debug.Log($"{card.cardName}: Não está no tabuleiro ou currentTile é null");
+            return enemies;
+        }
+
+        BoardManager boardManager = FindObjectOfType<BoardManager>();
+        if (boardManager == null)
+        {
+            Debug.LogError("BoardManager não encontrado!");
+            return enemies;
+        }
+
+        Debug.Log($"{card.cardName}: Verificando inimigos adjacentes. Posição: [{currentTile.row},{currentTile.column}], Owner: {ownerPlayerNumber}");
+
+        // Verifica os 4 tiles adjacentes (cima, baixo, esquerda, direita)
+        int[][] directions = new int[][]
+        {
+            new int[] { -1, 0 },  // Cima
+            new int[] { 1, 0 },   // Baixo
+            new int[] { 0, -1 },  // Esquerda
+            new int[] { 0, 1 }    // Direita
+        };
+
+        foreach (int[] dir in directions)
+        {
+            int newRow = currentTile.row + dir[0];
+            int newCol = currentTile.column + dir[1];
+
+            CardTile adjacentTile = boardManager.GetTile(newRow, newCol);
+            if (adjacentTile != null && adjacentTile.occupiedCard != null)
+            {
+                CardDisplay enemyCard = adjacentTile.occupiedCard.GetComponent<CardDisplay>();
+                if (enemyCard != null)
+                {
+                    Debug.Log($"  Carta adjacente em [{newRow},{newCol}]: {enemyCard.card.cardName}, Owner: {enemyCard.ownerPlayerNumber}");
+
+                    if (enemyCard.ownerPlayerNumber != ownerPlayerNumber && enemyCard.ownerPlayerNumber != 0)
+                    {
+                        enemies.Add(enemyCard);
+                        Debug.Log($"    -> Adicionada como inimiga!");
+                    }
+                }
+            }
+        }
+
+        Debug.Log($"{card.cardName}: Total de inimigos encontrados: {enemies.Count}");
+        return enemies;
+    }
+
+    // Ataca a primeira carta inimiga adjacente encontrada
+    public bool AttackAdjacentEnemy()
+    {
+        Debug.Log($"=== AttackAdjacentEnemy chamado para {card.cardName} ===");
+
+        // Verifica se pode atacar
+        if (!CanAttackThisRound())
+        {
+            Debug.Log($"{card.cardName} já atacou neste round!");
+            return false;
+        }
+
+        // Busca inimigos adjacentes
+        System.Collections.Generic.List<CardDisplay> enemies = GetAdjacentEnemies();
+
+        if (enemies.Count == 0)
+        {
+            Debug.Log($"{card.cardName} não tem inimigos adjacentes para atacar!");
+            return false;
+        }
+
+        // Ataca o primeiro inimigo encontrado
+        CardDisplay target = enemies[0];
+        int damageDealt = currentAttack;
+
+        Debug.Log($">>> {card.cardName} (ATK:{currentAttack}) ataca {target.card.cardName} (HP:{target.currentHealth}, Shield:{target.currentShield}) causando {damageDealt} de dano!");
+
+        target.TakeDamage(damageDealt);
+
+        // Marca que atacou neste round
+        if (TurnManager.Instance != null)
+        {
+            lastAttackedRound = TurnManager.Instance.currentRound;
+            Debug.Log($"{card.cardName} atacou no round {TurnManager.Instance.currentRound}");
+        }
+
+        return true;
+    }
+
+    // Recebe dano (primeiro absorve no escudo, depois na vida)
+    public void TakeDamage(int damage)
+    {
+        Debug.Log($"{card.cardName} recebeu {damage} de dano! Shield: {currentShield}, Vida: {currentHealth}");
+
+        // Primeiro o escudo absorve o dano
+        if (currentShield > 0)
+        {
+            int shieldAbsorbed = Mathf.Min(currentShield, damage);
+            currentShield -= shieldAbsorbed;
+            damage -= shieldAbsorbed;
+            Debug.Log($"Escudo absorveu {shieldAbsorbed} de dano! Escudo restante: {currentShield}");
+        }
+
+        // O dano que sobrou vai para a vida
+        if (damage > 0)
+        {
+            currentHealth -= damage;
+            Debug.Log($"{card.cardName} perdeu {damage} de vida! Vida restante: {currentHealth}");
+        }
+
+        // Atualiza a UI
+        UpdateCardDisplay();
+
+        // Verifica se a carta morreu
+        if (currentHealth <= 0)
+        {
+            Debug.Log($"{card.cardName} foi destruída!");
+            DestroyCard();
+        }
+    }
+
+    // Destrói a carta
+    void DestroyCard()
+    {
+        // Libera o tile se a carta estiver no tabuleiro
+        if (isOnBoard && currentTile != null)
+        {
+            currentTile.FreeTile();
+        }
+
+        // Remove da mão se estiver lá
+        if (isInHand && handManager != null)
+        {
+            handManager.RemoveCardFromHand(gameObject);
+        }
+
+        Debug.Log($"Carta '{card.cardName}' destruída!");
+        Destroy(gameObject);
     }
 }

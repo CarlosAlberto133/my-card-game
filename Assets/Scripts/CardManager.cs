@@ -19,6 +19,7 @@ public class CardManager : MonoBehaviour
 
     private List<GameObject> spawnedCards = new List<GameObject>();
     private Vector3 currentSpawnPosition;
+    private bool verticalLayout = false; // Se true, cartas ficam uma abaixo da outra
 
     void Awake()
     {
@@ -55,7 +56,7 @@ public class CardManager : MonoBehaviour
         }
     }
 
-    void SpawnRandomCards()
+    public void SpawnRandomCards()
     {
         // Limpa cartas anteriores
         ClearSpawnedCards();
@@ -66,10 +67,6 @@ public class CardManager : MonoBehaviour
             return;
         }
 
-        // Calcula posição inicial para centralizar as cartas
-        float totalWidth = (numberOfCards - 1) * cardSpacing;
-        Vector3 startPosition = currentSpawnPosition - new Vector3(totalWidth / 2f, 0, 0);
-
         // Spawna cartas aleatórias
         for (int i = 0; i < numberOfCards; i++)
         {
@@ -77,7 +74,23 @@ public class CardManager : MonoBehaviour
 
             if (randomCard != null)
             {
-                Vector3 position = startPosition + new Vector3(i * cardSpacing, 0, 0);
+                Vector3 position;
+
+                if (verticalLayout)
+                {
+                    // Layout vertical: cartas uma abaixo da outra (eixo Z)
+                    float totalDepth = (numberOfCards - 1) * cardSpacing;
+                    Vector3 startPosition = currentSpawnPosition - new Vector3(0, 0, totalDepth / 2f);
+                    position = startPosition + new Vector3(0, 0, i * cardSpacing);
+                }
+                else
+                {
+                    // Layout horizontal: cartas lado a lado (eixo X)
+                    float totalWidth = (numberOfCards - 1) * cardSpacing;
+                    Vector3 startPosition = currentSpawnPosition - new Vector3(totalWidth / 2f, 0, 0);
+                    position = startPosition + new Vector3(i * cardSpacing, 0, 0);
+                }
+
                 GameObject cardObject = SpawnCard(randomCard.cardData, position);
                 spawnedCards.Add(cardObject);
 
@@ -93,8 +106,9 @@ public class CardManager : MonoBehaviour
         Debug.Log($"Nova posição (shopPosition): {shopPosition}");
 
         currentSpawnPosition = shopPosition;
+        verticalLayout = true; // Ativa layout vertical quando a partida começa
 
-        Debug.Log($"Spawning novas cartas em: {currentSpawnPosition}");
+        Debug.Log($"Spawning novas cartas em: {currentSpawnPosition} (layout vertical)");
         SpawnRandomCards();
         Debug.Log("========== CardManager: OnGameStart Completo ==========");
     }
@@ -139,6 +153,22 @@ public class CardManager : MonoBehaviour
             CardDisplay display = card.GetComponent<CardDisplay>();
             return display != null && (display.isInHand || display.isOnBoard);
         });
+    }
+
+    public void DestroyAllCards()
+    {
+        Debug.Log($"Destruindo TODAS as cartas ({spawnedCards.Count} cartas)...");
+
+        foreach (GameObject card in spawnedCards)
+        {
+            if (card != null)
+            {
+                Destroy(card);
+            }
+        }
+
+        spawnedCards.Clear();
+        Debug.Log("Todas as cartas foram destruídas!");
     }
 
     public GameObject SpawnCard(Card card, Vector3 position)

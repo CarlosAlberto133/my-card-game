@@ -163,6 +163,10 @@ public class TurnManager : MonoBehaviour
             currentRound++;
             Debug.Log($"Round {currentRound} iniciado!");
 
+            // Ambos jogadores ganham 3 de ouro (máximo 10)
+            player1.AddGold(3);
+            player2.AddGold(3);
+
             // Refresh das cartas na loja
             if (CardManager.Instance != null)
             {
@@ -174,5 +178,77 @@ public class TurnManager : MonoBehaviour
     public bool IsPlayerTurn(int playerNum)
     {
         return currentPlayerNumber == playerNum;
+    }
+
+    public bool TryResetStore()
+    {
+        PlayerData currentPlayer = GetCurrentPlayer();
+
+        // Determinar custo baseado no estado do jogo
+        int cost = gameState == GameState.Lobby ? 1 : 2;
+
+        // Tenta pagar pelo reset
+        if (!currentPlayer.PayForStoreReset(cost))
+        {
+            return false;
+        }
+
+        // Reset bem-sucedido, atualizar loja
+        if (CardManager.Instance != null)
+        {
+            CardManager.Instance.RefreshShop();
+            Debug.Log($"Loja resetada! Custo: {cost} ouro");
+        }
+        else
+        {
+            Debug.LogError("CardManager não encontrado!");
+            return false;
+        }
+
+        return true;
+    }
+
+    public void RestartGame()
+    {
+        Debug.Log("========== REINICIANDO JOGO ==========");
+
+        // Resetar dados dos jogadores
+        player1 = new PlayerData("Jogador 1");
+        player2 = new PlayerData("Jogador 2");
+
+        // Resetar estado do jogo
+        gameState = GameState.Lobby;
+        currentRound = 0;
+        currentPlayerNumber = 1;
+
+        // Resetar flags
+        player1Ready = false;
+        player2Ready = false;
+
+        // Limpar todas as cartas do jogo
+        if (CardManager.Instance != null)
+        {
+            CardManager.Instance.DestroyAllCards();
+        }
+
+        // Limpar o tabuleiro
+        if (BoardManager.Instance != null)
+        {
+            BoardManager.Instance.ClearAllTiles();
+        }
+
+        // Esconder tela de vitória
+        if (GameUIManager.Instance != null)
+        {
+            GameUIManager.Instance.HideVictoryScreen();
+        }
+
+        // Spawnar novas cartas na loja
+        if (CardManager.Instance != null)
+        {
+            CardManager.Instance.SpawnRandomCards();
+        }
+
+        Debug.Log("========== JOGO REINICIADO - AGUARDANDO NO LOBBY ==========");
     }
 }

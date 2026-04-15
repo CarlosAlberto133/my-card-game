@@ -2,6 +2,8 @@ using UnityEngine;
 
 public class BoardManager : MonoBehaviour
 {
+    public static BoardManager Instance { get; private set; }
+
     [Header("Configurações do Tabuleiro")]
     public int rows = 12;
     public int columns = 12;
@@ -12,6 +14,19 @@ public class BoardManager : MonoBehaviour
     public GameObject tilePrefab;
 
     private CardTile[,] board;
+
+    void Awake()
+    {
+        // Singleton pattern
+        if (Instance == null)
+        {
+            Instance = this;
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
 
     void Start()
     {
@@ -136,5 +151,27 @@ public class BoardManager : MonoBehaviour
             return board[row, column];
         }
         return null;
+    }
+
+    // Limpa todas as cartas dos tiles
+    public void ClearAllTiles()
+    {
+        if (board == null) return;
+
+        int clearedCount = 0;
+        for (int row = 0; row < rows; row++)
+        {
+            for (int col = 0; col < columns; col++)
+            {
+                CardTile tile = board[row, col];
+                if (tile != null && tile.occupiedCard != null)
+                {
+                    tile.occupiedCard = null;
+                    clearedCount++;
+                }
+            }
+        }
+
+        Debug.Log($"BoardManager: {clearedCount} tiles limpos!");
     }
 }
