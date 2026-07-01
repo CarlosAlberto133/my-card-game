@@ -10,13 +10,14 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ba925473684ce5541bf2232ed40aba18, type: 3}
-  m_Name: Tank tier 3
+  m_Name: Tank-tier-4.4.4
   m_EditorClassIdentifier: Assembly-CSharp::Card
-  cardName: Tank 3
+  cardName: Tank tier 4
   cardClass: 0
-  tier: 3
-  artwork: {fileID: 0}
-  attack: 5
-  shield: 4
-  health: 7
-  effectDescription: 
+  tier: 4
+  artwork: {fileID: 21300000, guid: c886171dcf21a9e4aa5b924422a5805d, type: 3}
+  attack: 2
+  shield: 3
+  health: 5
+  effectDescription: Se houver as 4 classes em campo, arqueiros podem atacar 2 vezes
+    por turno

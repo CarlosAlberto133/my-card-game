@@ -1539,7 +1539,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 84f202ccaf22e344c86039989f9ca9db, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CardManager
-  cardPrefab: {fileID: 7137003910048764735, guid: 4e4bfecb02dae7b41a0317cd7a02a6ef, type: 3}
+  cardPrefab: {fileID: 8629520214530007932, guid: 4e4bfecb02dae7b41a0317cd7a02a6ef, type: 3}
   cardPool: {fileID: 2032493786}
   numberOfCards: 5
   centerPosition: {x: 0, y: 1.5, z: 0}

@@ -31,8 +31,11 @@ public class CardDisplay : MonoBehaviour
     public TextMeshPro shieldText;
     public TextMeshPro healthText;
     public TextMeshPro tierText;
+    public TextMeshPro effectText;
+    public TextMeshPro classText;
     public Renderer artworkRenderer;
     public Renderer backgroundRenderer;
+    public Renderer tierBarRenderer;
 
     [Header("Cores por Classe")]
     public Color tankColor = new Color(0.7f, 0.7f, 0.7f); // Cinza
@@ -159,6 +162,24 @@ public class CardDisplay : MonoBehaviour
             Transform bgTransform = transform.Find("Background");
             if (bgTransform != null) backgroundRenderer = bgTransform.GetComponent<Renderer>();
         }
+
+        if (effectText == null)
+        {
+            Transform t = transform.Find("EffectText");
+            if (t != null) effectText = t.GetComponent<TextMeshPro>();
+        }
+
+        if (classText == null)
+        {
+            Transform t = transform.Find("ClassText");
+            if (t != null) classText = t.GetComponent<TextMeshPro>();
+        }
+
+        if (tierBarRenderer == null)
+        {
+            Transform t = transform.Find("TierBar");
+            if (t != null) tierBarRenderer = t.GetComponent<Renderer>();
+        }
     }
 
     public void SetCard(Card newCard)
@@ -173,6 +194,8 @@ public class CardDisplay : MonoBehaviour
             currentAttack = card.attack;
         }
 
+        // Garante que os campos estão atribuídos mesmo se Start() ainda não rodou
+        AutoAssignElements();
         UpdateCardDisplay();
     }
 
@@ -182,24 +205,130 @@ public class CardDisplay : MonoBehaviour
 
         // Atualiza textos usando stats atuais (não os base)
         if (cardNameText != null) cardNameText.text = card.cardName;
-        if (attackText != null) attackText.text = currentAttack.ToString("00");
-        if (shieldText != null) shieldText.text = currentShield.ToString("00");
-        if (healthText != null) healthText.text = currentHealth.ToString("00");
+        // Sem zero à esquerda e sem quebra de linha: a caixa é estreita e o formato
+        // "00" partia o número em duas linhas (0 em cima, dígito real em baixo),
+        // dando a ilusão de duas filas de stats.
+        if (attackText != null)
+        {
+            attackText.textWrappingMode = TextWrappingModes.NoWrap;
+            attackText.text = currentAttack.ToString();
+        }
+        if (shieldText != null)
+        {
+            shieldText.textWrappingMode = TextWrappingModes.NoWrap;
+            shieldText.text = currentShield.ToString();
+        }
+        if (healthText != null)
+        {
+            healthText.textWrappingMode = TextWrappingModes.NoWrap;
+            healthText.text = currentHealth.ToString();
+        }
         if (tierText != null) tierText.text = ((int)card.tier).ToString();
 
         // Atualiza artwork
         if (artworkRenderer != null && card.artwork != null)
         {
-            // Cria um material com a textura do sprite
-            Material artworkMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            Shader artShader = Shader.Find("Unlit/Texture")
+                            ?? Shader.Find("Universal Render Pipeline/Unlit")
+                            ?? Shader.Find("Standard");
+            Material artworkMat = new Material(artShader);
             artworkMat.mainTexture = card.artwork.texture;
+            artworkMat.SetTexture("_BaseMap", card.artwork.texture); // URP
+            // O quad do Artwork já é criado com rotação Euler(90,0,180) que orienta a
+            // imagem corretamente. Não invertemos o V aqui para não duplicar a inversão
+            // (isso deixava a foto de cabeça para baixo).
+            artworkMat.mainTextureScale = new Vector2(1, 1);
+            artworkMat.mainTextureOffset = new Vector2(0, 0);
+            artworkMat.SetTextureScale("_BaseMap", new Vector2(1, 1));   // URP
+            artworkMat.SetTextureOffset("_BaseMap", new Vector2(0, 0));  // URP
             artworkRenderer.material = artworkMat;
         }
 
         // Atualiza cor de fundo baseado na classe
         if (backgroundRenderer != null)
         {
-            backgroundRenderer.material.color = GetClassColor(card.cardClass);
+            Color classColor = GetClassColor(card.cardClass);
+            backgroundRenderer.material.color = classColor;
+            backgroundRenderer.material.SetColor("_BaseColor", classColor);
+        }
+
+        // Atualiza texto de efeito
+        if (effectText != null)
+        {
+            effectText.text = string.IsNullOrEmpty(card.effectDescription) ? "Sem efeito" : card.effectDescription;
+        }
+
+        // Atualiza texto de classe
+        if (classText != null)
+        {
+            classText.text = card.cardClass.ToString();
+        }
+
+        // Atualiza cor da barra de tier
+        if (tierBarRenderer != null)
+        {
+            Color tierColor = GetTierColor(card.tier);
+            tierBarRenderer.material.color = tierColor;
+            tierBarRenderer.material.SetColor("_BaseColor", tierColor);
+        }
+
+        // Aplica as cores dos quads estáticos (corrige shaders URP em runtime)
+        ApplyCardTheme();
+    }
+
+    // Define a cor dos quads estáticos que não mudam por carta
+    void ApplyCardTheme()
+    {
+        SetQuadColor("Border", new Color(0.06f, 0.06f, 0.10f));
+        SetQuadColor("NameHeader", new Color(0.18f, 0.18f, 0.28f));
+        SetQuadColor("EffectBackground", new Color(0.22f, 0.22f, 0.32f));
+        SetQuadColor("StatsBackground", new Color(0.16f, 0.16f, 0.24f));
+        SetQuadColor("StatsDivider1", new Color(0.35f, 0.35f, 0.55f));
+        SetQuadColor("StatsDivider2", new Color(0.35f, 0.35f, 0.55f));
+        // Artwork cinza enquanto não há imagem
+        if (artworkRenderer == null || card.artwork == null)
+            SetQuadColor("Artwork", new Color(0.28f, 0.28f, 0.28f));
+
+        // Oculta TextMeshPro filhos com nomes não reconhecidos (labels de prefabs antigos)
+        // Usa comparação por nome para não depender dos campos estarem preenchidos
+        foreach (Transform child in transform)
+        {
+            if (child.GetComponent<TextMeshPro>() == null) continue;
+            string n = child.name;
+            if (n == "CardNameText" || n == "AttackText" || n == "ShieldText" ||
+                n == "HealthText" || n == "TierText" || n == "EffectText" ||
+                n == "ClassText") continue;
+            child.gameObject.SetActive(false);
+        }
+    }
+
+    void HideChild(string childName)
+    {
+        Transform t = transform.Find(childName);
+        if (t != null) t.gameObject.SetActive(false);
+    }
+
+    void SetQuadColor(string childName, Color color)
+    {
+        Transform t = transform.Find(childName);
+        if (t == null) return;
+        Renderer r = t.GetComponent<Renderer>();
+        if (r == null) return;
+        r.material.color = color;
+        r.material.SetColor("_BaseColor", color);
+        r.material.SetColor("_Color", color);
+    }
+
+    Color GetTierColor(CardTier tier)
+    {
+        switch (tier)
+        {
+            case CardTier.Tier1: return new Color(0.55f, 0.55f, 0.55f);  // Prata
+            case CardTier.Tier2: return new Color(0.80f, 0.65f, 0.00f);  // Dourado
+            case CardTier.Tier3: return new Color(1.00f, 0.55f, 0.00f);  // Laranja
+            case CardTier.Tier4: return new Color(0.55f, 0.00f, 1.00f);  // Roxo
+            case CardTier.Tier5: return new Color(0.86f, 0.08f, 0.24f);  // Carmesim
+            default: return Color.gray;
         }
     }
 

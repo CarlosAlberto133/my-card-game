@@ -42,6 +42,88 @@ public class GameManager : MonoBehaviour
         {
             TryAttackTower();
         }
+
+        // Detecta clique "para frente" além do tabuleiro para atacar a torre
+        if (isMovingCard && selectedCardDisplay != null &&
+            UnityEngine.InputSystem.Mouse.current != null &&
+            UnityEngine.InputSystem.Mouse.current.leftButton.wasPressedThisFrame)
+        {
+            CheckForwardClickAttack();
+        }
+    }
+
+    // Detecta se o jogador clicou além da última linha (sentido de avanço) para atacar a torre
+    void CheckForwardClickAttack()
+    {
+        if (selectedCardDisplay == null || currentTile == null || boardManager == null) return;
+
+        int totalRows = boardManager.rows;
+        int playerNum = selectedCardDisplay.ownerPlayerNumber;
+
+        // Só age se a carta estiver na última linha do lado adversário
+        bool isAtLastRow = (playerNum == 1 && currentTile.row == totalRows - 1) ||
+                           (playerNum == 2 && currentTile.row == 0);
+        if (!isAtLastRow) return;
+
+        // Obtém a posição do clique no mundo (plano Y = 0)
+        Vector3 worldClick = GetMouseWorldPosition();
+        if (worldClick == Vector3.zero) return;
+
+        // Calcula os limites Z do tabuleiro
+        float totalDepth = (boardManager.rows * boardManager.tileSize) +
+                           ((boardManager.rows - 1) * boardManager.tileSpacing);
+        float halfDepth = totalDepth / 2f;
+        float boardCenterZ = boardManager.transform.position.z;
+
+        // Verifica se o clique ficou além da borda do tabuleiro no sentido de avanço
+        bool clickedBeyondBoard = (playerNum == 1 && worldClick.z > boardCenterZ + halfDepth) ||
+                                  (playerNum == 2 && worldClick.z < boardCenterZ - halfDepth);
+
+        if (clickedBeyondBoard)
+        {
+            Debug.Log($"[CheckForwardClickAttack] Clique além do tabuleiro detectado! Atacando torre adversária...");
+            TryAttackTower();
+        }
+    }
+
+    // Converte a posição do mouse para coordenadas de mundo no plano do chão (Y = 0)
+    Vector3 GetMouseWorldPosition()
+    {
+        Camera cam = GetCameraForMousePosition();
+        if (cam == null) return Vector3.zero;
+
+        Vector2 mousePos = UnityEngine.InputSystem.Mouse.current.position.ReadValue();
+        Ray ray = cam.ScreenPointToRay(mousePos);
+        Plane groundPlane = new Plane(Vector3.up, Vector3.zero);
+
+        if (groundPlane.Raycast(ray, out float distance))
+        {
+            return ray.GetPoint(distance);
+        }
+        return Vector3.zero;
+    }
+
+    // Retorna a câmera que está renderizando a área onde o mouse está (suporte a split screen)
+    Camera GetCameraForMousePosition()
+    {
+        Vector2 mousePos = UnityEngine.InputSystem.Mouse.current.position.ReadValue();
+
+        foreach (Camera cam in Camera.allCameras)
+        {
+            if (!cam.enabled) continue;
+            Rect viewRect = cam.rect;
+            float minX = viewRect.x * Screen.width;
+            float maxX = (viewRect.x + viewRect.width) * Screen.width;
+            float minY = viewRect.y * Screen.height;
+            float maxY = (viewRect.y + viewRect.height) * Screen.height;
+
+            if (mousePos.x >= minX && mousePos.x <= maxX &&
+                mousePos.y >= minY && mousePos.y <= maxY)
+            {
+                return cam;
+            }
+        }
+        return Camera.main;
     }
 
     // Seleciona uma carta da mão para colocar no tabuleiro
