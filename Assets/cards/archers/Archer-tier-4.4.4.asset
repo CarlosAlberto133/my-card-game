@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ba925473684ce5541bf2232ed40aba18, type: 3}
+  m_Name: Archer-tier-4.4.4
+  m_EditorClassIdentifier: Assembly-CSharp::Card
+  cardName: Archer 4
+  cardClass: 3
+  tier: 4
+  artwork: {fileID: 21300000, guid: 4c9f943a8779d9f4aa178ff1283fccff, type: 3}
+  attack: 7
+  shield: 0
+  health: 3
+  effectDescription: "Sempre que voc\xEA matar um alvo, fa\xE7a uma c\xF3pia de si
+    mesma. Caso tenha um tanque em campo, se movimente novamente"

@@ -3,9 +3,11 @@ using UnityEngine.InputSystem;
 
 public class CameraController : MonoBehaviour
 {
-    [Header("Configurações de Movimento")]
+    [Header("Movimento (legado - não usado)")]
+    // A câmera agora move-se arrastando com o botão esquerdo (ver HandleDragPan).
+    // Estes campos ficam apenas para compatibilidade com o SplitScreenManager.
     public float moveSpeed = 10f;
-    public float edgeSize = 20f; // Pixels de distância da borda para ativar movimento
+    public float edgeSize = 20f;
 
     [Header("Configurações de Zoom")]
     public float zoomSpeed = 1f;
@@ -33,12 +35,19 @@ public class CameraController : MonoBehaviour
         }
     }
 
+    // Estado do arrasto da câmera (botão esquerdo)
+    private bool isDragging = false;
+    private Vector3 dragOrigin; // ponto do tabuleiro "agarrado" no início do arrasto
+
     void Update()
     {
-        // Só processa input se o mouse estiver na área desta câmera
+        // Arrastar segurando o botão esquerdo move a câmera.
+        // Um clique parado não move nada, por isso selecionar/atacar cartas continua a funcionar.
+        HandleDragPan();
+
+        // Zoom com o scroll, apenas quando o rato está sobre esta câmera
         if (IsMouseInViewport())
         {
-            MoveCameraWithMouse();
             HandleZoom();
         }
     }
@@ -62,58 +71,66 @@ public class CameraController : MonoBehaviour
                mousePosition.y >= viewportMinY && mousePosition.y <= viewportMaxY;
     }
 
-    void MoveCameraWithMouse()
+    // Move a câmera arrastando com o botão esquerdo: o ponto do tabuleiro
+    // agarrado no início fica "colado" ao cursor enquanto se arrasta.
+    void HandleDragPan()
     {
-        // Verifica se o mouse existe (necessário para novo Input System)
         if (Mouse.current == null || cam == null)
             return;
 
-        Vector3 movement = Vector3.zero;
-        Vector2 mousePosition = Mouse.current.position.ReadValue();
-
-        // Calcula os limites do viewport desta câmera
-        Rect viewportRect = cam.rect;
-        float viewportMinX = viewportRect.x * Screen.width;
-        float viewportMaxX = (viewportRect.x + viewportRect.width) * Screen.width;
-        float viewportMinY = viewportRect.y * Screen.height;
-        float viewportMaxY = (viewportRect.y + viewportRect.height) * Screen.height;
-
-        // Verifica borda esquerda (relativa ao viewport)
-        if (mousePosition.x < viewportMinX + edgeSize)
+        // Inicia o arrasto ao premir o botão esquerdo dentro desta viewport
+        if (Mouse.current.leftButton.wasPressedThisFrame && IsMouseInViewport())
         {
-            movement.x = -1;
-        }
-        // Verifica borda direita (relativa ao viewport)
-        else if (mousePosition.x > viewportMaxX - edgeSize)
-        {
-            movement.x = 1;
-        }
-
-        // Verifica borda inferior (relativa ao viewport)
-        if (mousePosition.y < viewportMinY + edgeSize)
-        {
-            movement.z = -1;
-        }
-        // Verifica borda superior (relativa ao viewport)
-        else if (mousePosition.y > viewportMaxY - edgeSize)
-        {
-            movement.z = 1;
-        }
-
-        // Aplica o movimento (no plano XZ para câmera top-down)
-        if (movement != Vector3.zero)
-        {
-            Vector3 newPosition = transform.position + movement * moveSpeed * Time.deltaTime;
-
-            // Aplica limites se habilitado
-            if (useLimits)
+            if (TryGetGroundPoint(out Vector3 startPoint))
             {
-                newPosition.x = Mathf.Clamp(newPosition.x, minX, maxX);
-                newPosition.z = Mathf.Clamp(newPosition.z, minZ, maxZ);
+                dragOrigin = startPoint;
+                isDragging = true;
             }
-
-            transform.position = newPosition;
         }
+
+        // Termina o arrasto quando o botão é solto
+        if (Mouse.current.leftButton.wasReleasedThisFrame)
+        {
+            isDragging = false;
+        }
+
+        // Enquanto arrasta, move a câmera para manter o ponto agarrado sob o cursor
+        if (isDragging && Mouse.current.leftButton.isPressed)
+        {
+            if (TryGetGroundPoint(out Vector3 currentPoint))
+            {
+                Vector3 diff = dragOrigin - currentPoint;
+                diff.y = 0f;
+
+                Vector3 newPosition = transform.position + diff;
+
+                // Aplica limites se habilitado
+                if (useLimits)
+                {
+                    newPosition.x = Mathf.Clamp(newPosition.x, minX, maxX);
+                    newPosition.z = Mathf.Clamp(newPosition.z, minZ, maxZ);
+                }
+
+                transform.position = newPosition;
+            }
+        }
+    }
+
+    // Devolve o ponto onde o cursor toca o plano do chão (Y = 0)
+    bool TryGetGroundPoint(out Vector3 point)
+    {
+        point = Vector3.zero;
+
+        Vector2 mousePosition = Mouse.current.position.ReadValue();
+        Ray ray = cam.ScreenPointToRay(mousePosition);
+        Plane groundPlane = new Plane(Vector3.up, Vector3.zero);
+
+        if (groundPlane.Raycast(ray, out float distance))
+        {
+            point = ray.GetPoint(distance);
+            return true;
+        }
+        return false;
     }
 
     void HandleZoom()

@@ -43,9 +43,18 @@ public class CardPool : MonoBehaviour
     {
         cardPool.Clear();
         int instanceIdCounter = 0;
+        int skipped = 0;
 
         foreach (Card card in allBaseCards)
         {
+            // Ignora slots vazios e cartas ainda por preencher (template sem tier válido ou sem nome).
+            // Assim, cartas por acabar não aparecem em branco na loja.
+            if (card == null || (int)card.tier < 1 || (int)card.tier > 5 || string.IsNullOrWhiteSpace(card.cardName))
+            {
+                skipped++;
+                continue;
+            }
+
             // Define quantas cópias criar baseado no tier
             int copies = (card.tier == CardTier.Tier5) ? tier5Copies : copiesPerCard;
 
@@ -59,7 +68,7 @@ public class CardPool : MonoBehaviour
         }
 
         Debug.Log($"Card Pool inicializado com {cardPool.Count} cartas totais");
-        Debug.Log($"- Cartas base: {allBaseCards.Count}");
+        Debug.Log($"- Cartas base atribuídas: {allBaseCards.Count} (ignoradas por preencher: {skipped})");
         Debug.Log($"- Tier 1-4: {copiesPerCard} cópias cada");
         Debug.Log($"- Tier 5: {tier5Copies} cópia cada");
     }
