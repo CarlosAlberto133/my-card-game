@@ -15,6 +15,8 @@ public class CardDisplay : MonoBehaviour
     public int ownerPlayerNumber = 0; // 0 = sem dono (loja), 1 = Player1, 2 = Player2
     public int lastMovedRound = -1; // Em qual round a carta se moveu pela última vez (-1 = nunca)
     public int lastAttackedRound = -1; // Em qual round a carta atacou pela última vez (-1 = nunca)
+    public bool treeDefenseUsed = false; // Archer efeito 4: já usou o dodge de árvore
+    public bool isInvulnerable = false; // Archer efeito 4: fica intangível por 1 turno
 
     // Stats atuais (mudam durante o jogo)
     public int currentHealth;
@@ -721,6 +723,13 @@ public class CardDisplay : MonoBehaviour
     // Recebe dano (primeiro absorve no escudo, depois na vida)
     public void TakeDamage(int damage)
     {
+        // Se está intangível, ignora dano
+        if (isInvulnerable)
+        {
+            Debug.Log($"[Invulnerável] {card.cardName} está intangível - dano ignorado");
+            return;
+        }
+
         // Primeiro o escudo absorve o dano
         if (currentShield > 0)
         {
@@ -739,7 +748,7 @@ public class CardDisplay : MonoBehaviour
         UpdateCardDisplay();
 
         // Se um Healer toma dano, aplica efeito do Mago
-        if (card.cardClass == CardClass.Healer && ownerPlayerNumber != 0)
+        if (card.cardClass == CardClass.Healer && ownerPlayerNumber != 0 && !isInvulnerable)
         {
             ApplyMageEffect();
         }
@@ -768,5 +777,28 @@ public class CardDisplay : MonoBehaviour
 
         Debug.Log($"Carta '{card.cardName}' destruída!");
         Destroy(gameObject);
+    }
+
+    // Cria uma cópia da carta em um tile específico
+    public CardDisplay SpawnCardCopy(CardTile targetTile)
+    {
+        if (card == null || targetTile == null) return null;
+
+        CardManager cardManager = CardManager.Instance;
+        if (cardManager == null) return null;
+
+        // Spawna a cópia usando CardManager
+        CardDisplay copiedCard = cardManager.SpawnCardOnTile(card, targetTile, ownerPlayerNumber);
+
+        if (copiedCard != null)
+        {
+            // Copia os stats atuais da carta original
+            copiedCard.currentHealth = currentHealth;
+            copiedCard.currentAttack = currentAttack;
+            copiedCard.currentShield = currentShield;
+            copiedCard.UpdateDisplay();
+        }
+
+        return copiedCard;
     }
 }

@@ -222,4 +222,28 @@ public class CardManager : MonoBehaviour
         }
         return null;
     }
+
+    // Spawna uma carta em um tile específico
+    public CardDisplay SpawnCardOnTile(Card card, CardTile tile, int ownerPlayerNumber)
+    {
+        if (card == null || tile == null) return null;
+
+        GameObject cardObject = SpawnCard(card, tile.transform.position);
+        if (cardObject == null) return null;
+
+        CardDisplay cardDisplay = cardObject.GetComponent<CardDisplay>();
+        if (cardDisplay != null)
+        {
+            // Coloca a carta no tile
+            tile.PlaceCard(cardObject);
+            cardDisplay.currentTile = tile;
+            cardDisplay.isOnBoard = true;
+            cardDisplay.ownerPlayerNumber = ownerPlayerNumber;
+
+            // Aplica o efeito de entrada em campo
+            cardDisplay.ApplyCardEffect();
+        }
+
+        return cardDisplay;
+    }
 }

@@ -219,4 +219,54 @@ public class BoardManager : MonoBehaviour
     {
         return CountCardsByClass(ownerPlayerNumber, cardClass) > 0;
     }
+
+    // Retorna um tile adjacente em uma direção específica
+    public CardTile GetAdjacentTile(CardTile fromTile, string direction, int ownerPlayerNumber)
+    {
+        if (fromTile == null || board == null) return null;
+
+        int row = fromTile.row;
+        int col = fromTile.column;
+
+        // Determina a direção baseado no dono (P1 = bottom to top, P2 = top to bottom)
+        int rowOffset = 0;
+        if (direction == "forward")
+        {
+            rowOffset = (ownerPlayerNumber == 1) ? -1 : 1;
+        }
+
+        int newRow = row + rowOffset;
+
+        // Verifica limites
+        if (newRow < 0 || newRow >= rows || col < 0 || col >= columns)
+            return null;
+
+        return board[newRow, col];
+    }
+
+    // Encontra um tile vazio adjacente para spawnar cópia
+    public CardTile FindAdjacentEmptyTile(CardTile fromTile, int ownerPlayerNumber)
+    {
+        if (fromTile == null || board == null) return null;
+
+        int row = fromTile.row;
+        int col = fromTile.column;
+
+        // Tenta encontrar um tile vazio nas adjacências (esquerda, direita, frente)
+        int[] colOffsets = { -1, 1, 0 };
+
+        foreach (int colOffset in colOffsets)
+        {
+            int newCol = col + colOffset;
+            if (newCol < 0 || newCol >= columns) continue;
+
+            CardTile tile = board[row, newCol];
+            if (tile != null && !tile.IsOccupied())
+            {
+                return tile;
+            }
+        }
+
+        return null;
+    }
 }
