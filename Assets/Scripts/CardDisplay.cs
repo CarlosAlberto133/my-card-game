@@ -80,7 +80,6 @@ public class CardDisplay : MonoBehaviour
                     // Botão direito do mouse ou tecla A para atacar
                     if (mouse.rightButton.wasPressedThisFrame || keyboard.aKey.wasPressedThisFrame)
                     {
-                        Debug.Log($"Tentando atacar com {card.cardName}!");
                         AttackAdjacentEnemy();
                     }
                 }
@@ -100,22 +99,9 @@ public class CardDisplay : MonoBehaviour
     // Verifica se a carta pode atacar neste round
     public bool CanAttackThisRound()
     {
-        if (TurnManager.Instance == null)
-        {
-            Debug.Log($"{card.cardName}: TurnManager é null, permitindo ataque");
-            return true;
-        }
-
-        if (!isOnBoard)
-        {
-            Debug.Log($"{card.cardName}: Não está no tabuleiro, não pode atacar");
-            return false;
-        }
-
-        bool canAttack = lastAttackedRound < TurnManager.Instance.currentRound;
-        Debug.Log($"{card.cardName}: lastAttackedRound={lastAttackedRound}, currentRound={TurnManager.Instance.currentRound}, canAttack={canAttack}");
-
-        return canAttack;
+        if (TurnManager.Instance == null) return true;
+        if (!isOnBoard) return false;
+        return lastAttackedRound < TurnManager.Instance.currentRound;
     }
 
     void AutoAssignElements()
@@ -196,6 +182,52 @@ public class CardDisplay : MonoBehaviour
 
         // Garante que os campos estão atribuídos mesmo se Start() ainda não rodou
         AutoAssignElements();
+        UpdateCardDisplay();
+    }
+
+    public void ApplyCardEffect(string effectType = "")
+    {
+        if (card == null) return;
+
+        CardEffectSimple effect = GetComponent<CardEffectSimple>();
+        if (effect == null) return;
+
+        if (card.cardClass == CardClass.Arqueiro)
+            effect.ArcherEffect();
+        else if (card.cardClass == CardClass.Healer)
+            effect.HealerEffect();
+        else if (card.cardClass == CardClass.Mago)
+        {
+            // Mage precisa saber qual healer tomou dano - deixa para depois
+            // effect.MageEffect(healerThatTookDamage);
+        }
+        else if (card.cardClass == CardClass.Tank)
+            effect.TankEffect();
+    }
+
+    void ApplyMageEffect()
+    {
+        // Quando um Healer toma dano, todos os Magos aliados aplicam efeito
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        var alliedMages = board.GetCardsByOwner(ownerPlayerNumber)
+            .FindAll(c => c.card.cardClass == CardClass.Mago);
+
+        foreach (var mage in alliedMages)
+        {
+            CardEffectSimple effect = mage.GetComponent<CardEffectSimple>();
+            if (effect != null)
+            {
+                effect.MageEffect(this);
+            }
+        }
+
+        Debug.Log($"[MageEffect Trigger] {card.cardName} tomou dano - {alliedMages.Count} mago(s) aliado(s) ativou(aram) efeito");
+    }
+
+    public void UpdateDisplay()
+    {
         UpdateCardDisplay();
     }
 
@@ -391,14 +423,12 @@ public class CardDisplay : MonoBehaviour
                 // Carta inimiga clicada - tenta atacar se houver uma carta selecionada
                 if (GameManager.Instance != null && GameManager.Instance.HasSelectedCard())
                 {
-                    Debug.Log($"Tentando atacar carta inimiga {card.cardName}!");
                     GameManager.Instance.TryAttackEnemyCard(this);
                     return;
                 }
                 else
                 {
-                    Debug.Log($"Esta carta pertence ao Jogador {ownerPlayerNumber}! Você é o Jogador {currentPlayerNumber}.");
-                    return; // Bloqueia a interação
+                    return;
                 }
             }
         }
@@ -456,7 +486,6 @@ public class CardDisplay : MonoBehaviour
                     {
                         transform.localScale = originalScale; // Reseta o tamanho
                     }
-                    Debug.Log($"Carta '{card.cardName}' adicionada à mão!");
                 }
             }
             else
@@ -491,7 +520,6 @@ public class CardDisplay : MonoBehaviour
         // Verifica se o jogador já comprou sua carta neste turno
         if (!currentPlayer.CanBuyCard())
         {
-            Debug.Log($"{currentPlayer.playerName} já comprou 1 carta neste turno!");
             return;
         }
 
@@ -500,7 +528,6 @@ public class CardDisplay : MonoBehaviour
         // Verifica se o jogador tem ouro suficiente
         if (!currentPlayer.HasEnoughGold(cost))
         {
-            Debug.Log($"{currentPlayer.playerName} não tem ouro suficiente! Precisa de {cost}, tem {currentPlayer.gold}");
             return;
         }
 
@@ -525,7 +552,6 @@ public class CardDisplay : MonoBehaviour
                 {
                     transform.localScale = originalScale;
                 }
-                Debug.Log($"{currentPlayer.playerName} comprou '{card.cardName}' por {cost} ouro! Ouro restante: {currentPlayer.gold}");
             }
         }
         else
@@ -616,7 +642,6 @@ public class CardDisplay : MonoBehaviour
             return enemies;
         }
 
-        Debug.Log($"{card.cardName}: Verificando inimigos adjacentes. Posição: [{currentTile.row},{currentTile.column}], Owner: {ownerPlayerNumber}");
 
         // Verifica os 4 tiles adjacentes (cima, baixo, esquerda, direita)
         int[][] directions = new int[][]
@@ -638,30 +663,25 @@ public class CardDisplay : MonoBehaviour
                 CardDisplay enemyCard = adjacentTile.occupiedCard.GetComponent<CardDisplay>();
                 if (enemyCard != null)
                 {
-                    Debug.Log($"  Carta adjacente em [{newRow},{newCol}]: {enemyCard.card.cardName}, Owner: {enemyCard.ownerPlayerNumber}");
 
                     if (enemyCard.ownerPlayerNumber != ownerPlayerNumber && enemyCard.ownerPlayerNumber != 0)
                     {
                         enemies.Add(enemyCard);
-                        Debug.Log($"    -> Adicionada como inimiga!");
                     }
                 }
             }
         }
 
-        Debug.Log($"{card.cardName}: Total de inimigos encontrados: {enemies.Count}");
         return enemies;
     }
 
     // Ataca a primeira carta inimiga adjacente encontrada
     public bool AttackAdjacentEnemy()
     {
-        Debug.Log($"=== AttackAdjacentEnemy chamado para {card.cardName} ===");
 
         // Verifica se pode atacar
         if (!CanAttackThisRound())
         {
-            Debug.Log($"{card.cardName} já atacou neste round!");
             return false;
         }
 
@@ -670,7 +690,6 @@ public class CardDisplay : MonoBehaviour
 
         if (enemies.Count == 0)
         {
-            Debug.Log($"{card.cardName} não tem inimigos adjacentes para atacar!");
             return false;
         }
 
@@ -678,7 +697,6 @@ public class CardDisplay : MonoBehaviour
         CardDisplay target = enemies[0];
         int damageDealt = currentAttack;
 
-        Debug.Log($">>> {card.cardName} (ATK:{currentAttack}) ataca {target.card.cardName} (HP:{target.currentHealth}, Shield:{target.currentShield}) causando {damageDealt} de dano!");
 
         target.TakeDamage(damageDealt);
 
@@ -686,40 +704,49 @@ public class CardDisplay : MonoBehaviour
         if (TurnManager.Instance != null)
         {
             lastAttackedRound = TurnManager.Instance.currentRound;
-            Debug.Log($"{card.cardName} atacou no round {TurnManager.Instance.currentRound}");
         }
 
         return true;
     }
 
+    // Cura a carta
+    public void Heal(int amount, CardDisplay source = null)
+    {
+        currentHealth += amount;
+        if (currentHealth > card.health)
+            currentHealth = card.health;
+        UpdateCardDisplay();
+    }
+
     // Recebe dano (primeiro absorve no escudo, depois na vida)
     public void TakeDamage(int damage)
     {
-        Debug.Log($"{card.cardName} recebeu {damage} de dano! Shield: {currentShield}, Vida: {currentHealth}");
-
         // Primeiro o escudo absorve o dano
         if (currentShield > 0)
         {
             int shieldAbsorbed = Mathf.Min(currentShield, damage);
             currentShield -= shieldAbsorbed;
             damage -= shieldAbsorbed;
-            Debug.Log($"Escudo absorveu {shieldAbsorbed} de dano! Escudo restante: {currentShield}");
         }
 
         // O dano que sobrou vai para a vida
         if (damage > 0)
         {
             currentHealth -= damage;
-            Debug.Log($"{card.cardName} perdeu {damage} de vida! Vida restante: {currentHealth}");
         }
 
         // Atualiza a UI
         UpdateCardDisplay();
 
+        // Se um Healer toma dano, aplica efeito do Mago
+        if (card.cardClass == CardClass.Healer && ownerPlayerNumber != 0)
+        {
+            ApplyMageEffect();
+        }
+
         // Verifica se a carta morreu
         if (currentHealth <= 0)
         {
-            Debug.Log($"{card.cardName} foi destruída!");
             DestroyCard();
         }
     }

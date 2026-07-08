@@ -163,6 +163,12 @@ public class TurnManager : MonoBehaviour
             currentRound++;
             Debug.Log($"Round {currentRound} iniciado!");
 
+            // Checa efeitos periódicos das cartas (como heal do healer a cada 2 rounds)
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.CheckPeriodicCardEffects();
+            }
+
             // Ambos jogadores ganham 3 de ouro (máximo 10)
             player1.AddGold(3);
             player2.AddGold(3);

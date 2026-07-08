@@ -59,11 +59,15 @@ public class CardPool : MonoBehaviour
                 continue;
             }
 
-            // Se testModeOnly está ativo, ignora cartas que não são tier-1
-            if (testModeOnly && card.tier != CardTier.Tier1)
+            // Se testModeOnly está ativo, mostra apenas as 4 cartas com efeito implementado
+            if (testModeOnly)
             {
-                skipped++;
-                continue;
+                bool hasEffect = IsCardWithEffect(card);
+                if (!hasEffect)
+                {
+                    skipped++;
+                    continue;
+                }
             }
 
             // Define quantas cópias criar baseado no tier
@@ -78,11 +82,21 @@ public class CardPool : MonoBehaviour
             }
         }
 
-        string modeText = testModeOnly ? " [MODO TESTE - APENAS TIER-1]" : "";
+        string modeText = testModeOnly ? " [MODO TESTE - APENAS CARTAS COM EFEITO]" : "";
         Debug.Log($"Card Pool inicializado com {cardPool.Count} cartas totais{modeText}");
         Debug.Log($"- Cartas base atribuídas: {allBaseCards.Count} (ignoradas por preencher: {skipped})");
         Debug.Log($"- Tier 1-4: {copiesPerCard} cópias cada");
         Debug.Log($"- Tier 5: {tier5Copies} cópia cada");
+    }
+
+    bool IsCardWithEffect(Card card)
+    {
+        if (card == null) return false;
+
+        return card.cardName == "Tank 1*" ||
+               card.cardName == "Mage 1*" ||
+               card.cardName == "Healer 1*" ||
+               card.cardName == "Archer 1*";
     }
 
     // Retorna todas as cartas disponíveis (não estão no board ou em uso)

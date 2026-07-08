@@ -3,6 +3,7 @@ using UnityEngine;
 public class CardEffectSimple : MonoBehaviour
 {
     CardDisplay cardDisplay;
+    int lastHealerEffectRound = -2; // Rastreia o último round que o efeito foi ativado
 
     void Start()
     {
@@ -20,6 +21,8 @@ public class CardEffectSimple : MonoBehaviour
 
         if (cardDisplay.currentHealth < 0)
             cardDisplay.currentHealth = 0;
+
+        cardDisplay.UpdateDisplay();
 
         Debug.Log($"[ArcherEffect] {cardDisplay.card.cardName}: -2 HP, +1 ATK. HP agora: {cardDisplay.currentHealth}, ATK agora: {cardDisplay.currentAttack}");
     }
@@ -58,6 +61,7 @@ public class CardEffectSimple : MonoBehaviour
             bonus = 2;
 
         healerThatTookDamage.currentAttack += bonus;
+        healerThatTookDamage.UpdateDisplay();
 
         Debug.Log($"[MageEffect] {cardDisplay.card.cardName}: Deu +{bonus} ATK ao {healerThatTookDamage.card.cardName}");
     }
@@ -75,7 +79,26 @@ public class CardEffectSimple : MonoBehaviour
         int bonus = magoCount;
 
         cardDisplay.currentAttack += bonus;
+        cardDisplay.UpdateDisplay();
 
         Debug.Log($"[TankEffect] {cardDisplay.card.cardName}: +{bonus} ATK ({magoCount} magos em campo). ATK agora: {cardDisplay.currentAttack}");
+    }
+
+    // Checa e aplica efeitos periódicos (chamado a cada round)
+    public void CheckPeriodicEffects(int currentRound)
+    {
+        if (cardDisplay == null) return;
+        if (!cardDisplay.isOnBoard) return; // Só funciona se a carta está no tabuleiro
+
+        // Healer: A cada 2 rounds
+        if (cardDisplay.card.cardClass == CardClass.Healer)
+        {
+            // Se passaram pelo menos 2 rounds desde a última ativação
+            if (currentRound - lastHealerEffectRound >= 2)
+            {
+                HealerEffect();
+                lastHealerEffectRound = currentRound;
+            }
+        }
     }
 }

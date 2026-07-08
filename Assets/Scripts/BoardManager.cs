@@ -174,4 +174,49 @@ public class BoardManager : MonoBehaviour
 
         Debug.Log($"BoardManager: {clearedCount} tiles limpos!");
     }
+
+    // Retorna todas as cartas no tabuleiro
+    public System.Collections.Generic.List<CardDisplay> GetAllCards()
+    {
+        var result = new System.Collections.Generic.List<CardDisplay>();
+        if (board == null) return result;
+
+        for (int row = 0; row < rows; row++)
+        {
+            for (int col = 0; col < columns; col++)
+            {
+                CardTile tile = board[row, col];
+                if (tile != null && tile.occupiedCard != null)
+                {
+                    CardDisplay card = tile.occupiedCard.GetComponent<CardDisplay>();
+                    if (card != null) result.Add(card);
+                }
+            }
+        }
+        return result;
+    }
+
+    // Retorna cartas de um jogador específico
+    public System.Collections.Generic.List<CardDisplay> GetCardsByOwner(int ownerPlayerNumber)
+    {
+        var result = new System.Collections.Generic.List<CardDisplay>();
+        foreach (var card in GetAllCards())
+            if (card.ownerPlayerNumber == ownerPlayerNumber) result.Add(card);
+        return result;
+    }
+
+    // Conta cartas de uma classe específica de um jogador
+    public int CountCardsByClass(int ownerPlayerNumber, CardClass cardClass)
+    {
+        int count = 0;
+        foreach (var card in GetCardsByOwner(ownerPlayerNumber))
+            if (card.card.cardClass == cardClass) count++;
+        return count;
+    }
+
+    // Verifica se uma classe tem cartas em campo
+    public bool HasClassOnBoard(int ownerPlayerNumber, CardClass cardClass)
+    {
+        return CountCardsByClass(ownerPlayerNumber, cardClass) > 0;
+    }
 }

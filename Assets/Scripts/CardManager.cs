@@ -189,7 +189,22 @@ public class CardManager : MonoBehaviour
             display.SetCard(card);
         }
 
+        // Adiciona e configura efeitos simples
+        SetupCardEffect(cardObject, card);
+
         return cardObject;
+    }
+
+    void SetupCardEffect(GameObject cardObject, Card card)
+    {
+        CardEffectSimple effect = cardObject.GetComponent<CardEffectSimple>();
+        if (effect == null)
+        {
+            effect = cardObject.AddComponent<CardEffectSimple>();
+        }
+
+        // Aqui você pode adicionar lógica para chamar os efeitos quando apropriado
+        Debug.Log($"[CardEffect] Setup para {card.cardName} ({card.cardClass})");
     }
 
     // Reseta e spawna novas cartas aleatórias

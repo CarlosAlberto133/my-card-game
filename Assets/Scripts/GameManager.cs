@@ -81,7 +81,6 @@ public class GameManager : MonoBehaviour
 
         if (clickedBeyondBoard)
         {
-            Debug.Log($"[CheckForwardClickAttack] Clique além do tabuleiro detectado! Atacando torre adversária...");
             TryAttackTower();
         }
     }
@@ -147,7 +146,6 @@ public class GameManager : MonoBehaviour
         isMovingCard = false;
 
         HighlightValidTiles(); // Destaca tiles válidos/inválidos
-        Debug.Log($"Carta '{cardDisplay.card.cardName}' selecionada da mão. Clique em um tile válido (2 primeiras fileiras) para colocar.");
     }
 
     // Seleciona uma carta que já está no tabuleiro para mover
@@ -187,17 +185,14 @@ public class GameManager : MonoBehaviour
         if (cardDisplay.ownerPlayerNumber == 1 && tile.row == totalRows - 1)
         {
             canAttackTower = true;
-            Debug.Log($"Carta '{cardDisplay.card.cardName}' selecionada. Pressione 'T' para atacar a torre do Jogador 2!");
         }
         else if (cardDisplay.ownerPlayerNumber == 2 && tile.row == 0)
         {
             canAttackTower = true;
-            Debug.Log($"Carta '{cardDisplay.card.cardName}' selecionada. Pressione 'T' para atacar a torre do Jogador 1!");
         }
 
         if (!canAttackTower)
         {
-            Debug.Log($"Carta '{cardDisplay.card.cardName}' selecionada para mover. Clique em um tile adjacente (+) para mover.");
         }
     }
 
@@ -206,7 +201,6 @@ public class GameManager : MonoBehaviour
     {
         if (selectedCard == null || selectedCardDisplay == null)
         {
-            Debug.Log("Nenhuma carta selecionada.");
             return false;
         }
 
@@ -291,7 +285,6 @@ public class GameManager : MonoBehaviour
         // Verifica se o movimento é válido (formato de +)
         if (!IsValidMovement(currentTile, targetTile))
         {
-            Debug.Log("Movimento inválido! Você só pode mover em formato de + (cima, baixo, esquerda, direita).");
             return false;
         }
 
@@ -342,11 +335,9 @@ public class GameManager : MonoBehaviour
         if (TurnManager.Instance != null)
         {
             selectedCardDisplay.lastMovedRound = TurnManager.Instance.currentRound;
-            Debug.Log($"Carta '{selectedCardDisplay.card.cardName}' movida de [{currentTile.row},{currentTile.column}] para [{targetTile.row},{targetTile.column}]. Não poderá se mover novamente neste round.");
         }
         else
         {
-            Debug.Log($"Carta '{selectedCardDisplay.card.cardName}' movida de [{currentTile.row},{currentTile.column}] para [{targetTile.row},{targetTile.column}]");
         }
 
         // Limpa os destaques
@@ -379,7 +370,9 @@ public class GameManager : MonoBehaviour
         selectedCardDisplay.isOnBoard = true;
         selectedCardDisplay.currentTile = tile; // Armazena referência do tile
 
-        Debug.Log($"Carta '{selectedCardDisplay.card.cardName}' colocada no tile [{tile.row}, {tile.column}]");
+
+        // Aplica o efeito da carta ao entrar no tabuleiro
+        selectedCardDisplay.ApplyCardEffect("onEnter");
 
         // Limpa os destaques
         ClearTileHighlights();
@@ -472,14 +465,12 @@ public class GameManager : MonoBehaviour
         // Verifica se há uma carta selecionada no tabuleiro
         if (selectedCard == null || selectedCardDisplay == null)
         {
-            Debug.Log("Nenhuma carta selecionada para atacar.");
             return false;
         }
 
         // Só pode atacar se a carta selecionada estiver no tabuleiro
         if (!selectedCardDisplay.isOnBoard)
         {
-            Debug.Log("A carta selecionada não está no tabuleiro.");
             return false;
         }
 
@@ -501,12 +492,10 @@ public class GameManager : MonoBehaviour
 
         if (!adjacentEnemies.Contains(targetCard))
         {
-            Debug.Log($"{targetCard.card.cardName} não é adjacente a {selectedCardDisplay.card.cardName}!");
             return false;
         }
 
         // Executa o ataque
-        Debug.Log($"Atacando {targetCard.card.cardName} com {selectedCardDisplay.card.cardName}!");
 
         // Verifica se pode atacar neste round
         if (!selectedCardDisplay.CanAttackThisRound())
@@ -530,13 +519,31 @@ public class GameManager : MonoBehaviour
         return true;
     }
 
+    // Checa efeitos periódicos das cartas (chamado a cada round)
+    public void CheckPeriodicCardEffects()
+    {
+        if (TurnManager.Instance == null) return;
+
+        var allCards = boardManager.GetAllCards();
+        foreach (var card in allCards)
+        {
+            if (card != null)
+            {
+                CardEffectSimple effect = card.GetComponent<CardEffectSimple>();
+                if (effect != null)
+                {
+                    effect.CheckPeriodicEffects(TurnManager.Instance.currentRound);
+                }
+            }
+        }
+    }
+
     // Tenta atacar a torre (nexus) do jogador inimigo
     public bool TryAttackTower()
     {
         // Verifica se há uma carta selecionada no tabuleiro
         if (selectedCard == null || selectedCardDisplay == null || !isMovingCard)
         {
-            Debug.Log("Nenhuma carta selecionada para atacar a torre.");
             return false;
         }
 
@@ -587,7 +594,6 @@ public class GameManager : MonoBehaviour
         if (targetPlayer.IsDefeated())
         {
             Debug.Log($"==========================================");
-            Debug.Log($"🏆 {TurnManager.Instance.GetCurrentPlayer().playerName} VENCEU! 🏆");
             Debug.Log($"==========================================");
 
             // Mostra a tela de vitória
