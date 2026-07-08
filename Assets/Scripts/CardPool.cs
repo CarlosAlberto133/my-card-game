@@ -31,6 +31,10 @@ public class CardPool : MonoBehaviour
     [Tooltip("Número de cópias para cartas tier 5 (únicas)")]
     public int tier5Copies = 1;
 
+    [Header("TESTE")]
+    [Tooltip("Se ativado, mostra APENAS as 4 cartas tier-1 (Archer, Healer, Mage, Tank) para testes")]
+    public bool testModeOnly = false;
+
     // Pool de todas as instâncias de cartas no jogo
     private List<CardInstance> cardPool = new List<CardInstance>();
 
@@ -55,6 +59,13 @@ public class CardPool : MonoBehaviour
                 continue;
             }
 
+            // Se testModeOnly está ativo, ignora cartas que não são tier-1
+            if (testModeOnly && card.tier != CardTier.Tier1)
+            {
+                skipped++;
+                continue;
+            }
+
             // Define quantas cópias criar baseado no tier
             int copies = (card.tier == CardTier.Tier5) ? tier5Copies : copiesPerCard;
 
@@ -67,7 +78,8 @@ public class CardPool : MonoBehaviour
             }
         }
 
-        Debug.Log($"Card Pool inicializado com {cardPool.Count} cartas totais");
+        string modeText = testModeOnly ? " [MODO TESTE - APENAS TIER-1]" : "";
+        Debug.Log($"Card Pool inicializado com {cardPool.Count} cartas totais{modeText}");
         Debug.Log($"- Cartas base atribuídas: {allBaseCards.Count} (ignoradas por preencher: {skipped})");
         Debug.Log($"- Tier 1-4: {copiesPerCard} cópias cada");
         Debug.Log($"- Tier 5: {tier5Copies} cópia cada");
