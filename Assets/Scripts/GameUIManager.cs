@@ -31,6 +31,17 @@ public class GameUIManager : MonoBehaviour
     public TextMeshProUGUI victoryMessageText;
     public Button restartButton;
 
+    [Header("Decision Popup")]
+    public GameObject decisionPopupPanel;
+    public TextMeshProUGUI decisionMessageText;
+    public Button decisionYesButton;
+    public TextMeshProUGUI decisionYesButtonText;
+    public Button decisionNoButton;
+    public TextMeshProUGUI decisionNoButtonText;
+
+    private System.Action onDecisionYes;
+    private System.Action onDecisionNo;
+
     void Awake()
     {
         // Singleton pattern
@@ -249,5 +260,63 @@ public class GameUIManager : MonoBehaviour
         {
             TurnManager.Instance.RestartGame();
         }
+    }
+
+    public void ShowDecisionPopup(string message, string yesButtonText, System.Action onYes, string noButtonText, System.Action onNo)
+    {
+        if (decisionPopupPanel == null)
+        {
+            Debug.LogWarning("Decision Popup Panel não está configurado!");
+            onYes?.Invoke();
+            return;
+        }
+
+        // Armazena as callbacks
+        onDecisionYes = onYes;
+        onDecisionNo = onNo;
+
+        // Atualiza mensagem
+        if (decisionMessageText != null)
+        {
+            decisionMessageText.text = message;
+        }
+
+        // Atualiza textos dos botões
+        if (decisionYesButtonText != null)
+        {
+            decisionYesButtonText.text = yesButtonText;
+        }
+        if (decisionNoButtonText != null)
+        {
+            decisionNoButtonText.text = noButtonText;
+        }
+
+        // Setup listeners
+        if (decisionYesButton != null)
+        {
+            decisionYesButton.onClick.RemoveAllListeners();
+            decisionYesButton.onClick.AddListener(OnDecisionYesClicked);
+        }
+        if (decisionNoButton != null)
+        {
+            decisionNoButton.onClick.RemoveAllListeners();
+            decisionNoButton.onClick.AddListener(OnDecisionNoClicked);
+        }
+
+        // Mostra o popup
+        decisionPopupPanel.SetActive(true);
+        Debug.Log($"[DecisionPopup] Mostrando: {message}");
+    }
+
+    void OnDecisionYesClicked()
+    {
+        decisionPopupPanel.SetActive(false);
+        onDecisionYes?.Invoke();
+    }
+
+    void OnDecisionNoClicked()
+    {
+        decisionPopupPanel.SetActive(false);
+        onDecisionNo?.Invoke();
     }
 }

@@ -155,6 +155,20 @@ public class TurnManager : MonoBehaviour
         // Passa para o próximo jogador
         currentPlayerNumber = currentPlayerNumber == 1 ? 2 : 1;
 
+        // Reseta efeito de árvore e popup para todas as cartas
+        BoardManager board = BoardManager.Instance;
+        if (board != null)
+        {
+            foreach (var card in board.GetAllCards())
+            {
+                if (card != null)
+                {
+                    card.treeDefenseActive = false;
+                    card.treeDefensePopupShown = false;
+                }
+            }
+        }
+
         Debug.Log($"Turno passou para {GetCurrentPlayer().playerName}");
 
         // Verificar se completa o round (quando J2 passa vez e volta para J1)

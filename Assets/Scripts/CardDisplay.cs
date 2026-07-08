@@ -16,7 +16,8 @@ public class CardDisplay : MonoBehaviour
     public int lastMovedRound = -1; // Em qual round a carta se moveu pela última vez (-1 = nunca)
     public int lastAttackedRound = -1; // Em qual round a carta atacou pela última vez (-1 = nunca)
     public bool treeDefenseUsed = false; // Archer efeito 4: já usou o dodge de árvore
-    public bool isInvulnerable = false; // Archer efeito 4: fica intangível por 1 turno
+    public bool treeDefenseActive = false; // Archer efeito 4: efeito está ativo NESTE turno
+    public bool treeDefensePopupShown = false; // Rastreia se o popup já foi mostrado neste turno
 
     // Stats atuais (mudam durante o jogo)
     public int currentHealth;
@@ -723,11 +724,21 @@ public class CardDisplay : MonoBehaviour
     // Recebe dano (primeiro absorve no escudo, depois na vida)
     public void TakeDamage(int damage)
     {
-        // Se está intangível, ignora dano
-        if (isInvulnerable)
+        // Se o efeito de árvore está ativo, nega o dano
+        if (treeDefenseActive)
         {
-            Debug.Log($"[Invulnerável] {card.cardName} está intangível - dano ignorado");
+            Debug.Log($"[TreeDefense] {card.cardName} nega o dano com a árvore!");
             return;
+        }
+
+        // Se é Archer 4 e o efeito não foi usado e ainda não mostrou popup neste turno
+        if (card.cardClass == CardClass.Arqueiro && card.attack == 3 && card.health == 2 &&
+            !treeDefenseUsed && !treeDefensePopupShown)
+        {
+            // Mostra popup perguntando se quer ativar o efeito
+            treeDefensePopupShown = true;
+            ShowTreeDefensePopup(damage);
+            return; // Pausa o dano enquanto aguarda resposta
         }
 
         // Primeiro o escudo absorve o dano
@@ -748,7 +759,66 @@ public class CardDisplay : MonoBehaviour
         UpdateCardDisplay();
 
         // Se um Healer toma dano, aplica efeito do Mago
-        if (card.cardClass == CardClass.Healer && ownerPlayerNumber != 0 && !isInvulnerable)
+        if (card.cardClass == CardClass.Healer && ownerPlayerNumber != 0)
+        {
+            ApplyMageEffect();
+        }
+
+        // Verifica se a carta morreu
+        if (currentHealth <= 0)
+        {
+            DestroyCard();
+        }
+    }
+
+    void ShowTreeDefensePopup(int damage)
+    {
+        GameUIManager uiManager = GameUIManager.Instance;
+        if (uiManager != null)
+        {
+            uiManager.ShowDecisionPopup(
+                $"{card.cardName} pode usar a árvore para esquivar o dano!",
+                "Ativar efeito",
+                () => ActivateTreeDefense(damage),
+                "Não usar",
+                () => ApplyDamageNormally(damage)
+            );
+        }
+        else
+        {
+            Debug.LogWarning("GameUIManager não encontrado!");
+            ApplyDamageNormally(damage);
+        }
+    }
+
+    void ActivateTreeDefense(int damage)
+    {
+        treeDefenseActive = true;
+        treeDefenseUsed = true;
+        Debug.Log($"[TreeDefense] {card.cardName} ativou o efeito! Esquivando dano neste turno.");
+    }
+
+    void ApplyDamageNormally(int damage)
+    {
+        // Primeiro o escudo absorve o dano
+        if (currentShield > 0)
+        {
+            int shieldAbsorbed = Mathf.Min(currentShield, damage);
+            currentShield -= shieldAbsorbed;
+            damage -= shieldAbsorbed;
+        }
+
+        // O dano que sobrou vai para a vida
+        if (damage > 0)
+        {
+            currentHealth -= damage;
+        }
+
+        // Atualiza a UI
+        UpdateCardDisplay();
+
+        // Se um Healer toma dano, aplica efeito do Mago
+        if (card.cardClass == CardClass.Healer && ownerPlayerNumber != 0)
         {
             ApplyMageEffect();
         }

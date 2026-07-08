@@ -43,26 +43,64 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[ArcherEffect1] {cardDisplay.card.cardName}: -2 HP, +1 ATK. HP agora: {cardDisplay.currentHealth}, ATK agora: {cardDisplay.currentAttack}");
     }
 
-    // Efeito 2: Ao entrar em campo, cause 1 de dano na fileira toda à sua frente
+    // Efeito 2: Ao entrar em campo, cause 1 de dano à carta inimiga diretamente à sua frente
     void ArcherEffect2_DamageRow()
     {
         BoardManager board = BoardManager.Instance;
-        if (board == null || cardDisplay.currentTile == null) return;
+        if (board == null || cardDisplay.currentTile == null)
+        {
+            Debug.LogWarning($"[ArcherEffect2] Board ou currentTile é null!");
+            return;
+        }
 
-        int damageDealCount = 0;
-        var targetTile = board.GetAdjacentTile(cardDisplay.currentTile, "forward", cardDisplay.ownerPlayerNumber);
+        int currentRow = cardDisplay.currentTile.row;
+        int currentCol = cardDisplay.currentTile.column;
+        int playerNum = cardDisplay.ownerPlayerNumber;
 
-        if (targetTile != null && targetTile.occupiedCard != null)
+        Debug.Log($"[ArcherEffect2 Debug] {cardDisplay.card.cardName} (P{playerNum}) está em Row:{currentRow}, Col:{currentCol}");
+
+        // Determina qual row está "à frente" baseado no dono
+        int targetRow = (playerNum == 1) ? currentRow + 1 : currentRow - 1;
+
+        Debug.Log($"[ArcherEffect2 Debug] Procurando inimigo em Row:{targetRow}, Col:{currentCol}");
+
+        // Verifica limites
+        if (targetRow < 0 || targetRow >= board.rows)
+        {
+            Debug.Log($"[ArcherEffect2] Row {targetRow} fora dos limites!");
+            return;
+        }
+
+        // Procura a carta inimiga diretamente à frente (mesma coluna)
+        CardTile targetTile = board.GetTile(targetRow, currentCol);
+        if (targetTile == null)
+        {
+            Debug.LogWarning($"[ArcherEffect2] Tile em {targetRow},{currentCol} é null!");
+            return;
+        }
+
+        if (targetTile.occupiedCard != null)
         {
             CardDisplay targetCard = targetTile.occupiedCard.GetComponent<CardDisplay>();
             if (targetCard != null)
             {
-                targetCard.TakeDamage(1);
-                damageDealCount++;
+                Debug.Log($"[ArcherEffect2 Debug] Encontrou carta: {targetCard.card.cardName} (P{targetCard.ownerPlayerNumber})");
+
+                if (targetCard.ownerPlayerNumber != playerNum)
+                {
+                    targetCard.TakeDamage(1);
+                    Debug.Log($"[ArcherEffect2] {cardDisplay.card.cardName}: Causou 1 de dano a {targetCard.card.cardName}");
+                    return;
+                }
+                else
+                {
+                    Debug.Log($"[ArcherEffect2] Carta à frente é aliada, sem dano");
+                    return;
+                }
             }
         }
 
-        Debug.Log($"[ArcherEffect2] {cardDisplay.card.cardName}: Causei 1 de dano a {damageDealCount} carta(s) na frente");
+        Debug.Log($"[ArcherEffect2] Nenhuma carta em Row:{targetRow}, Col:{currentCol}");
     }
 
     // Efeito 3: Faz uma cópia de si se estiver com um tanque aliado em campo
@@ -83,7 +121,7 @@ public class CardEffectSimple : MonoBehaviour
                 CardDisplay copy = cardDisplay.SpawnCardCopy(emptyTile);
                 if (copy != null)
                 {
-                    Debug.Log($"[ArcherEffect3] {cardDisplay.card.cardName}: Criou uma cópia em {emptyTile.Position}");
+                    Debug.Log($"[ArcherEffect3] {cardDisplay.card.cardName}: Criou uma cópia em {emptyTile.row},{emptyTile.column}");
                 }
                 else
                 {
@@ -102,13 +140,9 @@ public class CardEffectSimple : MonoBehaviour
     {
         if (cardDisplay == null) return;
 
-        // Marca que a carta usou o dodge (será resetado no início de um novo jogo)
-        cardDisplay.treeDefenseUsed = true;
-        cardDisplay.isInvulnerable = true;
-
-        cardDisplay.UpdateDisplay();
-
-        Debug.Log($"[ArcherEffect4] {cardDisplay.card.cardName}: Subiu na árvore! Intangível por 1 turno");
+        // O efeito é ativado quando a carta toma dano e o jogador clica em "Sim" no popup
+        // Aqui apenas marcamos que a carta está pronta para usar o efeito
+        Debug.Log($"[ArcherEffect4] {cardDisplay.card.cardName}: Pronta para usar a árvore (pode esquivar uma vez)");
     }
 
     // ===== HEALER TIER-1 =====

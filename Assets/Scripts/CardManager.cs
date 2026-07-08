@@ -235,7 +235,7 @@ public class CardManager : MonoBehaviour
         if (cardDisplay != null)
         {
             // Coloca a carta no tile
-            tile.PlaceCard(cardObject);
+            tile.OccupyTile(cardObject);
             cardDisplay.currentTile = tile;
             cardDisplay.isOnBoard = true;
             cardDisplay.ownerPlayerNumber = ownerPlayerNumber;
