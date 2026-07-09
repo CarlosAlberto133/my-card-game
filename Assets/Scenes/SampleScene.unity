@@ -1704,7 +1704,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Button
+  m_text: Sim
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -3041,12 +3041,12 @@ GameObject:
   - component: {fileID: 1168606481}
   - component: {fileID: 1168606480}
   m_Layer: 5
-  m_Name: DecisionPopupPanel)
+  m_Name: DecisionPopupPanel
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1168606479
 RectTransform:
   m_ObjectHideFlags: 0
@@ -3337,12 +3337,12 @@ MonoBehaviour:
   victoryPanel: {fileID: 977084838}
   victoryMessageText: {fileID: 656725347}
   restartButton: {fileID: 1824666274}
-  decisionPopupPanel: {fileID: 0}
-  decisionMessageText: {fileID: 0}
-  decisionYesButton: {fileID: 0}
-  decisionYesButtonText: {fileID: 0}
-  decisionNoButton: {fileID: 0}
-  decisionNoButtonText: {fileID: 0}
+  decisionPopupPanel: {fileID: 1168606478}
+  decisionMessageText: {fileID: 2053242935}
+  decisionYesButton: {fileID: 1765464089}
+  decisionYesButtonText: {fileID: 571710983}
+  decisionNoButton: {fileID: 1145003267}
+  decisionNoButtonText: {fileID: 321110121}
 --- !u!4 &1417323129
 Transform:
   m_ObjectHideFlags: 0

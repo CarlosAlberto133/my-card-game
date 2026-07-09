@@ -18,6 +18,25 @@ public class CardDisplay : MonoBehaviour
     public bool treeDefenseUsed = false; // Archer efeito 4: já usou o dodge de árvore
     public bool treeDefenseActive = false; // Archer efeito 4: efeito está ativo NESTE turno
     public bool treeDefensePopupShown = false; // Rastreia se o popup já foi mostrado neste turno
+    public bool healOnEnterUsed = false; // Healer 2: rastreia se já usou o efeito ao entrar em campo
+    public bool isFrozen = false; // Mage 3: carta está congelada, não pode se mover/atacar/ativar efeito
+    public int frozenAtRound = -1; // Mage 3: round em que foi congelada
+    public bool isStunned = false; // Archer tier-2: carta está stunada, não pode se mover/atacar
+    public int stunnedAtRound = -1; // Archer tier-2: round em que foi stunada
+    public bool archerShieldArrowUsed = false; // Archer 2 (ATK 3, HP 2): efeito de parar ataque já foi usado
+    public bool archerStunOnHitUsed = false; // Archer 2 (ATK 3, HP 1): efeito de stun ao receber ataque já foi usado
+    public bool archerComboActivated = false; // Archer tier-2 combo: +5 ATK já foi ativado
+    public int maxHealthBonus = 0; // Healer 2 (ATK 2, HP 1): bônus de vida máxima
+    public int healerShieldUseCount = 0; // Healer 2 (ATK 1, HP 3): vezes usado +armadura neste turno
+    public bool healerComboActivated = false; // Healer tier-2 combo: restauração de ouro/vida já foi ativada
+    public bool eagleMarked = false; // Archer 3 (ATK 4, HP 2): marcado pela águia, não pode atacar
+    public int eagleMarkedRound = -1; // Archer 3 (ATK 4, HP 2): round em que foi marcado pela águia
+    public int moveCountThisRound = 0; // Archer 3 (ATK 3, HP 2): contador de movimentações neste turno (máx 2 se tem Mago)
+    public int lastMoveCountRound = -1; // Archer 3 (ATK 3, HP 2): último round em que moveu (para resetar contador)
+    public bool archerTier3Effect1Used = false; // Archer 3 (ATK 4, HP 2): águia já foi invocada nesta partida
+    public bool archerTier3Effect2Used = false; // Archer 3 (ATK 5, HP 3): cópia já foi feita nesta partida
+    public bool archerTier3Effect3Used = false; // Archer 3 (ATK 3, HP 2): dano à torre já foi feito nesta partida
+    public bool archerTier3Effect4Used = false; // Archer 3 (ATK 4, HP 1): dano em cruz já foi feito nesta partida
 
     // Stats atuais (mudam durante o jogo)
     public int currentHealth;
@@ -93,15 +112,58 @@ public class CardDisplay : MonoBehaviour
     // Verifica se a carta pode se mover neste round
     public bool CanMoveThisRound()
     {
+        // Se está congelada, não pode se mover
+        if (isFrozen)
+        {
+            Debug.Log($"{card.cardName} está congelada, não pode se mover!");
+            return false;
+        }
+
+        // Se está stunada, não pode se mover
+        if (isStunned)
+        {
+            Debug.Log($"{card.cardName} está stunada, não pode se mover!");
+            return false;
+        }
+
         if (TurnManager.Instance == null) return true;
 
-        // Se nunca se moveu ou se moveu em um round anterior, pode mover
+        // Verifica se o contador de movimentações foi resetado para este round
+        if (lastMoveCountRound < TurnManager.Instance.currentRound)
+        {
+            moveCountThisRound = 0;
+            lastMoveCountRound = TurnManager.Instance.currentRound;
+        }
+
+        // Se nunca se moveu ou se moveu em um round anterior, pode mover (até o máximo de movimentações permitidas)
+        // Por padrão, máximo é 1, mas Archer 3 (ATK 3, HP 2) com Mago pode ter 2
         return lastMovedRound < TurnManager.Instance.currentRound;
     }
 
     // Verifica se a carta pode atacar neste round
     public bool CanAttackThisRound()
     {
+        // Se está com marca de águia, não pode atacar
+        if (eagleMarked)
+        {
+            Debug.Log($"{card.cardName} está marcado pela águia, não pode atacar!");
+            return false;
+        }
+
+        // Se está congelada, não pode atacar
+        if (isFrozen)
+        {
+            Debug.Log($"{card.cardName} está congelada, não pode atacar!");
+            return false;
+        }
+
+        // Se está stunada, não pode atacar
+        if (isStunned)
+        {
+            Debug.Log($"{card.cardName} está stunada, não pode atacar!");
+            return false;
+        }
+
         if (TurnManager.Instance == null) return true;
         if (!isOnBoard) return false;
         return lastAttackedRound < TurnManager.Instance.currentRound;
@@ -195,15 +257,22 @@ public class CardDisplay : MonoBehaviour
         CardEffectSimple effect = GetComponent<CardEffectSimple>();
         if (effect == null) return;
 
-        if (card.cardClass == CardClass.Arqueiro)
+        if (card.cardClass == CardClass.Arqueiro && card.tier == CardTier.Tier3)
+            effect.ArcherTier3Effect();
+        else if (card.cardClass == CardClass.Arqueiro && card.tier == CardTier.Tier2)
+            effect.ArcherTier2Effect();
+        else if (card.cardClass == CardClass.Arqueiro)
             effect.ArcherEffect();
+        else if (card.cardClass == CardClass.Healer && card.tier == CardTier.Tier2)
+            effect.HealerTier2Effect();
         else if (card.cardClass == CardClass.Healer)
             effect.HealerEffect();
+        else if (card.cardClass == CardClass.Mago && card.tier == CardTier.Tier2)
+            effect.MageTier2Effect();
         else if (card.cardClass == CardClass.Mago)
-        {
-            // Mage precisa saber qual healer tomou dano - deixa para depois
-            // effect.MageEffect(healerThatTookDamage);
-        }
+            effect.MageEffect();
+        else if (card.cardClass == CardClass.Tank && card.tier == CardTier.Tier2)
+            effect.TankTier2Effect();
         else if (card.cardClass == CardClass.Tank)
             effect.TankEffect();
     }
@@ -222,7 +291,7 @@ public class CardDisplay : MonoBehaviour
             CardEffectSimple effect = mage.GetComponent<CardEffectSimple>();
             if (effect != null)
             {
-                effect.MageEffect(this);
+                effect.ApplyMageEffectOnHealerDamage(this);
             }
         }
 
@@ -700,6 +769,8 @@ public class CardDisplay : MonoBehaviour
         CardDisplay target = enemies[0];
         int damageDealt = currentAttack;
 
+        // Rastreia quem atacou (para efeitos como Archer tier-2)
+        target.attackerCardDisplay = this;
 
         target.TakeDamage(damageDealt);
 
@@ -719,6 +790,60 @@ public class CardDisplay : MonoBehaviour
         if (currentHealth > card.health)
             currentHealth = card.health;
         UpdateCardDisplay();
+
+        // Trigger Healer 4 effect: ganhar ouro quando um aliado é curado
+        if (ownerPlayerNumber != 0)
+        {
+            BoardManager board = BoardManager.Instance;
+            if (board != null)
+            {
+                var allies = board.GetCardsByOwner(ownerPlayerNumber);
+                foreach (var ally in allies)
+                {
+                    if (ally != null && ally.card.cardClass == CardClass.Healer &&
+                        ally.card.attack == 2 && ally.card.health == 2)
+                    {
+                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                        if (effect != null)
+                        {
+                            effect.OnAllyHealed();
+                        }
+                    }
+                }
+
+                // Trigger Tank effects on heal
+                foreach (var ally in allies)
+                {
+                    if (ally != null && ally.card.cardClass == CardClass.Tank)
+                    {
+                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                        if (effect != null)
+                        {
+                            // Tank 2: +1 todos atributos quando curado
+                            if (ally.card.attack == 1 && ally.card.shield == 1 && ally.card.health == 1)
+                                effect.TankEffect2_BoostOnHeal();
+                            // Tank 3: +1 ataque quando ganhar vida
+                            else if (ally.card.attack == 0 && ally.card.shield == 2 && ally.card.health == 1)
+                                effect.TankEffect3_AttackOnHeal();
+                        }
+                    }
+                }
+
+                // Trigger Healer 2 (ATK 2, HP 1) effect on heal
+                foreach (var ally in allies)
+                {
+                    if (ally != null && ally.card.cardClass == CardClass.Healer &&
+                        ally.card.attack == 2 && ally.card.health == 1)
+                    {
+                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                        if (effect != null)
+                        {
+                            effect.HealerTier2Effect1_OnAllyHealed();
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Recebe dano (primeiro absorve no escudo, depois na vida)
@@ -729,6 +854,261 @@ public class CardDisplay : MonoBehaviour
         {
             Debug.Log($"[TreeDefense] {card.cardName} nega o dano com a árvore!");
             return;
+        }
+
+        // Triggers para Mago tier-2 quando Healer é atacado
+        if (card.cardClass == CardClass.Healer && ownerPlayerNumber != 0)
+        {
+            BoardManager board = BoardManager.Instance;
+            if (board != null)
+            {
+                var allies = board.GetCardsByOwner(ownerPlayerNumber);
+
+                // Mago 2 (ATK 2, HP 3) ganha +1 ATK
+                foreach (var ally in allies)
+                {
+                    if (ally != null && ally.card.cardClass == CardClass.Mago &&
+                        ally.card.attack == 2 && ally.card.health == 3)
+                    {
+                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                        if (effect != null)
+                            effect.MageTier2Effect1_BoostAttack();
+                    }
+                }
+
+                // Tank 2 (ATK 2, Shield 1, HP 3) recebe o ataque
+                foreach (var ally in allies)
+                {
+                    if (ally != null && ally.card.cardClass == CardClass.Tank &&
+                        ally.card.attack == 2 && ally.card.shield == 1 && ally.card.health == 3)
+                    {
+                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                        if (effect != null)
+                            effect.TankTier2Effect1_TakeHealerAttack(this);
+                        return; // Tank recebeu o ataque, não aplicar dano ao Healer
+                    }
+                }
+
+                // Tank tier 2 (ATK 1, Shield 3, HP 2) pode receber qualquer ataque
+                foreach (var ally in allies)
+                {
+                    if (ally != null && ally.card.cardClass == CardClass.Tank &&
+                        ally.card.attack == 1 && ally.card.shield == 3 && ally.card.health == 2)
+                    {
+                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                        if (effect != null)
+                            effect.TankTier2Effect4_TakeAnyAttack(this);
+                        return; // Tank recebeu o ataque, não aplicar dano ao Healer
+                    }
+                }
+            }
+        }
+
+        // Triggers para Mago tier-2 quando Tank é atacado
+        if (card.cardClass == CardClass.Tank && ownerPlayerNumber != 0)
+        {
+            BoardManager board = BoardManager.Instance;
+            if (board != null)
+            {
+                var allies = board.GetCardsByOwner(ownerPlayerNumber);
+
+                // Mago 2 (ATK 3, HP 2) causa 2 de dano no atacante
+                foreach (var ally in allies)
+                {
+                    if (ally != null && ally.card.cardClass == CardClass.Mago &&
+                        ally.card.attack == 3 && ally.card.health == 2)
+                    {
+                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                        if (effect != null)
+                            effect.MageTier2Effect2_CastFireball(this);
+                    }
+                }
+
+                // Tank tier 2 (ATK 2, Shield 2, HP 2) recebe o ataque
+                foreach (var ally in allies)
+                {
+                    if (ally != null && ally.card.cardClass == CardClass.Tank &&
+                        ally.card.attack == 2 && ally.card.shield == 2 && ally.card.health == 2)
+                    {
+                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                        if (effect != null)
+                            effect.TankTier2Effect2_TakeArcherAttack(this);
+                        return; // Tank recebeu o ataque, não aplicar dano ao Arqueiro
+                    }
+                }
+
+                // Tank tier 2 (ATK 1, Shield 3, HP 2) pode receber qualquer ataque
+                foreach (var ally in allies)
+                {
+                    if (ally != null && ally.card.cardClass == CardClass.Tank &&
+                        ally.card.attack == 1 && ally.card.shield == 3 && ally.card.health == 2)
+                    {
+                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                        if (effect != null)
+                            effect.TankTier2Effect4_TakeAnyAttack(this);
+                        return; // Tank recebeu o ataque, não aplicar dano ao Arqueiro
+                    }
+                }
+            }
+        }
+
+        // Triggers para Mago tier-2 quando Arqueiro é atacado
+        if (card.cardClass == CardClass.Arqueiro && ownerPlayerNumber != 0)
+        {
+            BoardManager board = BoardManager.Instance;
+            if (board != null)
+            {
+                var allies = board.GetCardsByOwner(ownerPlayerNumber);
+
+                // Mago 2 (ATK 3, HP 1) congela o atacante
+                foreach (var ally in allies)
+                {
+                    if (ally != null && ally.card.cardClass == CardClass.Mago &&
+                        ally.card.attack == 3 && ally.card.health == 1)
+                    {
+                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                        if (effect != null)
+                            effect.MageTier2Effect4_FreezeAttacker(this);
+                    }
+                }
+
+                // Tank tier 2 (ATK 2, Shield 2, HP 2) recebe o ataque
+                foreach (var ally in allies)
+                {
+                    if (ally != null && ally.card.cardClass == CardClass.Tank &&
+                        ally.card.attack == 2 && ally.card.shield == 2 && ally.card.health == 2)
+                    {
+                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                        if (effect != null)
+                            effect.TankTier2Effect2_TakeArcherAttack(this);
+                        return; // Tank recebeu o ataque, não aplicar dano
+                    }
+                }
+
+                // Tank tier 2 (ATK 1, Shield 3, HP 2) pode receber qualquer ataque
+                foreach (var ally in allies)
+                {
+                    if (ally != null && ally.card.cardClass == CardClass.Tank &&
+                        ally.card.attack == 1 && ally.card.shield == 3 && ally.card.health == 2)
+                    {
+                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                        if (effect != null)
+                            effect.TankTier2Effect4_TakeAnyAttack(this);
+                        return; // Tank recebeu o ataque, não aplicar dano
+                    }
+                }
+            }
+        }
+
+        // Triggers para Mago tier-2 quando Mago é atacado
+        if (card.cardClass == CardClass.Mago && ownerPlayerNumber != 0)
+        {
+            BoardManager board = BoardManager.Instance;
+            if (board != null)
+            {
+                var allies = board.GetCardsByOwner(ownerPlayerNumber);
+
+                // Tank tier 2 (ATK 0, Shield 4, HP 1) recebe o ataque
+                foreach (var ally in allies)
+                {
+                    if (ally != null && ally.card.cardClass == CardClass.Tank &&
+                        ally.card.attack == 0 && ally.card.shield == 4 && ally.card.health == 1)
+                    {
+                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                        if (effect != null)
+                            effect.TankTier2Effect3_TakeMagoAttack(this);
+                        return; // Tank recebeu o ataque, não aplicar dano ao Mago
+                    }
+                }
+
+                // Tank tier 2 (ATK 1, Shield 3, HP 2) pode receber qualquer ataque
+                foreach (var ally in allies)
+                {
+                    if (ally != null && ally.card.cardClass == CardClass.Tank &&
+                        ally.card.attack == 1 && ally.card.shield == 3 && ally.card.health == 2)
+                    {
+                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                        if (effect != null)
+                            effect.TankTier2Effect4_TakeAnyAttack(this);
+                        return; // Tank recebeu o ataque, não aplicar dano ao Mago
+                    }
+                }
+            }
+        }
+
+        // Verifica se é um Healer sendo atacado e há Archer 2 (ATK 3, HP 2) que pode parar o ataque
+        if (card.cardClass == CardClass.Healer && ownerPlayerNumber != 0)
+        {
+            BoardManager board = BoardManager.Instance;
+            if (board != null)
+            {
+                var allies = board.GetCardsByOwner(ownerPlayerNumber);
+                foreach (var ally in allies)
+                {
+                    if (ally != null && ally.card.cardClass == CardClass.Arqueiro &&
+                        ally.card.attack == 3 && ally.card.health == 2 &&
+                        !ally.archerShieldArrowUsed)
+                    {
+                        // Mostra popup para ativar o efeito
+                        GameUIManager uiManager = GameUIManager.Instance;
+                        if (uiManager != null)
+                        {
+                            CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                            uiManager.ShowDecisionPopup(
+                                $"Um Archer pode parar este ataque!",
+                                "Parar ataque",
+                                () => { if (effect != null) effect.ArcherTier2Effect2_ShieldArrow(this); },
+                                "Não parar",
+                                () => ApplyDamageNormally(damage)
+                            );
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Verifica se é um Archer 2 (ATK 3, HP 1) recebendo ataque
+        if (card.cardClass == CardClass.Arqueiro && card.attack == 3 && card.health == 1 &&
+            !archerStunOnHitUsed && ownerPlayerNumber != 0)
+        {
+            // Mostra popup para ativar stun
+            GameUIManager uiManager = GameUIManager.Instance;
+            if (uiManager != null)
+            {
+                CardEffectSimple effect = GetComponent<CardEffectSimple>();
+                uiManager.ShowDecisionPopup(
+                    $"{card.cardName} pode stunar o atacante!",
+                    "Ativar stun",
+                    () => { if (effect != null) effect.ArcherTier2Effect3_ActivateStun(this); ApplyDamageNormally(damage); },
+                    "Não usar",
+                    () => ApplyDamageNormally(damage)
+                );
+                return;
+            }
+        }
+
+        // Verifica se há uma Healer 3 aliada que pode bloquear o ataque
+        if (ownerPlayerNumber != 0)
+        {
+            BoardManager board = BoardManager.Instance;
+            if (board != null)
+            {
+                var allies = board.GetCardsByOwner(ownerPlayerNumber);
+                foreach (var ally in allies)
+                {
+                    if (ally != null && ally.card.cardClass == CardClass.Healer &&
+                        ally.card.attack == 1 && ally.card.health == 2)
+                    {
+                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                        if (effect != null && effect.CanBlockAttackThisTurn())
+                        {
+                            ShowBlockAttackPopup(damage, effect);
+                            return; // Pausa o dano enquanto aguarda resposta
+                        }
+                    }
+                }
+            }
         }
 
         // Se é Archer 4 e o efeito não foi usado e ainda não mostrou popup neste turno
@@ -771,6 +1151,26 @@ public class CardDisplay : MonoBehaviour
         }
     }
 
+    void ShowBlockAttackPopup(int damage, CardEffectSimple healerEffect)
+    {
+        GameUIManager uiManager = GameUIManager.Instance;
+        if (uiManager != null)
+        {
+            uiManager.ShowDecisionPopup(
+                $"Uma Healer pode bloquear este ataque!",
+                "Bloquear ataque",
+                () => ActivateBlockAttack(damage, healerEffect),
+                "Não bloquear",
+                () => ApplyDamageNormally(damage)
+            );
+        }
+        else
+        {
+            Debug.LogWarning("GameUIManager não encontrado!");
+            ApplyDamageNormally(damage);
+        }
+    }
+
     void ShowTreeDefensePopup(int damage)
     {
         GameUIManager uiManager = GameUIManager.Instance;
@@ -789,6 +1189,12 @@ public class CardDisplay : MonoBehaviour
             Debug.LogWarning("GameUIManager não encontrado!");
             ApplyDamageNormally(damage);
         }
+    }
+
+    void ActivateBlockAttack(int damage, CardEffectSimple healerEffect)
+    {
+        healerEffect.ActivateBlockAttack();
+        Debug.Log($"[BlockAttack] Ataque bloqueado pela Healer!");
     }
 
     void ActivateTreeDefense(int damage)
@@ -831,8 +1237,24 @@ public class CardDisplay : MonoBehaviour
     }
 
     // Destrói a carta
+    public CardDisplay attackerCardDisplay = null; // Rastreia quem atacou essa carta
+
     void DestroyCard()
     {
+        // Verifica se foi destruída por um Archer 2 (ATK 3, HP 3)
+        if (attackerCardDisplay != null &&
+            attackerCardDisplay.card.cardClass == CardClass.Arqueiro &&
+            attackerCardDisplay.card.attack == 3 &&
+            attackerCardDisplay.card.health == 3)
+        {
+            // Invoca um Archer aleatório
+            CardManager cardManager = CardManager.Instance;
+            if (cardManager != null)
+            {
+                cardManager.InvokeRandomArcher(attackerCardDisplay.ownerPlayerNumber, attackerCardDisplay.currentTile);
+            }
+        }
+
         // Libera o tile se a carta estiver no tabuleiro
         if (isOnBoard && currentTile != null)
         {
@@ -870,5 +1292,74 @@ public class CardDisplay : MonoBehaviour
         }
 
         return copiedCard;
+    }
+
+    // Congela a carta por 1 turno (Mage 3)
+    public void Freeze()
+    {
+        if (TurnManager.Instance == null) return;
+
+        isFrozen = true;
+        frozenAtRound = TurnManager.Instance.currentRound;
+        Debug.Log($"[Freeze] {card.cardName} foi congelada! Descongelará no próximo turno");
+    }
+
+    // Descongelamento automático ao passar o turno
+    public void CheckAndUnfreeze()
+    {
+        if (!isFrozen || TurnManager.Instance == null) return;
+
+        if (TurnManager.Instance.currentRound > frozenAtRound)
+        {
+            isFrozen = false;
+            frozenAtRound = -1;
+            Debug.Log($"[Unfreeze] {card.cardName} foi descongelada!");
+        }
+    }
+
+    // Stuna a carta por 1 turno (Archer tier-2)
+    public void Stun()
+    {
+        if (TurnManager.Instance == null) return;
+
+        isStunned = true;
+        stunnedAtRound = TurnManager.Instance.currentRound;
+        Debug.Log($"[Stun] {card.cardName} foi stunada! Desestunará no próximo turno");
+    }
+
+    // Desestunamento automático ao passar o turno
+    public void CheckAndUnstun()
+    {
+        if (!isStunned || TurnManager.Instance == null) return;
+
+        if (TurnManager.Instance.currentRound > stunnedAtRound)
+        {
+            isStunned = false;
+            stunnedAtRound = -1;
+            Debug.Log($"[Unstun] {card.cardName} foi desestunada!");
+        }
+    }
+
+    // Marca a carta com a águia por 2 turnos (Archer 3, ATK 4, HP 2)
+    public void MarkWithEagle()
+    {
+        if (TurnManager.Instance == null) return;
+
+        eagleMarked = true;
+        eagleMarkedRound = TurnManager.Instance.currentRound;
+        Debug.Log($"[Eagle] {card.cardName} foi marcada pela águia! Não pode atacar por 2 turnos");
+    }
+
+    // Verifica e remove a marca de águia após 2 turnos
+    public void CheckAndUneagleMark()
+    {
+        if (!eagleMarked || TurnManager.Instance == null) return;
+
+        if (TurnManager.Instance.currentRound > eagleMarkedRound + 1)
+        {
+            eagleMarked = false;
+            eagleMarkedRound = -1;
+            Debug.Log($"[Eagle] A marca de águia foi removida de {card.cardName}!");
+        }
     }
 }

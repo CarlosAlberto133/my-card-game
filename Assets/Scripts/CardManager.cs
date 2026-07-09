@@ -246,4 +246,95 @@ public class CardManager : MonoBehaviour
 
         return cardDisplay;
     }
+
+    // Invoca um Archer aleatório (tier 1-4) quando um Archer 2 (ATK 3, HP 3) mata inimigo
+    public void InvokeRandomArcher(int ownerPlayerNumber, CardTile nearTile)
+    {
+        CardPool cardPool = FindObjectOfType<CardPool>();
+        if (cardPool == null) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        // Procura por Archers nos tiers 1-4
+        var allCards = cardPool.GetAvailableCards();
+        var archerCards = allCards.FindAll(c =>
+            c.cardData.cardClass == CardClass.Arqueiro &&
+            (c.cardData.tier == CardTier.Tier1 || c.cardData.tier == CardTier.Tier2 ||
+             c.cardData.tier == CardTier.Tier3 || c.cardData.tier == CardTier.Tier4));
+
+        if (archerCards.Count == 0)
+        {
+            Debug.Log("[InvokeArcher] Nenhum Archer disponível para invocar!");
+            return;
+        }
+
+        // Escolhe um Archer aleatório
+        CardInstance invokedCard = archerCards[Random.Range(0, archerCards.Count)];
+
+        // Encontra um tile vazio próximo para spawnar
+        CardTile spawnTile = nearTile;
+        if (nearTile != null && nearTile.IsOccupied())
+        {
+            spawnTile = board.FindAdjacentEmptyTile(nearTile, ownerPlayerNumber);
+        }
+
+        if (spawnTile != null)
+        {
+            CardDisplay archerDisplay = SpawnCardOnTile(invokedCard.cardData, spawnTile, ownerPlayerNumber);
+            if (archerDisplay != null)
+            {
+                Debug.Log($"[InvokeArcher] Invocado {archerDisplay.card.cardName}!");
+            }
+        }
+        else
+        {
+            Debug.Log("[InvokeArcher] Nenhum tile vazio disponível para spawnar!");
+        }
+    }
+
+    // Invoca um Mago Lendário aleatório quando os 3 Magos tier-2 estão em campo
+    public void InvokeRandomLegendaryMage(int ownerPlayerNumber, CardTile nearTile)
+    {
+        CardPool cardPool = FindObjectOfType<CardPool>();
+        if (cardPool == null) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        // Procura por Magos nos tiers 3-4 (lendários)
+        var allCards = cardPool.GetAvailableCards();
+        var legendaryMages = allCards.FindAll(c =>
+            c.cardData.cardClass == CardClass.Mago &&
+            (c.cardData.tier == CardTier.Tier3 || c.cardData.tier == CardTier.Tier4));
+
+        if (legendaryMages.Count == 0)
+        {
+            Debug.Log("[InvokeLegendaryMage] Nenhum Mago Lendário disponível para invocar!");
+            return;
+        }
+
+        // Escolhe um Mago aleatório
+        CardInstance invokedCard = legendaryMages[Random.Range(0, legendaryMages.Count)];
+
+        // Encontra um tile vazio próximo para spawnar
+        CardTile spawnTile = nearTile;
+        if (nearTile != null && nearTile.IsOccupied())
+        {
+            spawnTile = board.FindAdjacentEmptyTile(nearTile, ownerPlayerNumber);
+        }
+
+        if (spawnTile != null)
+        {
+            CardDisplay mageDisplay = SpawnCardOnTile(invokedCard.cardData, spawnTile, ownerPlayerNumber);
+            if (mageDisplay != null)
+            {
+                Debug.Log($"[InvokeLegendaryMage] Invocado {mageDisplay.card.cardName}!");
+            }
+        }
+        else
+        {
+            Debug.Log("[InvokeLegendaryMage] Nenhum tile vazio disponível para spawnar!");
+        }
+    }
 }

@@ -151,6 +151,26 @@ public class GameManager : MonoBehaviour
     // Seleciona uma carta que já está no tabuleiro para mover
     public void SelectCardFromBoard(GameObject card, CardDisplay cardDisplay, CardTile tile)
     {
+        // Se está aguardando seleção de alvo para congelar (Mage 3)
+        if (IsWaitingForFreezeTarget())
+        {
+            TryFreezeEnemy(cardDisplay);
+            return;
+        }
+
+        // Se está aguardando seleção de 2 inimigos para quebra de armadura (Mage 2 ATK 4, HP 3)
+        if (IsWaitingForShieldBreakTargets())
+        {
+            TryBreakShield(cardDisplay);
+            return;
+        }
+
+        // Se está selecionando um Tank para receber +2 armadura do Healer 2 (ATK 1, HP 3)
+        if (TryApplyHealerShield(cardDisplay))
+        {
+            return;
+        }
+
         // Verifica se a carta pertence ao jogador atual
         if (TurnManager.Instance != null)
         {
@@ -607,5 +627,160 @@ public class GameManager : MonoBehaviour
         CancelSelection();
 
         return true;
+    }
+
+    // Sistema para seleção de alvo para congelar (Mage 3)
+    private CardDisplay mageFreezingCard = null;
+    private bool isWaitingForFreezeTarget = false;
+
+    public void StartFreezeSelection(CardDisplay mageCard)
+    {
+        if (GameUIManager.Instance != null)
+        {
+            GameUIManager.Instance.ShowDecisionPopup(
+                "Selecione um inimigo para congelar clicando nele",
+                "Confirmar seleção",
+                () => { /* aguardando clique no inimigo */ },
+                "Cancelar",
+                () => CancelFreezeSelection()
+            );
+        }
+
+        mageFreezingCard = mageCard;
+        isWaitingForFreezeTarget = true;
+        Debug.Log("[FreezeSelection] Aguardando seleção de alvo para congelar...");
+    }
+
+    public void TryFreezeEnemy(CardDisplay targetCard)
+    {
+        if (!isWaitingForFreezeTarget || mageFreezingCard == null) return;
+
+        // Verifica se é um inimigo
+        if (targetCard.ownerPlayerNumber == mageFreezingCard.ownerPlayerNumber ||
+            targetCard.ownerPlayerNumber == 0)
+        {
+            Debug.Log("[FreezeSelection] Alvo inválido! Deve ser um inimigo.");
+            return;
+        }
+
+        // Congela o inimigo
+        targetCard.Freeze();
+        isWaitingForFreezeTarget = false;
+        mageFreezingCard = null;
+
+        Debug.Log($"[FreezeSelection] {targetCard.card.cardName} foi congelada!");
+    }
+
+    public void CancelFreezeSelection()
+    {
+        isWaitingForFreezeTarget = false;
+        mageFreezingCard = null;
+        Debug.Log("[FreezeSelection] Seleção cancelada");
+    }
+
+    public bool IsWaitingForFreezeTarget()
+    {
+        return isWaitingForFreezeTarget;
+    }
+
+    // Tenta aplicar +2 armadura do Healer 2 (ATK 1, HP 3) a um Tank
+    private bool TryApplyHealerShield(CardDisplay targetCard)
+    {
+        if (targetCard == null || targetCard.card.cardClass != CardClass.Tank) return false;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return false;
+
+        int currentPlayerNumber = TurnManager.Instance?.currentPlayerNumber ?? 0;
+        var allies = board.GetCardsByOwner(currentPlayerNumber);
+
+        // Procura por Healer 2 (ATK 1, HP 3) que pode dar armadura
+        foreach (var ally in allies)
+        {
+            if (ally != null && ally.card.cardClass == CardClass.Healer &&
+                ally.card.attack == 1 && ally.card.health == 3 &&
+                ally.healerShieldUseCount < 2)
+            {
+                CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                if (effect != null)
+                {
+                    effect.HealerTier2Effect2_BoostTankShield(targetCard);
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    // Sistema para seleção de 2 inimigos para quebra de armadura (Mage 2 ATK 4, HP 3)
+    private CardDisplay shieldBreakMage = null;
+    private int shieldBreakTargetsSelected = 0;
+    private bool isWaitingForShieldBreakTargets = false;
+
+    public void StartShieldBreakSelection(CardDisplay mageCard)
+    {
+        if (GameUIManager.Instance != null)
+        {
+            GameUIManager.Instance.ShowDecisionPopup(
+                "Selecione 2 inimigos para quebrar a armadura clicando neles",
+                "Confirmar",
+                () => { /* aguardando clique */ },
+                "Cancelar",
+                () => CancelShieldBreakSelection()
+            );
+        }
+
+        shieldBreakMage = mageCard;
+        shieldBreakTargetsSelected = 0;
+        isWaitingForShieldBreakTargets = true;
+        Debug.Log("[ShieldBreakSelection] Aguardando seleção de 2 alvos...");
+    }
+
+    public void TryBreakShield(CardDisplay targetCard)
+    {
+        if (!isWaitingForShieldBreakTargets || shieldBreakMage == null) return;
+
+        // Verifica se é um inimigo
+        if (targetCard.ownerPlayerNumber == shieldBreakMage.ownerPlayerNumber ||
+            targetCard.ownerPlayerNumber == 0)
+        {
+            Debug.Log("[ShieldBreakSelection] Alvo inválido! Deve ser um inimigo.");
+            return;
+        }
+
+        // Quebra armadura
+        CardEffectSimple effect = shieldBreakMage.GetComponent<CardEffectSimple>();
+        if (effect != null)
+        {
+            effect.BreakEnemyShield(targetCard);
+        }
+
+        shieldBreakTargetsSelected++;
+
+        if (shieldBreakTargetsSelected >= 2)
+        {
+            isWaitingForShieldBreakTargets = false;
+            shieldBreakMage = null;
+            shieldBreakTargetsSelected = 0;
+            Debug.Log("[ShieldBreakSelection] Seleção completa!");
+        }
+        else
+        {
+            Debug.Log($"[ShieldBreakSelection] {1} alvo selecionado, faltam {2 - shieldBreakTargetsSelected}");
+        }
+    }
+
+    public void CancelShieldBreakSelection()
+    {
+        isWaitingForShieldBreakTargets = false;
+        shieldBreakMage = null;
+        shieldBreakTargetsSelected = 0;
+        Debug.Log("[ShieldBreakSelection] Seleção cancelada");
+    }
+
+    public bool IsWaitingForShieldBreakTargets()
+    {
+        return isWaitingForShieldBreakTargets;
     }
 }

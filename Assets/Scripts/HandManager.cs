@@ -124,4 +124,25 @@ public class HandManager : MonoBehaviour
     {
         return new List<GameObject>(cardsInHand);
     }
+
+    // Aumenta escudo de todas as cartas na mão (Tank 5)
+    public void BoostHandShield(int targetPlayerNumber, int amount)
+    {
+        // Verifica se este HandManager é do jogador correto
+        if (playerNumber != targetPlayerNumber) return;
+
+        int boostedCount = 0;
+        foreach (GameObject cardObject in cardsInHand)
+        {
+            CardDisplay cardDisplay = cardObject.GetComponent<CardDisplay>();
+            if (cardDisplay != null)
+            {
+                cardDisplay.currentShield += amount;
+                cardDisplay.UpdateDisplay();
+                boostedCount++;
+            }
+        }
+
+        Debug.Log($"[TankEffect5] Boosted shield of {boostedCount} cards in hand by {amount}");
+    }
 }

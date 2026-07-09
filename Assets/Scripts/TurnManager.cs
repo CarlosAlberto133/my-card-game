@@ -155,7 +155,7 @@ public class TurnManager : MonoBehaviour
         // Passa para o próximo jogador
         currentPlayerNumber = currentPlayerNumber == 1 ? 2 : 1;
 
-        // Reseta efeito de árvore e popup para todas as cartas
+        // Reseta efeito de árvore, popup, descongelamento, desestunamento, marca de águia e efeitos de Healer tier-2
         BoardManager board = BoardManager.Instance;
         if (board != null)
         {
@@ -165,6 +165,10 @@ public class TurnManager : MonoBehaviour
                 {
                     card.treeDefenseActive = false;
                     card.treeDefensePopupShown = false;
+                    card.CheckAndUnfreeze(); // Descongelamento (Mage 3)
+                    card.CheckAndUnstun(); // Desestunamento (Archer tier-2)
+                    card.CheckAndUneagleMark(); // Remove marca de águia (Archer 3 tier-3)
+                    card.healerShieldUseCount = 0; // Reset usos de +armadura (Healer 2 ATK 1, HP 3)
                 }
             }
         }
