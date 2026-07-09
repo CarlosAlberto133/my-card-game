@@ -1,0 +1,12 @@
+fileFormatVersion: 2
+guid: d127e961917b252458a9910af185709e
+labels:
+- ExitGames
+- PUN
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/DemoWorker/DemoWorker-Scene.unity
+  uploadId: 460225

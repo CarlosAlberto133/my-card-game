@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: ffba99130c6923e488e9b4221cdf9af8
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/DemoFriendsAndCustomAuth/GUIFriendsInRoom.cs
+  uploadId: 460225

@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 9e3b529a63c710a4c9d4df2417d343a2
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/MarcoPolo-Tutorial/GameLogic.cs
+  uploadId: 460225

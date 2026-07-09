@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 66a8c34642b4b5e40b48bb982b8b96b9
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/DemoHub/MoveCam.cs
+  uploadId: 460225

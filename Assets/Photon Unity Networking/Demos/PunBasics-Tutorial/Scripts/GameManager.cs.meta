@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 4433564e76b1940028e7e531f171050d
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/PunBasics-Tutorial/Scripts/GameManager.cs
+  uploadId: 460225

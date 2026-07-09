@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 219bc3607c906b14da59b07981e0a793
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/Shared Assets/Scripts/PlayerVariables.cs
+  uploadId: 460225

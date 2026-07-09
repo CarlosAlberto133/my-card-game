@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: b522ba8b66e20ad4994ab4cad343795d
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/MarcoPolo-Tutorial/RandomMatchmaker.cs
+  uploadId: 460225

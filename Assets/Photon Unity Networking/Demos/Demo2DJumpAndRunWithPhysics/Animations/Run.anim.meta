@@ -1,0 +1,11 @@
+fileFormatVersion: 2
+guid: 34cffcb838cf9d64383508932cb3c8c0
+NativeFormatImporter:
+  userData: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/Demo2DJumpAndRunWithPhysics/Animations/Run.anim
+  uploadId: 460225

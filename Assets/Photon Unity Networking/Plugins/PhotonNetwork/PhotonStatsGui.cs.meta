@@ -1,0 +1,19 @@
+fileFormatVersion: 2
+guid: d06466c03d263624786afa88b52928b6
+labels:
+- ExitGames
+- PUN
+- Photon
+- Networking
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Plugins/PhotonNetwork/PhotonStatsGui.cs
+  uploadId: 460225

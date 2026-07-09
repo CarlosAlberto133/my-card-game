@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 0f3dbbefce8d287489545c79a9baf8a0
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/DemoSynchronization/CubeExtra.cs
+  uploadId: 460225

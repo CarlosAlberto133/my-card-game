@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: f226ce9e7a33bc24c95f34dd9f583516
+labels:
+- ExitGames
+- PUN
+- Photon
+- Networking
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/PhotonNetwork-Documentation.pdf
+  uploadId: 460225

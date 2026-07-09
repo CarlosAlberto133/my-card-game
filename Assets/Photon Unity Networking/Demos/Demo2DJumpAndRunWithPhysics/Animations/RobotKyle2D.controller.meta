@@ -1,0 +1,11 @@
+fileFormatVersion: 2
+guid: c4166aae2783a884dbf46290328260bd
+NativeFormatImporter:
+  userData: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/Demo2DJumpAndRunWithPhysics/Animations/RobotKyle2D.controller
+  uploadId: 460225

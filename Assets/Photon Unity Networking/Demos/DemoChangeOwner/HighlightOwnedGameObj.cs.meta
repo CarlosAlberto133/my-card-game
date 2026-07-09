@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 000ef710937cf394f83251fd684272ec
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/DemoChangeOwner/HighlightOwnedGameObj.cs
+  uploadId: 460225

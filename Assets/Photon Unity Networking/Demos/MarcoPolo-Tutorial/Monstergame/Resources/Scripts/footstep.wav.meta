@@ -1,0 +1,18 @@
+fileFormatVersion: 2
+guid: 7d93183d7fa55d34fa5e60699b70656f
+AudioImporter:
+  serializedVersion: 4
+  format: 0
+  quality: -1
+  stream: 1
+  3D: 1
+  forceToMono: 1
+  useHardware: 0
+  loopable: 0
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/MarcoPolo-Tutorial/Monstergame/Resources/Scripts/footstep.wav
+  uploadId: 460225

@@ -1,0 +1,11 @@
+fileFormatVersion: 2
+guid: 01b0b8b192837f34fbdd054d719dd80d
+NativeFormatImporter:
+  userData: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/Demo2DJumpAndRunWithPhysics/Animations/Fall.anim
+  uploadId: 460225

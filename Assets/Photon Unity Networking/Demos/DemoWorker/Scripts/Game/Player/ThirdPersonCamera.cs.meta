@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: f04aa96c3db9b22499df04b7c798e649
+labels:
+- ExitGames
+- PUN
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/DemoWorker/Scripts/Game/Player/ThirdPersonCamera.cs
+  uploadId: 460225

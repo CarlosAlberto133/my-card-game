@@ -675,6 +675,14 @@ public class CardDisplay : MonoBehaviour
         // Compra a carta
         currentPlayer.BuyCard(cost);
 
+        // Sincroniza compra via RPC (Photon multiplayer)
+        if (PhotonGameManager.Instance != null)
+        {
+            int buyerPlayerNumber = ownerPlayerNumber;
+            int cardInstanceID = gameObject.GetInstanceID();
+            PhotonGameManager.Instance.SendBuyCardRPC(cardInstanceID, cost, buyerPlayerNumber);
+        }
+
         // Remove da loja e adiciona à mão DO JOGADOR CORRETO
         isInShop = false;
         ownerPlayerNumber = currentPlayer.playerNumber; // Define o dono da carta
@@ -952,6 +960,15 @@ public class CardDisplay : MonoBehaviour
         if (TurnManager.Instance != null)
         {
             lastAttackedRound = TurnManager.Instance.currentRound;
+        }
+
+        // Sincroniza ataque via RPC (Photon multiplayer)
+        if (PhotonGameManager.Instance != null)
+        {
+            int attackerPlayerNumber = ownerPlayerNumber;
+            int attackerID = gameObject.GetInstanceID();
+            int targetID = target.gameObject.GetInstanceID();
+            PhotonGameManager.Instance.SendAttackRPC(attackerID, targetID, modifiedDamage, attackerPlayerNumber);
         }
 
         return true;

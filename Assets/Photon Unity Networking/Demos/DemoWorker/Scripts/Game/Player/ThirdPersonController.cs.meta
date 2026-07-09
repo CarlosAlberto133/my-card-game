@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 955c74c013058e749bab96303414a7c6
+labels:
+- ExitGames
+- PUN
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/DemoWorker/Scripts/Game/Player/ThirdPersonController.cs
+  uploadId: 460225

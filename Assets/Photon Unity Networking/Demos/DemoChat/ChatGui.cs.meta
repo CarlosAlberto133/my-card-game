@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 02d148d0890b2d44dbdf7f1c1b39a499
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/DemoChat/ChatGui.cs
+  uploadId: 460225

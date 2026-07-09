@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 747b79b3c36c70c40a71f4542e7e3934
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/DemoRPGMovement/Scripts/RPGMovement.cs
+  uploadId: 460225

@@ -1,0 +1,11 @@
+fileFormatVersion: 2
+guid: c3b3cff6cfe342241a7c288b16235032
+NativeFormatImporter:
+  userData: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/DemoSynchronization/MatCubeLerp.mat
+  uploadId: 460225

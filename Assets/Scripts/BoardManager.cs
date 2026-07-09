@@ -205,6 +205,14 @@ public class BoardManager : MonoBehaviour
         return result;
     }
 
+    // Busca uma carta pelo instance ID
+    public CardDisplay FindCardByInstanceID(int instanceID)
+    {
+        foreach (var card in GetAllCards())
+            if (card.gameObject.GetInstanceID() == instanceID) return card;
+        return null;
+    }
+
     // Conta cartas de uma classe específica de um jogador
     public int CountCardsByClass(int ownerPlayerNumber, CardClass cardClass)
     {

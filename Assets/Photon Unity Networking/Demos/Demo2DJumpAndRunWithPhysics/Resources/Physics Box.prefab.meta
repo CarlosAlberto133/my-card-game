@@ -1,0 +1,12 @@
+fileFormatVersion: 2
+guid: 71f9695057c753246adc29fcbd25f30a
+NativeFormatImporter:
+  userData: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/Demo2DJumpAndRunWithPhysics/Resources/Physics
+    Box.prefab
+  uploadId: 460225

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 1d3ffecc35e562e4ea9047ab293cedd7
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/DemoRockPaperScissors/Scripts/RpsDemoConnect.cs
+  uploadId: 460225

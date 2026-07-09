@@ -1,0 +1,11 @@
+fileFormatVersion: 2
+guid: 5655d3beb0cbd324682a07c9f6ab7a6b
+NativeFormatImporter:
+  userData: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/Demo2DJumpAndRunWithPhysics/Sprites/CharacterFrictionless.physicsMaterial2D
+  uploadId: 460225

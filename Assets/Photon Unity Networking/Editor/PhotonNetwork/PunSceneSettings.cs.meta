@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: fc3284eace5a64d4bb516df7d7effdb9
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Editor/PhotonNetwork/PunSceneSettings.cs
+  uploadId: 460225

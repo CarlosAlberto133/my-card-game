@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: a9985e7a9ccca8846a19e56ef2ed0772
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/DemoFriendsAndCustomAuth/OnClickCallMethod.cs
+  uploadId: 460225

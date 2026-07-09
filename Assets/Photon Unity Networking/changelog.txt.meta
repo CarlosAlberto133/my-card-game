@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 612a7d8fb44bb994d90d9c0fa1408703
+labels:
+- ExitGames
+- PUN
+- Photon
+- Networking
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/changelog.txt
+  uploadId: 460225

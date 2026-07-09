@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 660b16ba396d0465b98be14947420288
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/DemoChat/FriendItem.cs
+  uploadId: 460225

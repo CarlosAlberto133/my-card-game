@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 39f5f392fce60324ba37de3e5a4c3272
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/DemoBoxes/OnClickFlashRpc.cs
+  uploadId: 460225

@@ -1,0 +1,19 @@
+fileFormatVersion: 2
+guid: e73a30c46df19194f873ea7a9ce12753
+labels:
+- ExitGames
+- PUN
+- Photon
+- Networking
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Editor/PhotonNetwork/PhotonViewInspector.cs
+  uploadId: 460225

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 627855c7f81362d41938ffe0b1475957
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Plugins/PhotonNetwork/Views/PhotonTransformView.cs
+  uploadId: 460225

@@ -1,0 +1,11 @@
+fileFormatVersion: 2
+guid: 298f4afe40ba3d74fae87ae1dfbe812e
+NativeFormatImporter:
+  userData: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/Demo2DJumpAndRunWithPhysics/Animations/Land.anim
+  uploadId: 460225

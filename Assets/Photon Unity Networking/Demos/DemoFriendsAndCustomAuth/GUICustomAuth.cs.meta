@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: f57b574c6a5e6e04e8a5df9aef373533
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/DemoFriendsAndCustomAuth/GUICustomAuth.cs
+  uploadId: 460225

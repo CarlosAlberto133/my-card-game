@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 09e4272782f6acf4eb2168f38b594c5a
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Demos/DemoPickup/Scripts/PickupDemoGui.cs
+  uploadId: 460225

@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 60c609ded101b0a468fb5cf27b31cf27
+MonoImporter:
+  serializedVersion: 2
+  defaultReferences: []
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 1786
+  packageName: Photon Unity Networking Classic - FREE
+  packageVersion: 1.105
+  assetPath: Assets/Photon Unity Networking/Editor/PhotonNetwork/ReorderableListResources.cs
+  uploadId: 460225

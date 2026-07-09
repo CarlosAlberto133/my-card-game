@@ -43,6 +43,13 @@ public class TurnManager : MonoBehaviour
         Debug.Log("Aguardando jogadores clicarem em 'Iniciar Partida'");
     }
 
+    public void SetPlayers(int myPlayerNumber, int opponentPlayerNumber)
+    {
+        Debug.Log($"[TurnManager] Jogadores sincronizados: Eu={myPlayerNumber}, Oponente={opponentPlayerNumber}");
+        // Os jogadores já estão inicializados, apenas log para confirmação
+        // No futuro, você pode usar myPlayerNumber para determinar a câmera, controles, etc.
+    }
+
     void Update()
     {
         // ESPAÇO passa a vez
