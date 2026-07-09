@@ -155,6 +155,24 @@ public class TurnManager : MonoBehaviour
         // Passa para o próximo jogador
         currentPlayerNumber = currentPlayerNumber == 1 ? 2 : 1;
 
+        // Ativa Healer tier-4 (ATK 4, HP 3) efeito: ganhar ouro ao fim do turno do oponente
+        ActivateHealerTier4OpponentTurnEnd(previousPlayer);
+
+        // Ativa Tank 4 tier-4 (ATK 5, Shield 10, HP 10) efeito: +1 armadura a aliados
+        ActivateTankTier4Effect4Periodic();
+
+        // Ativa Healer 5 tier-5 (ATK 6, HP 3) efeito: cura todos aliados a cada turno
+        ActivateHealerTier5Effect2Periodic();
+
+        // Ativa Mage 5 tier-5 (ATK 8, HP 4) efeito: congela inimigos aleatórios uma vez por round
+        ActivateMageTier5Effect1Periodic();
+
+        // Ativa Mage 5 tier-5 (ATK 7, HP 5) efeito: aumenta ATK de todos Magos ao resetar turno
+        ActivateMageTier5Effect3Periodic();
+
+        // Ativa Tank 5 tier-5 (ATK 2, Shield 6, HP 8) efeito: concede armadura a cada 2 turnos
+        ActivateTankTier5Effect2Periodic();
+
         // Reseta efeito de árvore, popup, descongelamento, desestunamento, marca de águia e efeitos de Healer tier-2
         BoardManager board = BoardManager.Instance;
         if (board != null)
@@ -274,5 +292,173 @@ public class TurnManager : MonoBehaviour
         }
 
         Debug.Log("========== JOGO REINICIADO - AGUARDANDO NO LOBBY ==========");
+    }
+
+    void ActivateHealerTier4OpponentTurnEnd(int opponentPlayerNumber)
+    {
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        var opponentAllies = board.GetCardsByOwner(opponentPlayerNumber);
+        if (opponentAllies.Count == 0) return;
+
+        // Procura por Healer 4 (ATK 4, HP 3) no campo do oponente
+        foreach (var card in opponentAllies)
+        {
+            if (card != null && card.card.cardClass == CardClass.Healer &&
+                card.card.attack == 4 && card.card.health == 3 && card.card.tier == CardTier.Tier4)
+            {
+                CardEffectSimple effect = card.GetComponent<CardEffectSimple>();
+                if (effect != null)
+                {
+                    effect.ActivateGoldOnOpponentTurnEnd();
+                }
+            }
+        }
+    }
+
+    void ActivateTankTier4Effect4Periodic()
+    {
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        // Procura por Tank 4 tier-4 (ATK 5, Shield 10, HP 10) em ambos os jogadores
+        for (int playerNum = 1; playerNum <= 2; playerNum++)
+        {
+            var playerAllies = board.GetCardsByOwner(playerNum);
+            if (playerAllies.Count == 0) continue;
+
+            foreach (var card in playerAllies)
+            {
+                if (card != null && card.card.cardClass == CardClass.Tank &&
+                    card.card.attack == 5 && card.card.shield == 10 && card.card.health == 10 &&
+                    card.card.tier == CardTier.Tier4)
+                {
+                    CardEffectSimple effect = card.GetComponent<CardEffectSimple>();
+                    if (effect != null)
+                    {
+                        effect.ActivateTankTier4Effect4Periodic();
+                    }
+                }
+            }
+        }
+    }
+
+    void ActivateHealerTier5Effect2Periodic()
+    {
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        // Procura por Healer 5 tier-5 (ATK 6, HP 3) em ambos os jogadores
+        for (int playerNum = 1; playerNum <= 2; playerNum++)
+        {
+            var playerAllies = board.GetCardsByOwner(playerNum);
+            if (playerAllies.Count == 0) continue;
+
+            foreach (var card in playerAllies)
+            {
+                if (card != null && card.card.cardClass == CardClass.Healer &&
+                    card.card.attack == 6 && card.card.health == 3 &&
+                    card.card.tier == CardTier.Tier5)
+                {
+                    CardEffectSimple effect = card.GetComponent<CardEffectSimple>();
+                    if (effect != null)
+                    {
+                        effect.ActivatePeriodicAllyHeal();
+                    }
+                }
+            }
+        }
+    }
+
+    void ActivateMageTier5Effect1Periodic()
+    {
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        // Procura por Mage 5 tier-5 (ATK 8, HP 4) em ambos os jogadores
+        for (int playerNum = 1; playerNum <= 2; playerNum++)
+        {
+            var playerAllies = board.GetCardsByOwner(playerNum);
+            if (playerAllies.Count == 0) continue;
+
+            foreach (var card in playerAllies)
+            {
+                if (card != null && card.card.cardClass == CardClass.Mago &&
+                    card.card.attack == 8 && card.card.health == 4 &&
+                    card.card.tier == CardTier.Tier5)
+                {
+                    // Verifica se já foi usado neste round
+                    if (card.mageTier5Effect1LastUsedRound != currentRound)
+                    {
+                        CardEffectSimple effect = card.GetComponent<CardEffectSimple>();
+                        if (effect != null)
+                        {
+                            effect.ActivateRandomFreeze();
+                            card.mageTier5Effect1LastUsedRound = currentRound;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    void ActivateMageTier5Effect3Periodic()
+    {
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        // Procura por Mage 5 tier-5 (ATK 7, HP 5) em ambos os jogadores
+        for (int playerNum = 1; playerNum <= 2; playerNum++)
+        {
+            var playerAllies = board.GetCardsByOwner(playerNum);
+            if (playerAllies.Count == 0) continue;
+
+            foreach (var card in playerAllies)
+            {
+                if (card != null && card.card.cardClass == CardClass.Mago &&
+                    card.card.attack == 7 && card.card.health == 5 &&
+                    card.card.tier == CardTier.Tier5)
+                {
+                    CardEffectSimple effect = card.GetComponent<CardEffectSimple>();
+                    if (effect != null)
+                    {
+                        effect.ActivateMageBoostPerTurn();
+                    }
+                }
+            }
+        }
+    }
+
+    void ActivateTankTier5Effect2Periodic()
+    {
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        // Procura por Tank 5 tier-5 (ATK 2, Shield 6, HP 8) em ambos os jogadores
+        for (int playerNum = 1; playerNum <= 2; playerNum++)
+        {
+            var playerAllies = board.GetCardsByOwner(playerNum);
+            if (playerAllies.Count == 0) continue;
+
+            foreach (var card in playerAllies)
+            {
+                if (card != null && card.card.cardClass == CardClass.Tank &&
+                    card.card.attack == 2 && card.card.shield == 6 && card.card.health == 8 &&
+                    card.card.tier == CardTier.Tier5)
+                {
+                    // Verifica se já foi usado há 2 turnos atrás
+                    if (currentRound - card.tankTier5Effect2LastArmorRound >= 2)
+                    {
+                        CardEffectSimple effect = card.GetComponent<CardEffectSimple>();
+                        if (effect != null)
+                        {
+                            effect.ActivatePeriodicShieldTier5Effect2();
+                            card.tankTier5Effect2LastArmorRound = currentRound;
+                        }
+                    }
+                }
+            }
+        }
     }
 }

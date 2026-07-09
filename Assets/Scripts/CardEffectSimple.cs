@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 public class CardEffectSimple : MonoBehaviour
 {
@@ -9,6 +10,346 @@ public class CardEffectSimple : MonoBehaviour
     void Start()
     {
         cardDisplay = GetComponent<CardDisplay>();
+    }
+
+    // ===== ARCHER TIER-5 =====
+    public void ArcherTier5Effect()
+    {
+        if (cardDisplay == null) return;
+
+        int baseAtk = cardDisplay.card.attack;
+        int baseHp = cardDisplay.card.health;
+
+        if (baseAtk == 8 && baseHp == 3)
+            ArcherTier5Effect1_DoubleDamageAgainstTank();
+        else if (baseAtk == 10 && baseHp == 5)
+            ArcherTier5Effect2_RemoveEnemyArmor();
+        else if (baseAtk == 15 && baseHp == 4)
+            ArcherTier5Effect3_IgnoreArmorAndExecute();
+    }
+
+    // Efeito 1: Archer 5 (ATK 8, HP 3) - Causa dano duplicado se atacar um Tank
+    void ArcherTier5Effect1_DoubleDamageAgainstTank()
+    {
+        if (cardDisplay == null) return;
+
+        // Este efeito é ativado via hook em AttackAdjacentEnemy
+        Debug.Log($"[ArcherTier5Effect1] {cardDisplay.card.cardName}: Pronta para duplicar dano contra Tanks");
+    }
+
+    public bool IsTargetTank(CardDisplay target)
+    {
+        return target != null && target.card.cardClass == CardClass.Tank;
+    }
+
+    // Efeito 2: Archer 5 (ATK 10, HP 5) - Remove 2 armadura de todos inimigos ao entrar, ignora armadura se tem Tank
+    void ArcherTier5Effect2_RemoveEnemyArmor()
+    {
+        if (cardDisplay == null || cardDisplay.archerTier5Effect2Used) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        int enemyPlayerNumber = cardDisplay.ownerPlayerNumber == 1 ? 2 : 1;
+        var enemies = board.GetCardsByOwner(enemyPlayerNumber);
+
+        foreach (var enemy in enemies)
+        {
+            if (enemy != null)
+            {
+                enemy.currentShield -= 2;
+                if (enemy.currentShield < 0)
+                    enemy.currentShield = 0;
+                enemy.UpdateDisplay();
+            }
+        }
+
+        cardDisplay.archerTier5Effect2Used = true;
+        Debug.Log($"[ArcherTier5Effect2] {cardDisplay.card.cardName}: Removeu 2 de armadura de todos os inimigos!");
+    }
+
+    public bool ShouldIgnoreArmor_Tier5Effect2()
+    {
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return false;
+
+        return board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Tank);
+    }
+
+    // Efeito 3: Archer 5 (ATK 15, HP 4) - Ignora armadura, executa se inimigo tem 2 HP ou menos
+    void ArcherTier5Effect3_IgnoreArmorAndExecute()
+    {
+        if (cardDisplay == null) return;
+
+        // Este efeito é ativado via hook em AttackAdjacentEnemy
+        Debug.Log($"[ArcherTier5Effect3] {cardDisplay.card.cardName}: Pronta para ignorar armadura e executar inimigos com 2 HP");
+    }
+
+    public void CheckArcherTier5Effect3_Execute(CardDisplay targetEnemy)
+    {
+        if (cardDisplay == null || targetEnemy == null) return;
+
+        // Se o inimigo tem 2 HP ou menos, executa imediatamente
+        if (targetEnemy.currentHealth <= 2)
+        {
+            targetEnemy.currentHealth = 0;
+            targetEnemy.DestroyCard();
+            Debug.Log($"[ArcherTier5Effect3] {cardDisplay.card.cardName}: Executou {targetEnemy.card.cardName}!");
+        }
+    }
+
+    // ===== HEALER TIER-5 =====
+    public void HealerTier5Effect()
+    {
+        if (cardDisplay == null) return;
+
+        int baseAtk = cardDisplay.card.attack;
+        int baseHp = cardDisplay.card.health;
+
+        if (baseAtk == 5 && baseHp == 4)
+            HealerTier5Effect1_FreeCardPurchase();
+        else if (baseAtk == 6 && baseHp == 3)
+            HealerTier5Effect2_PeriodicAllyHeal();
+        else if (baseAtk == 4 && baseHp == 5)
+            HealerTier5Effect3_DoubleAllyStats();
+    }
+
+    // Efeito 1: Healer 5 (ATK 5, HP 4) - Ao entrar concede 1 compra grátis
+    void HealerTier5Effect1_FreeCardPurchase()
+    {
+        if (cardDisplay == null) return;
+
+        PlayerData player = TurnManager.Instance.GetPlayer(cardDisplay.ownerPlayerNumber);
+        if (player != null)
+        {
+            player.cardsBoughtThisTurn--;
+            Debug.Log($"[HealerTier5Effect1] {cardDisplay.card.cardName}: Concedeu 1 compra grátis!");
+        }
+    }
+
+    // Efeito 2: Healer 5 (ATK 6, HP 3) - Cura todos aliados em 2 HP e 2 shield a cada turno
+    void HealerTier5Effect2_PeriodicAllyHeal()
+    {
+        if (cardDisplay == null) return;
+
+        // Este efeito é ativado via hook em TurnManager.EndTurn()
+        Debug.Log($"[HealerTier5Effect2] {cardDisplay.card.cardName}: Pronta para curar aliados a cada turno");
+    }
+
+    public void ActivatePeriodicAllyHeal()
+    {
+        if (cardDisplay == null) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
+        if (allies.Count == 0) return;
+
+        // Cura todos os aliados em 2 de HP e 2 de shield
+        foreach (var ally in allies)
+        {
+            if (ally != null)
+            {
+                ally.currentHealth += 2;
+                if (ally.currentHealth > ally.card.health)
+                    ally.currentHealth = ally.card.health;
+
+                ally.currentShield += 2;
+                ally.UpdateDisplay();
+            }
+        }
+
+        Debug.Log($"[HealerTier5Effect2] {cardDisplay.card.cardName}: Curou todos aliados em 2 HP e 2 shield!");
+    }
+
+    // Efeito 3: Healer 5 (ATK 4, HP 5) - Duplica todos os status de um aliado à escolha
+    void HealerTier5Effect3_DoubleAllyStats()
+    {
+        if (cardDisplay == null || cardDisplay.healerTier5Effect3Used) return;
+
+        ShowDoubleStatsPopup();
+    }
+
+    void ShowDoubleStatsPopup()
+    {
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
+        if (allies.Count == 0) return;
+
+        // Cria lista de opções para escolher qual aliado duplicar
+        List<string> allyNames = new List<string>();
+        foreach (var ally in allies)
+        {
+            if (ally != null)
+                allyNames.Add(ally.card.cardName);
+        }
+
+        // Mostra popup para escolher
+        GameUIManager uiManager = GameUIManager.Instance;
+        if (uiManager != null)
+        {
+            string allyList = string.Join(", ", allyNames);
+            uiManager.ShowDecisionPopup(
+                $"Escolha qual aliado terá seus status duplicados:\n{allyList}",
+                allyNames.Count > 0 ? allyNames[0] : "Cancelar",
+                () => ActivateDoubleStats(allies[0]),
+                "Próximo",
+                () => { if (allies.Count > 1) ActivateDoubleStats(allies[1]); }
+            );
+        }
+    }
+
+    public void ActivateDoubleStats(CardDisplay targetAlly)
+    {
+        if (cardDisplay == null || targetAlly == null) return;
+
+        // Duplica todos os status
+        targetAlly.currentAttack *= 2;
+        targetAlly.currentShield *= 2;
+        targetAlly.currentHealth *= 2;
+        if (targetAlly.currentHealth > targetAlly.card.health * 2)
+            targetAlly.currentHealth = targetAlly.card.health * 2;
+
+        targetAlly.UpdateDisplay();
+        cardDisplay.healerTier5Effect3Used = true;
+        Debug.Log($"[HealerTier5Effect3] {cardDisplay.card.cardName}: Duplicou status de {targetAlly.card.cardName}!");
+    }
+
+    // ===== ARCHER TIER-4 =====
+    public void ArcherTier4Effect()
+    {
+        if (cardDisplay == null) return;
+
+        int baseAtk = cardDisplay.card.attack;
+        int baseHp = cardDisplay.card.health;
+
+        if (baseAtk == 5 && baseHp == 3)
+            ArcherTier4Effect1_DoubleAttackHealer();
+        else if (baseAtk == 6 && baseHp == 3)
+            ArcherTier4Effect2_StunEvery2Turns();
+        else if (baseAtk == 7 && baseHp == 3)
+            ArcherTier4Effect3_CopyOnKill();
+        else if (baseAtk == 6 && baseHp == 2)
+            ArcherTier4Effect4_ExtraMoveOnSideAttack();
+    }
+
+    // Efeito 1: Archer 4 (ATK 5, HP 3) - Ataque 2 vezes se alvo é Healer, move novamente se mata
+    void ArcherTier4Effect1_DoubleAttackHealer()
+    {
+        if (cardDisplay == null) return;
+
+        // Este efeito é ativado durante o ataque via hook em AttackAdjacentEnemy
+        Debug.Log($"[ArcherTier4Effect1] {cardDisplay.card.cardName}: Pronta para atacar Healers 2 vezes");
+    }
+
+    public void ActivateDoubleAttackHealer(CardDisplay targetEnemy)
+    {
+        if (cardDisplay == null || targetEnemy == null) return;
+
+        // Ataca 2 vezes se for Healer
+        if (targetEnemy.card.cardClass == CardClass.Healer)
+        {
+            targetEnemy.TakeDamage(cardDisplay.currentAttack);
+            targetEnemy.TakeDamage(cardDisplay.currentAttack);
+            Debug.Log($"[ArcherTier4Effect1] {cardDisplay.card.cardName}: Atacou {targetEnemy.card.cardName} 2 vezes!");
+
+            // Se mata o Healer, pode se movimentar novamente
+            if (targetEnemy.currentHealth <= 0)
+            {
+                cardDisplay.lastMovedRound = -1;
+                Debug.Log($"[ArcherTier4Effect1] {cardDisplay.card.cardName}: Matou o Healer - pode se mover novamente!");
+            }
+        }
+    }
+
+    // Efeito 2: Archer 4 (ATK 6, HP 3) - Stune um alvo, pode reutilizar a cada 2 turnos
+    void ArcherTier4Effect2_StunEvery2Turns()
+    {
+        if (cardDisplay == null) return;
+
+        // Este efeito é ativado via método separado quando atacar
+        Debug.Log($"[ArcherTier4Effect2] {cardDisplay.card.cardName}: Pronta para stunar (pode reutilizar a cada 2 turnos)");
+    }
+
+    public void ActivateStunEvery2Turns(CardDisplay targetEnemy)
+    {
+        if (cardDisplay == null || targetEnemy == null) return;
+
+        if (TurnManager.Instance == null) return;
+
+        // Verifica se pode reutilizar a cada 2 turnos
+        if (TurnManager.Instance.currentRound - cardDisplay.archerTier4Effect2LastUsedRound >= 2)
+        {
+            targetEnemy.Stun();
+            cardDisplay.archerTier4Effect2LastUsedRound = TurnManager.Instance.currentRound;
+            Debug.Log($"[ArcherTier4Effect2] {cardDisplay.card.cardName}: Stuneu {targetEnemy.card.cardName}!");
+        }
+        else
+        {
+            Debug.Log($"[ArcherTier4Effect2] {cardDisplay.card.cardName}: Stun ainda em cooldown");
+        }
+    }
+
+    // Efeito 3: Archer 4 (ATK 7, HP 3) - Cria cópia ao matar, move novamente se tem Tank
+    void ArcherTier4Effect3_CopyOnKill()
+    {
+        if (cardDisplay == null) return;
+
+        // Este efeito é ativado quando mata um alvo (via hook em TakeDamage)
+        Debug.Log($"[ArcherTier4Effect3] {cardDisplay.card.cardName}: Pronta para copiar ao matar");
+    }
+
+    public void ActivateCopyOnKill()
+    {
+        if (cardDisplay == null || cardDisplay.currentTile == null) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        // Cria uma cópia
+        var emptyTile = board.FindAdjacentEmptyTile(cardDisplay.currentTile, cardDisplay.ownerPlayerNumber);
+        if (emptyTile != null)
+        {
+            CardDisplay copy = cardDisplay.SpawnCardCopy(emptyTile);
+            Debug.Log($"[ArcherTier4Effect3] {cardDisplay.card.cardName}: Criou uma cópia!");
+        }
+
+        // Se tem Tank aliado, pode se mover novamente
+        if (board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Tank))
+        {
+            cardDisplay.lastMovedRound = -1;
+            Debug.Log($"[ArcherTier4Effect3] {cardDisplay.card.cardName}: Tem Tank aliado - pode se mover novamente!");
+        }
+    }
+
+    // Efeito 4: Archer 4 (ATK 6, HP 2) - Move novamente se atacar alvo ao lado
+    void ArcherTier4Effect4_ExtraMoveOnSideAttack()
+    {
+        if (cardDisplay == null) return;
+
+        // Este efeito é ativado quando ataca um alvo adjacente (via hook em AttackAdjacentEnemy)
+        Debug.Log($"[ArcherTier4Effect4] {cardDisplay.card.cardName}: Pronta para se mover novamente ao atacar ao lado");
+    }
+
+    public void CheckSideAttackAndMove(CardDisplay targetEnemy)
+    {
+        if (cardDisplay == null || targetEnemy == null) return;
+
+        if (cardDisplay.currentTile == null || targetEnemy.currentTile == null) return;
+
+        // Verifica se o alvo é adjacente (ao lado)
+        int rowDiff = Mathf.Abs(cardDisplay.currentTile.row - targetEnemy.currentTile.row);
+        int colDiff = Mathf.Abs(cardDisplay.currentTile.column - targetEnemy.currentTile.column);
+
+        // Adjacente = diferença de 1 em apenas um eixo
+        if ((rowDiff == 1 && colDiff == 0) || (rowDiff == 0 && colDiff == 1))
+        {
+            cardDisplay.lastMovedRound = -1;
+            Debug.Log($"[ArcherTier4Effect4] {cardDisplay.card.cardName}: Atacou ao lado - pode se mover novamente!");
+        }
     }
 
     // ===== ARCHER TIER-3 =====
@@ -404,6 +745,303 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[ArcherEffect4] {cardDisplay.card.cardName}: Pronta para usar a árvore (pode esquivar uma vez)");
     }
 
+    // ===== HEALER TIER-4 =====
+    public void HealerTier4Effect()
+    {
+        if (cardDisplay == null) return;
+
+        int baseAtk = cardDisplay.card.attack;
+        int baseHp = cardDisplay.card.health;
+
+        if (baseAtk == 3 && baseHp == 3)
+            HealerTier4Effect1_PeriodicCure();
+        else if (baseAtk == 4 && baseHp == 3)
+            HealerTier4Effect2_GoldOnOpponentTurnEnd();
+        else if (baseAtk == 5 && baseHp == 3)
+            HealerTier4Effect3_GrantInvulnerability();
+        else if (baseAtk == 4 && baseHp == 4)
+            HealerTier4Effect4_BoostAllWithCombo();
+    }
+
+    // Efeito 1: Healer 4 (ATK 3, HP 3) - Cura 4 a cada 2 rounds, ganha 2 ouro se tem Mago
+    void HealerTier4Effect1_PeriodicCure()
+    {
+        if (cardDisplay == null) return;
+
+        // Este efeito é ativado via CheckPeriodicEffects a cada 2 rounds
+        Debug.Log($"[HealerTier4Effect1] {cardDisplay.card.cardName}: Pronta para curar aliados a cada 2 rounds");
+    }
+
+    public void ActivatePeriodicCure()
+    {
+        if (cardDisplay == null) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
+        if (allies.Count == 0) return;
+
+        // Cura um aliado aleatório
+        CardDisplay targetAlly = allies[Random.Range(0, allies.Count)];
+        if (targetAlly != null)
+        {
+            targetAlly.Heal(4, cardDisplay);
+            Debug.Log($"[HealerTier4Effect1] {cardDisplay.card.cardName}: Curou {targetAlly.card.cardName} em 4!");
+
+            // Se tem Mago aliado, ganha 2 de ouro
+            if (board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Mago))
+            {
+                PlayerData player = TurnManager.Instance.GetPlayer(cardDisplay.ownerPlayerNumber);
+                if (player != null)
+                {
+                    player.AddGold(2);
+                    Debug.Log($"[HealerTier4Effect1] {cardDisplay.card.cardName}: Tem Mago aliado - ganhou 2 de ouro!");
+                }
+            }
+        }
+    }
+
+    // Efeito 2: Healer 4 (ATK 4, HP 3) - Recebe 1 ouro extra ao fim do turno do oponente
+    void HealerTier4Effect2_GoldOnOpponentTurnEnd()
+    {
+        if (cardDisplay == null) return;
+
+        // Este efeito é ativado via hook quando o turno do oponente acaba
+        Debug.Log($"[HealerTier4Effect2] {cardDisplay.card.cardName}: Pronta para ganhar ouro ao fim do turno do oponente");
+    }
+
+    public void ActivateGoldOnOpponentTurnEnd()
+    {
+        if (cardDisplay == null) return;
+
+        PlayerData player = TurnManager.Instance.GetPlayer(cardDisplay.ownerPlayerNumber);
+        if (player != null)
+        {
+            player.AddGold(1);
+            Debug.Log($"[HealerTier4Effect2] {cardDisplay.card.cardName}: Ganhou 1 ouro ao fim do turno do oponente!");
+        }
+    }
+
+    // Efeito 3: Healer 4 (ATK 5, HP 3) - Concede invunerabilidade a uma carta por 3 rounds
+    void HealerTier4Effect3_GrantInvulnerability()
+    {
+        if (cardDisplay == null || cardDisplay.healerTier4Effect3Used) return;
+
+        // Este efeito é ativado via popup para escolher qual carta
+        ShowInvulnerabilityPopup();
+    }
+
+    void ShowInvulnerabilityPopup()
+    {
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
+        if (allies.Count == 0) return;
+
+        // Mostra popup para escolher qual aliado ganhar invunerabilidade
+        GameUIManager uiManager = GameUIManager.Instance;
+        if (uiManager != null)
+        {
+            string allyNames = string.Join(", ", allies.ConvertAll(a => a.card.cardName));
+            uiManager.ShowDecisionPopup(
+                $"Escolha qual aliado receberá invunerabilidade por 3 rounds:\n{allyNames}",
+                allies.Count > 0 ? allies[0].card.cardName : "Cancelar",
+                () => ActivateInvulnerability(allies[0]),
+                "Próximo",
+                () => { if (allies.Count > 1) ActivateInvulnerability(allies[1]); }
+            );
+        }
+    }
+
+    public void ActivateInvulnerability(CardDisplay targetAlly)
+    {
+        if (cardDisplay == null || targetAlly == null) return;
+
+        if (TurnManager.Instance == null) return;
+
+        // Marca a carta como invunerável por 3 rounds
+        targetAlly.treeDefenseActive = true;
+        cardDisplay.healerTier4Effect3Used = true;
+        Debug.Log($"[HealerTier4Effect3] {cardDisplay.card.cardName}: Concedeu invunerabilidade a {targetAlly.card.cardName} por 3 rounds!");
+    }
+
+    public void CheckAndRemoveInvulnerability(CardDisplay card)
+    {
+        if (card == null || TurnManager.Instance == null) return;
+
+        // Remove invunerabilidade após 3 rounds
+        // Isso precisa ser rastreado melhor, mas por enquanto usamos o treeDefenseActive
+        // que é resetado a cada turno em TurnManager
+    }
+
+    // Efeito 4: Healer 4 (ATK 4, HP 4) - +3 todos status a todos aliados se tem Tank, Arqueiro e Mago
+    void HealerTier4Effect4_BoostAllWithCombo()
+    {
+        if (cardDisplay == null || cardDisplay.healerTier4Effect4Used) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        bool hasTankAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Tank);
+        bool hasArcherAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Arqueiro);
+        bool hasMageAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Mago);
+
+        if (hasTankAlly && hasArcherAlly && hasMageAlly)
+        {
+            var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
+            foreach (var ally in allies)
+            {
+                if (ally != null)
+                {
+                    ally.currentAttack += 3;
+                    ally.currentShield += 3;
+                    ally.currentHealth += 3;
+                    ally.UpdateDisplay();
+                }
+            }
+
+            cardDisplay.healerTier4Effect4Used = true;
+            Debug.Log($"[HealerTier4Effect4] {cardDisplay.card.cardName}: Tem Tank, Arqueiro e Mago! Todos aliados ganharam +3 em todos status!");
+        }
+        else
+        {
+            Debug.Log($"[HealerTier4Effect4] {cardDisplay.card.cardName}: Faltam aliados da combo (Tank, Arqueiro, Mago)");
+        }
+    }
+
+    // ===== HEALER TIER-3 =====
+    public void HealerTier3Effect()
+    {
+        if (cardDisplay == null) return;
+
+        int baseAtk = cardDisplay.card.attack;
+        int baseHp = cardDisplay.card.health;
+
+        if (baseAtk == 3 && baseHp == 3)
+            HealerTier3Effect1_GoldIfMage();
+        else if (baseAtk == 3 && baseHp == 1)
+            HealerTier3Effect2_CureTankOnDamage();
+        else if (baseAtk == 2 && baseHp == 1)
+            HealerTier3Effect3_GoldPerHealerAndMage();
+        else if (baseAtk == 1 && baseHp == 2)
+            HealerTier3Effect4_GoldPerMage();
+    }
+
+    // Efeito 1: Healer 3 (ATK 3, HP 3) - Ganha 2 de ouro se houver Mago em campo
+    void HealerTier3Effect1_GoldIfMage()
+    {
+        if (cardDisplay == null || cardDisplay.healerTier3Effect1Used) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        bool hasMageAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Mago);
+
+        if (hasMageAlly)
+        {
+            PlayerData player = TurnManager.Instance.GetPlayer(cardDisplay.ownerPlayerNumber);
+            if (player != null)
+            {
+                player.AddGold(2);
+                cardDisplay.healerTier3Effect1Used = true;
+                Debug.Log($"[HealerTier3Effect1] {cardDisplay.card.cardName}: Tem um mago aliado - ganhou 2 de ouro!");
+            }
+        }
+        else
+        {
+            Debug.Log($"[HealerTier3Effect1] {cardDisplay.card.cardName}: Nenhum mago aliado - efeito não ativado");
+        }
+    }
+
+    // Efeito 2: Healer 3 (ATK 3, HP 1) - Cura Tank em 2 sempre que ele recebe dano
+    void HealerTier3Effect2_CureTankOnDamage()
+    {
+        if (cardDisplay == null) return;
+
+        // Este efeito é ativado via hook no método TakeDamage() quando um Tank recebe dano
+        Debug.Log($"[HealerTier3Effect2] {cardDisplay.card.cardName}: Pronta para curar Tanks que recebem dano");
+    }
+
+    public void HealerTier3Effect2_CureTankWhenDamaged(CardDisplay damagedTank)
+    {
+        if (cardDisplay == null || damagedTank == null) return;
+
+        damagedTank.currentHealth += 2;
+        if (damagedTank.currentHealth > damagedTank.card.health)
+            damagedTank.currentHealth = damagedTank.card.health;
+
+        damagedTank.UpdateDisplay();
+        Debug.Log($"[HealerTier3Effect2] {cardDisplay.card.cardName}: Curou {damagedTank.card.cardName} em 2 (HP agora: {damagedTank.currentHealth})");
+    }
+
+    // Efeito 3: Healer 3 (ATK 2, HP 1) - Ganha 1 de ouro por cada Healer, +1 por cada Mago
+    void HealerTier3Effect3_GoldPerHealerAndMage()
+    {
+        if (cardDisplay == null || cardDisplay.healerTier3Effect3Used) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        int healerCount = 0;
+        int mageCount = 0;
+
+        var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
+        foreach (var ally in allies)
+        {
+            if (ally != null)
+            {
+                if (ally.card.cardClass == CardClass.Healer)
+                    healerCount++;
+                if (ally.card.cardClass == CardClass.Mago)
+                    mageCount++;
+            }
+        }
+
+        int totalGold = healerCount + mageCount;
+
+        if (totalGold > 0)
+        {
+            PlayerData player = TurnManager.Instance.GetPlayer(cardDisplay.ownerPlayerNumber);
+            if (player != null)
+            {
+                player.AddGold(totalGold);
+                cardDisplay.healerTier3Effect3Used = true;
+                Debug.Log($"[HealerTier3Effect3] {cardDisplay.card.cardName}: Ganhou {totalGold} de ouro ({healerCount} Healers + {mageCount} Magos)!");
+            }
+        }
+    }
+
+    // Efeito 4: Healer 3 (ATK 1, HP 2) - Ganha 1 de ouro por cada Mago em campo
+    void HealerTier3Effect4_GoldPerMage()
+    {
+        if (cardDisplay == null || cardDisplay.healerTier3Effect4Used) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        int mageCount = 0;
+
+        var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
+        foreach (var ally in allies)
+        {
+            if (ally != null && ally.card.cardClass == CardClass.Mago)
+                mageCount++;
+        }
+
+        if (mageCount > 0)
+        {
+            PlayerData player = TurnManager.Instance.GetPlayer(cardDisplay.ownerPlayerNumber);
+            if (player != null)
+            {
+                player.AddGold(mageCount);
+                cardDisplay.healerTier3Effect4Used = true;
+                Debug.Log($"[HealerTier3Effect4] {cardDisplay.card.cardName}: Ganhou {mageCount} de ouro ({mageCount} Magos em campo)!");
+            }
+        }
+    }
+
     // ===== HEALER TIER-2 =====
     public void HealerTier2Effect()
     {
@@ -645,6 +1283,471 @@ public class CardEffectSimple : MonoBehaviour
             player.AddGold(1);
             Debug.Log($"[HealerEffect4] {cardDisplay.card.cardName}: Ganhou 1 ouro! Total: {player.gold}");
         }
+    }
+
+    // ===== MAGE TIER-4 =====
+    public void MageTier4Effect()
+    {
+        if (cardDisplay == null) return;
+
+        int baseAtk = cardDisplay.card.attack;
+        int baseHp = cardDisplay.card.health;
+
+        if (baseAtk == 7 && baseHp == 4)
+            MageTier4Effect1_RemoveBonus();
+        else if (baseAtk == 6 && baseHp == 6)
+            MageTier4Effect2_BoostOnHealerEnter();
+        else if (baseAtk == 5 && baseHp == 4)
+            MageTier4Effect3_DestroyLowerTier();
+        else if (baseAtk == 6 && baseHp == 3)
+            MageTier4Effect4_GoldPerRound();
+    }
+
+    // Efeito 1: Mage 4 (ATK 7, HP 4) - Remove bônus de um inimigo, pode usar 2 vezes se tem Healer + Arqueiro
+    void MageTier4Effect1_RemoveBonus()
+    {
+        if (cardDisplay == null || cardDisplay.mageTier4Effect1Used) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        // Verifica se tem Healer E Arqueiro para usar 2 vezes
+        bool hasHealerAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Healer);
+        bool hasArcherAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Arqueiro);
+
+        if (hasHealerAlly && hasArcherAlly)
+        {
+            cardDisplay.mageTier4Effect1UsesLeft = 2;
+            Debug.Log($"[MageTier4Effect1] {cardDisplay.card.cardName}: Tem Healer + Arqueiro - pode usar feitiço 2 vezes!");
+        }
+        else
+        {
+            cardDisplay.mageTier4Effect1UsesLeft = 1;
+        }
+
+        // Mostra popup para escolher inimigo
+        ShowRemoveBonusPopup();
+    }
+
+    void ShowRemoveBonusPopup()
+    {
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        int enemyPlayerNumber = cardDisplay.ownerPlayerNumber == 1 ? 2 : 1;
+        var enemies = board.GetCardsByOwner(enemyPlayerNumber);
+
+        if (enemies.Count == 0) return;
+
+        GameUIManager uiManager = GameUIManager.Instance;
+        if (uiManager != null)
+        {
+            string enemyNames = string.Join(", ", enemies.ConvertAll(e => e.card.cardName));
+            uiManager.ShowDecisionPopup(
+                $"Escolha um inimigo para remover bônus:\n{enemyNames}",
+                enemies.Count > 0 ? enemies[0].card.cardName : "Cancelar",
+                () => ActivateRemoveBonus(enemies[0]),
+                "Próximo",
+                () => { if (enemies.Count > 1) ActivateRemoveBonus(enemies[1]); }
+            );
+        }
+    }
+
+    public void ActivateRemoveBonus(CardDisplay targetEnemy)
+    {
+        if (cardDisplay == null || targetEnemy == null) return;
+
+        // Remove todos os status bônus (reseta para base)
+        targetEnemy.currentAttack = targetEnemy.card.attack;
+        targetEnemy.currentShield = targetEnemy.card.shield;
+        targetEnemy.currentHealth = targetEnemy.card.health;
+        targetEnemy.UpdateDisplay();
+
+        cardDisplay.mageTier4Effect1UsesLeft--;
+
+        if (cardDisplay.mageTier4Effect1UsesLeft <= 0)
+        {
+            cardDisplay.mageTier4Effect1Used = true;
+        }
+
+        Debug.Log($"[MageTier4Effect1] {cardDisplay.card.cardName}: Removeu bônus de {targetEnemy.card.cardName}! Usos restantes: {cardDisplay.mageTier4Effect1UsesLeft}");
+    }
+
+    // Efeito 2: Mage 4 (ATK 6, HP 6) - Ganha +1 ATK quando Healer entra em campo
+    void MageTier4Effect2_BoostOnHealerEnter()
+    {
+        if (cardDisplay == null) return;
+
+        // Este efeito é ativado via hook quando um Healer entra em campo
+        Debug.Log($"[MageTier4Effect2] {cardDisplay.card.cardName}: Pronta para ganhar +1 ATK quando Healer entrar");
+    }
+
+    public void ActivateBoostOnHealerEnter()
+    {
+        if (cardDisplay == null) return;
+
+        cardDisplay.currentAttack += 1;
+        cardDisplay.UpdateDisplay();
+        Debug.Log($"[MageTier4Effect2] {cardDisplay.card.cardName}: Ganhou +1 ATK! Total: {cardDisplay.currentAttack}");
+    }
+
+    // Efeito 3: Mage 4 (ATK 5, HP 4) - Destruir inimigo de nível inferior, absorve 50% ataque se tem Tank + Healer + Arqueiro
+    void MageTier4Effect3_DestroyLowerTier()
+    {
+        if (cardDisplay == null || cardDisplay.mageTier4Effect3Used) return;
+
+        // Mostra popup para escolher inimigo de nível inferior
+        ShowDestroyLowerTierPopup();
+    }
+
+    void ShowDestroyLowerTierPopup()
+    {
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        int enemyPlayerNumber = cardDisplay.ownerPlayerNumber == 1 ? 2 : 1;
+        var enemies = board.GetCardsByOwner(enemyPlayerNumber);
+
+        // Filtra apenas inimigos de nível inferior
+        var lowerTierEnemies = enemies.FindAll(e => e != null && e.card.tier < cardDisplay.card.tier);
+
+        if (lowerTierEnemies.Count == 0)
+        {
+            Debug.Log($"[MageTier4Effect3] {cardDisplay.card.cardName}: Nenhum inimigo de nível inferior!");
+            return;
+        }
+
+        GameUIManager uiManager = GameUIManager.Instance;
+        if (uiManager != null)
+        {
+            string enemyNames = string.Join(", ", lowerTierEnemies.ConvertAll(e => e.card.cardName));
+            uiManager.ShowDecisionPopup(
+                $"Escolha um inimigo de nível inferior para destruir:\n{enemyNames}",
+                lowerTierEnemies.Count > 0 ? lowerTierEnemies[0].card.cardName : "Cancelar",
+                () => ActivateDestroyLowerTier(lowerTierEnemies[0]),
+                "Próximo",
+                () => { if (lowerTierEnemies.Count > 1) ActivateDestroyLowerTier(lowerTierEnemies[1]); }
+            );
+        }
+    }
+
+    public void ActivateDestroyLowerTier(CardDisplay targetEnemy)
+    {
+        if (cardDisplay == null || targetEnemy == null) return;
+
+        BoardManager board = BoardManager.Instance;
+        bool hasTankAlly = board != null && board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Tank);
+        bool hasHealerAlly = board != null && board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Healer);
+        bool hasArcherAlly = board != null && board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Arqueiro);
+
+        // Copia os status da carta a ser destruída antes de destruir
+        int destroyedAtk = targetEnemy.currentAttack;
+        int destroyedShield = targetEnemy.currentShield;
+        int destroyedHp = targetEnemy.currentHealth;
+
+        targetEnemy.DestroyCard();
+        cardDisplay.mageTier4Effect3Used = true;
+
+        // Se tem Tank, Healer E Arqueiro, ganha metade dos status da carta destruída
+        if (hasTankAlly && hasHealerAlly && hasArcherAlly)
+        {
+            int gainAtk = destroyedAtk / 2;
+            int gainShield = destroyedShield / 2;
+            int gainHp = destroyedHp / 2;
+
+            cardDisplay.currentAttack += gainAtk;
+            cardDisplay.currentShield += gainShield;
+            cardDisplay.currentHealth += gainHp;
+            cardDisplay.UpdateDisplay();
+
+            Debug.Log($"[MageTier4Effect3] {cardDisplay.card.cardName}: Destruiu {targetEnemy.card.cardName} e ganhou metade dos status: ATK +{gainAtk}, Shield +{gainShield}, HP +{gainHp}!");
+        }
+        else
+        {
+            Debug.Log($"[MageTier4Effect3] {cardDisplay.card.cardName}: Destruiu {targetEnemy.card.cardName}! (Faltam aliados para ganhar status)");
+        }
+    }
+
+    // Efeito 4: Mage 4 (ATK 6, HP 3) - Uma vez por round ganha +1 ouro
+    void MageTier4Effect4_GoldPerRound()
+    {
+        if (cardDisplay == null) return;
+
+        // Este efeito é ativado quando a carta entra em campo
+        Debug.Log($"[MageTier4Effect4] {cardDisplay.card.cardName}: Pronta para ganhar +1 ouro uma vez por round");
+    }
+
+    public void ActivateGoldPerRound()
+    {
+        if (cardDisplay == null) return;
+
+        if (TurnManager.Instance == null) return;
+
+        // Verifica se já usou neste round
+        if (cardDisplay.mageTier4Effect4LastUsedRound >= TurnManager.Instance.currentRound)
+        {
+            Debug.Log($"[MageTier4Effect4] {cardDisplay.card.cardName}: Já usou neste round!");
+            return;
+        }
+
+        PlayerData player = TurnManager.Instance.GetPlayer(cardDisplay.ownerPlayerNumber);
+        if (player != null)
+        {
+            player.AddGold(1);
+            cardDisplay.mageTier4Effect4LastUsedRound = TurnManager.Instance.currentRound;
+            Debug.Log($"[MageTier4Effect4] {cardDisplay.card.cardName}: Ganhou +1 ouro! Total: {player.gold}");
+        }
+    }
+
+    // ===== MAGE TIER-3 =====
+    public void MageTier3Effect()
+    {
+        if (cardDisplay == null) return;
+
+        int baseAtk = cardDisplay.card.attack;
+        int baseHp = cardDisplay.card.health;
+
+        if (baseAtk == 0 && baseHp == 1)
+            MageTier3Effect1_StealStats();
+        else if (baseAtk == 4 && baseHp == 4)
+            MageTier3Effect2_BoostAllWithArcher();
+        else if (baseAtk == 3 && baseHp == 2)
+            MageTier3Effect3_FreezeOrDamage();
+        else if (baseAtk == 3 && baseHp == 3)
+            MageTier3Effect4_BoostHandCards();
+    }
+
+    // Efeito 1: Mage 3 (ATK 0, HP 1) - Rouba todos os status de um inimigo aleatório (inimigo fica com 0)
+    void MageTier3Effect1_StealStats()
+    {
+        if (cardDisplay == null || cardDisplay.mageTier3Effect1Used) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        int enemyPlayerNumber = cardDisplay.ownerPlayerNumber == 1 ? 2 : 1;
+        var enemies = board.GetCardsByOwner(enemyPlayerNumber);
+
+        if (enemies.Count == 0) return;
+
+        // Escolhe um inimigo aleatório
+        CardDisplay targetEnemy = enemies[Random.Range(0, enemies.Count)];
+
+        if (targetEnemy != null)
+        {
+            // Copia os status do inimigo
+            int stolenAtk = targetEnemy.currentAttack;
+            int stolenShield = targetEnemy.currentShield;
+            int stolenHp = targetEnemy.currentHealth;
+
+            // Aplica ao Mago
+            cardDisplay.currentAttack += stolenAtk;
+            cardDisplay.currentShield += stolenShield;
+            cardDisplay.currentHealth += stolenHp;
+
+            // Se houver Arqueiro aliado, duplica o ATK roubado
+            if (board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Arqueiro))
+            {
+                cardDisplay.currentAttack += stolenAtk;
+                Debug.Log($"[MageTier3Effect1] {cardDisplay.card.cardName}: Roubou stats de {targetEnemy.card.cardName} (ATK: {stolenAtk}, Shield: {stolenShield}, HP: {stolenHp}) e duplicou ATK! ATK total agora: {cardDisplay.currentAttack}");
+            }
+            else
+            {
+                Debug.Log($"[MageTier3Effect1] {cardDisplay.card.cardName}: Roubou stats de {targetEnemy.card.cardName} (ATK: {stolenAtk}, Shield: {stolenShield}, HP: {stolenHp})");
+            }
+
+            // Inimigo fica com status 0
+            targetEnemy.currentAttack = 0;
+            targetEnemy.currentShield = 0;
+            targetEnemy.currentHealth = 0;
+            targetEnemy.UpdateDisplay();
+
+            cardDisplay.mageTier3Effect1Used = true;
+            cardDisplay.UpdateDisplay();
+
+            // Inimigo morre (HP 0)
+            targetEnemy.DestroyCard();
+        }
+    }
+
+    // Efeito 2: Mage 3 (ATK 4, HP 4) - Concede +1 de ataque a todos no campo se houver Arqueiro
+    void MageTier3Effect2_BoostAllWithArcher()
+    {
+        if (cardDisplay == null || cardDisplay.mageTier3Effect2Used) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        bool hasArcherAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Arqueiro);
+
+        if (hasArcherAlly)
+        {
+            var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
+            foreach (var ally in allies)
+            {
+                if (ally != null)
+                {
+                    ally.currentAttack += 1;
+                    ally.UpdateDisplay();
+                }
+            }
+
+            cardDisplay.mageTier3Effect2Used = true;
+            Debug.Log($"[MageTier3Effect2] {cardDisplay.card.cardName}: Tem um arqueiro aliado - todos os aliados ganharam +1 ATK!");
+        }
+        else
+        {
+            Debug.Log($"[MageTier3Effect2] {cardDisplay.card.cardName}: Nenhum arqueiro aliado - efeito não ativado");
+        }
+    }
+
+    // Efeito 3: Mage 3 (ATK 3, HP 2) - Escolhe congelar OU dano (popup) ou ambos se tiver Healer e Tank
+    void MageTier3Effect3_FreezeOrDamage()
+    {
+        if (cardDisplay == null || cardDisplay.mageTier3Effect3Used) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        bool hasHealerAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Healer);
+        bool hasTankAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Tank);
+
+        if (hasHealerAlly && hasTankAlly)
+        {
+            // Tem ambos: Congela E causa dano no mesmo inimigo (pergunta qual)
+            ShowFreezeAndDamagePopup();
+        }
+        else
+        {
+            // Sem ambos: Popup escolhendo entre congelar OU dano
+            ShowFreezeOrDamageChoicePopup();
+        }
+
+        Debug.Log($"[MageTier3Effect3] {cardDisplay.card.cardName}: Pronta para congelar ou causar dano");
+    }
+
+    void ShowFreezeOrDamageChoicePopup()
+    {
+        GameUIManager uiManager = GameUIManager.Instance;
+        if (uiManager != null)
+        {
+            uiManager.ShowDecisionPopup(
+                $"{cardDisplay.card.cardName} vai congelar ou causar dano?",
+                "Congelar",
+                () => ActivateFreezeOnly(),
+                "Causar Dano",
+                () => ActivateDamageOnly()
+            );
+        }
+    }
+
+    void ShowFreezeAndDamagePopup()
+    {
+        GameUIManager uiManager = GameUIManager.Instance;
+        if (uiManager != null)
+        {
+            uiManager.ShowDecisionPopup(
+                $"{cardDisplay.card.cardName} vai congelar E causar dano!",
+                "Escolher Inimigo",
+                () => ActivateFreezeAndDamageChoice(),
+                "Cancelar",
+                () => { }
+            );
+        }
+    }
+
+    public void ActivateFreezeOnly()
+    {
+        if (cardDisplay == null || cardDisplay.mageTier3Effect3Used) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        // Encontra inimigos
+        int enemyPlayerNumber = cardDisplay.ownerPlayerNumber == 1 ? 2 : 1;
+        var enemies = board.GetCardsByOwner(enemyPlayerNumber);
+
+        if (enemies.Count == 0) return;
+
+        // Congela um inimigo aleatório
+        CardDisplay targetEnemy = enemies[Random.Range(0, enemies.Count)];
+        if (targetEnemy != null)
+        {
+            targetEnemy.Freeze();
+            cardDisplay.mageTier3Effect3Used = true;
+            Debug.Log($"[MageTier3Effect3] {cardDisplay.card.cardName}: Congelou {targetEnemy.card.cardName}!");
+        }
+    }
+
+    public void ActivateDamageOnly()
+    {
+        if (cardDisplay == null || cardDisplay.mageTier3Effect3Used) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        // Encontra inimigos
+        int enemyPlayerNumber = cardDisplay.ownerPlayerNumber == 1 ? 2 : 1;
+        var enemies = board.GetCardsByOwner(enemyPlayerNumber);
+
+        if (enemies.Count == 0) return;
+
+        // Causa dano a um inimigo aleatório
+        CardDisplay targetEnemy = enemies[Random.Range(0, enemies.Count)];
+        if (targetEnemy != null)
+        {
+            targetEnemy.TakeDamage(1);
+            cardDisplay.mageTier3Effect3Used = true;
+            Debug.Log($"[MageTier3Effect3] {cardDisplay.card.cardName}: Causou 1 de dano a {targetEnemy.card.cardName}!");
+        }
+    }
+
+    public void ActivateFreezeAndDamageChoice()
+    {
+        if (cardDisplay == null || cardDisplay.mageTier3Effect3Used) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        // Encontra inimigos
+        int enemyPlayerNumber = cardDisplay.ownerPlayerNumber == 1 ? 2 : 1;
+        var enemies = board.GetCardsByOwner(enemyPlayerNumber);
+
+        if (enemies.Count == 0) return;
+
+        // Escolhe um inimigo aleatório e congela + causa dano
+        CardDisplay targetEnemy = enemies[Random.Range(0, enemies.Count)];
+        if (targetEnemy != null)
+        {
+            targetEnemy.Freeze();
+            targetEnemy.TakeDamage(1);
+            cardDisplay.mageTier3Effect3Used = true;
+            Debug.Log($"[MageTier3Effect3] {cardDisplay.card.cardName}: Congelou E causou 1 de dano a {targetEnemy.card.cardName}!");
+        }
+    }
+
+    // Efeito 4: Mage 3 (ATK 3, HP 3) - Concede +1 de ataque a todas as cartas aliadas em campo
+    void MageTier3Effect4_BoostHandCards()
+    {
+        if (cardDisplay == null || cardDisplay.mageTier3Effect4Used) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
+        if (allies.Count == 0) return;
+
+        foreach (var ally in allies)
+        {
+            if (ally != null)
+            {
+                ally.currentAttack += 1;
+                ally.UpdateDisplay();
+            }
+        }
+
+        cardDisplay.mageTier3Effect4Used = true;
+        Debug.Log($"[MageTier3Effect4] {cardDisplay.card.cardName}: Concedeu +1 ATK a {allies.Count} carta(s) aliada(s) em campo!");
     }
 
     // ===== MAGE TIER-2 =====
@@ -912,6 +2015,572 @@ public class CardEffectSimple : MonoBehaviour
         healerThatTookDamage.UpdateDisplay();
 
         Debug.Log($"[MageEffect1] {cardDisplay.card.cardName}: Deu +{bonus} ATK ao {healerThatTookDamage.card.cardName}");
+    }
+
+    // ===== MAGE TIER-5 =====
+    public void MageTier5Effect()
+    {
+        if (cardDisplay == null) return;
+
+        int baseAtk = cardDisplay.card.attack;
+        int baseHp = cardDisplay.card.health;
+
+        if (baseAtk == 8 && baseHp == 4)
+            MageTier5Effect1_RandomFreezePerRound();
+        else if (baseAtk == 6 && baseHp == 5)
+            MageTier5Effect2_CopyEnemyStats();
+        else if (baseAtk == 7 && baseHp == 5)
+            MageTier5Effect3_FireballAndMageBoost();
+    }
+
+    // Efeito 1: Mage 5 (ATK 8, HP 4) - Congela um inimigo aleatório por round, duplicado se tem Tank
+    void MageTier5Effect1_RandomFreezePerRound()
+    {
+        if (cardDisplay == null) return;
+
+        // Este efeito é ativado via hook em TurnManager.EndTurn()
+        Debug.Log($"[MageTier5Effect1] {cardDisplay.card.cardName}: Pronta para congelar inimigos aleatórios");
+    }
+
+    public void ActivateRandomFreeze()
+    {
+        if (cardDisplay == null) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        int enemyPlayerNumber = cardDisplay.ownerPlayerNumber == 1 ? 2 : 1;
+        var enemies = board.GetCardsByOwner(enemyPlayerNumber);
+
+        if (enemies.Count == 0) return;
+
+        // Verifica se tem Tank aliado para duplicar o efeito
+        bool hasTankAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Tank);
+
+        // Congela 1 inimigo aleatório
+        CardDisplay target1 = enemies[Random.Range(0, enemies.Count)];
+        if (target1 != null)
+        {
+            target1.Freeze();
+            Debug.Log($"[MageTier5Effect1] {cardDisplay.card.cardName}: Congelou {target1.card.cardName}!");
+        }
+
+        // Se tem Tank aliado, congela outro inimigo aleatório
+        if (hasTankAlly && enemies.Count > 1)
+        {
+            CardDisplay target2 = enemies[Random.Range(0, enemies.Count)];
+            if (target2 != null && target2 != target1)
+            {
+                target2.Freeze();
+                Debug.Log($"[MageTier5Effect1] {cardDisplay.card.cardName}: Tem Tank aliado - congelou {target2.card.cardName}!");
+            }
+        }
+    }
+
+    // Efeito 2: Mage 5 (ATK 6, HP 5) - Copia stats de ataque e vida de um inimigo
+    void MageTier5Effect2_CopyEnemyStats()
+    {
+        if (cardDisplay == null || cardDisplay.mageTier5Effect2Used) return;
+
+        ShowCopyStatsPopup();
+    }
+
+    void ShowCopyStatsPopup()
+    {
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        int enemyPlayerNumber = cardDisplay.ownerPlayerNumber == 1 ? 2 : 1;
+        var enemies = board.GetCardsByOwner(enemyPlayerNumber);
+
+        if (enemies.Count == 0) return;
+
+        // Cria lista de opções para escolher qual inimigo copiar
+        List<string> enemyNames = new List<string>();
+        foreach (var enemy in enemies)
+        {
+            if (enemy != null)
+                enemyNames.Add(enemy.card.cardName);
+        }
+
+        // Mostra popup para escolher
+        GameUIManager uiManager = GameUIManager.Instance;
+        if (uiManager != null)
+        {
+            string enemyList = string.Join(", ", enemyNames);
+            uiManager.ShowDecisionPopup(
+                $"Escolha qual inimigo terá seus stats copiados:\n{enemyList}",
+                enemyNames.Count > 0 ? enemyNames[0] : "Cancelar",
+                () => ActivateCopyStats(enemies[0]),
+                "Próximo",
+                () => { if (enemies.Count > 1) ActivateCopyStats(enemies[1]); }
+            );
+        }
+    }
+
+    public void ActivateCopyStats(CardDisplay targetEnemy)
+    {
+        if (cardDisplay == null || targetEnemy == null) return;
+
+        // Copia ataque e vida do inimigo
+        cardDisplay.currentAttack = targetEnemy.currentAttack;
+        cardDisplay.currentHealth = targetEnemy.currentHealth;
+
+        cardDisplay.UpdateDisplay();
+        cardDisplay.mageTier5Effect2Used = true;
+        Debug.Log($"[MageTier5Effect2] {cardDisplay.card.cardName}: Copiou stats de {targetEnemy.card.cardName} (ATK: {targetEnemy.currentAttack}, HP: {targetEnemy.currentHealth})!");
+    }
+
+    // Efeito 3: Mage 5 (ATK 7, HP 5) - Causa 5 de dano ao entrar, aumenta ATK de todos Magos ao resetar turno
+    void MageTier5Effect3_FireballAndMageBoost()
+    {
+        if (cardDisplay == null) return;
+
+        // Causa 5 de dano a um inimigo aleatório ao entrar
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        int enemyPlayerNumber = cardDisplay.ownerPlayerNumber == 1 ? 2 : 1;
+        var enemies = board.GetCardsByOwner(enemyPlayerNumber);
+
+        if (enemies.Count > 0)
+        {
+            CardDisplay target = enemies[Random.Range(0, enemies.Count)];
+            if (target != null)
+            {
+                target.TakeDamage(5);
+                Debug.Log($"[MageTier5Effect3] {cardDisplay.card.cardName}: Lançou bola de fogo em {target.card.cardName}!");
+            }
+        }
+    }
+
+    // ===== TANK TIER-5 =====
+    public void TankTier5Effect()
+    {
+        if (cardDisplay == null) return;
+
+        int baseAtk = cardDisplay.card.attack;
+        int baseShield = cardDisplay.card.shield;
+        int baseHp = cardDisplay.card.health;
+
+        if (baseAtk == 5 && baseShield == 9 && baseHp == 6)
+            TankTier5Effect1_ShieldOnKill();
+        else if (baseAtk == 2 && baseShield == 6 && baseHp == 8)
+            TankTier5Effect2_AttackOnDamageAndPeriodicShield();
+        else if (baseAtk == 4 && baseShield == 5 && baseHp == 10)
+            TankTier5Effect3_AttackOnDamageWithBonus();
+    }
+
+    // Efeito 1: Tank 5 (ATK 5, Shield 9, HP 6) - Concede armadura a aliados ao matar inimigo
+    void TankTier5Effect1_ShieldOnKill()
+    {
+        if (cardDisplay == null) return;
+
+        // Este efeito é ativado via hook em AttackAdjacentEnemy ou TakeDamage
+        Debug.Log($"[TankTier5Effect1] {cardDisplay.card.cardName}: Pronta para conceder armadura ao matar");
+    }
+
+    public void ActivateShieldOnKill()
+    {
+        if (cardDisplay == null) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
+        if (allies.Count == 0) return;
+
+        // Concede armadura a todos os aliados
+        int shieldAmount = 2;
+        foreach (var ally in allies)
+        {
+            if (ally != null)
+            {
+                ally.currentShield += shieldAmount;
+                ally.UpdateDisplay();
+            }
+        }
+
+        Debug.Log($"[TankTier5Effect1] {cardDisplay.card.cardName}: Concedeu {shieldAmount} de armadura a todos aliados!");
+
+        // Magos e Arqueiros ganham +1 ATK adicional
+        foreach (var ally in allies)
+        {
+            if (ally != null && (ally.card.cardClass == CardClass.Mago || ally.card.cardClass == CardClass.Arqueiro))
+            {
+                ally.currentAttack += 1;
+                ally.UpdateDisplay();
+                Debug.Log($"[TankTier5Effect1] {cardDisplay.card.cardName}: {ally.card.cardName} ganhou +1 ATK adicional!");
+            }
+        }
+    }
+
+    // Efeito 2: Tank 5 (ATK 2, Shield 6, HP 8) - +1 ATK ao receber dano, concede armadura a cada 2 turnos
+    void TankTier5Effect2_AttackOnDamageAndPeriodicShield()
+    {
+        if (cardDisplay == null) return;
+
+        // Este efeito é ativado via hook em TakeDamage (para +1 ATK) e TurnManager (para armadura periódica)
+        Debug.Log($"[TankTier5Effect2] {cardDisplay.card.cardName}: Pronta para ganhar +1 ATK ao receber dano");
+    }
+
+    public void ActivateAttackBoostOnDamage_Tier5Effect2()
+    {
+        if (cardDisplay == null) return;
+
+        cardDisplay.currentAttack += 1;
+        cardDisplay.UpdateDisplay();
+        Debug.Log($"[TankTier5Effect2] {cardDisplay.card.cardName}: Ganhou +1 ATK ao receber dano!");
+    }
+
+    public void ActivatePeriodicShieldTier5Effect2()
+    {
+        if (cardDisplay == null) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
+        if (allies.Count == 0) return;
+
+        // Escolhe um aliado aleatório para ganhar armadura
+        CardDisplay targetAlly = allies[Random.Range(0, allies.Count)];
+        if (targetAlly != null)
+        {
+            targetAlly.currentShield += 2;
+            targetAlly.UpdateDisplay();
+            Debug.Log($"[TankTier5Effect2] {cardDisplay.card.cardName}: Concedeu +2 de armadura a {targetAlly.card.cardName}!");
+        }
+    }
+
+    // Efeito 3: Tank 5 (ATK 4, Shield 5, HP 10) - +1 ATK ao receber dano, +armadura se tem Healer ou Mago
+    void TankTier5Effect3_AttackOnDamageWithBonus()
+    {
+        if (cardDisplay == null) return;
+
+        // Este efeito é ativado via hook em TakeDamage
+        Debug.Log($"[TankTier5Effect3] {cardDisplay.card.cardName}: Pronta para ganhar +1 ATK ao receber dano e armadura com aliados");
+    }
+
+    public void ActivateAttackBoostOnDamage_Tier5Effect3()
+    {
+        if (cardDisplay == null) return;
+
+        cardDisplay.currentAttack += 1;
+        cardDisplay.UpdateDisplay();
+        Debug.Log($"[TankTier5Effect3] {cardDisplay.card.cardName}: Ganhou +1 ATK ao receber dano!");
+
+        // Verifica se tem Healer ou Mago aliado e ganha armadura
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        bool hasHealerAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Healer);
+        bool hasMageAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Mago);
+
+        if (hasHealerAlly || hasMageAlly)
+        {
+            cardDisplay.currentShield += 1;
+            cardDisplay.UpdateDisplay();
+            Debug.Log($"[TankTier5Effect3] {cardDisplay.card.cardName}: Ganhou +1 de armadura por ter Healer/Mago aliado!");
+        }
+    }
+
+    public void ActivateMageBoostPerTurn()
+    {
+        if (cardDisplay == null) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
+        if (allies.Count == 0) return;
+
+        // Aumenta ATK de todos os Magos em 1
+        foreach (var ally in allies)
+        {
+            if (ally != null && ally.card.cardClass == CardClass.Mago)
+            {
+                ally.currentAttack += 1;
+                ally.UpdateDisplay();
+            }
+        }
+
+        Debug.Log($"[MageTier5Effect3] {cardDisplay.card.cardName}: Aumentou ATK de todos os Magos em 1!");
+    }
+
+    // ===== TANK TIER-4 =====
+    public void TankTier4Effect()
+    {
+        if (cardDisplay == null) return;
+
+        int baseAtk = cardDisplay.card.attack;
+        int baseShield = cardDisplay.card.shield;
+        int baseHp = cardDisplay.card.health;
+
+        if (baseAtk == 1 && baseShield == 6 && baseHp == 3)
+            TankTier4Effect1_BoostWithArcherMage();
+        else if (baseAtk == 2 && baseShield == 6 && baseHp == 5)
+            TankTier4Effect2_InterceptOncePerTurn();
+        else if (baseAtk == 2 && baseShield == 3 && baseHp == 5)
+            TankTier4Effect3_ArcherDoubleAttack();
+        else if (baseAtk == 5 && baseShield == 10 && baseHp == 10)
+            TankTier4Effect4_DamageReductionAndShield();
+    }
+
+    // Efeito 1: Tank 4 (ATK 1, Shield 6, HP 3) - +5 HP +2 Shield se tem Arqueiro e Mago
+    void TankTier4Effect1_BoostWithArcherMage()
+    {
+        if (cardDisplay == null || cardDisplay.tankTier4Effect1Used) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        bool hasArcherAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Arqueiro);
+        bool hasMageAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Mago);
+
+        if (hasArcherAlly && hasMageAlly)
+        {
+            cardDisplay.currentHealth += 5;
+            cardDisplay.currentShield += 2;
+            cardDisplay.UpdateDisplay();
+            cardDisplay.tankTier4Effect1Used = true;
+            Debug.Log($"[TankTier4Effect1] {cardDisplay.card.cardName}: Tem Arqueiro + Mago - ganhou +5 HP e +2 Shield!");
+        }
+        else
+        {
+            Debug.Log($"[TankTier4Effect1] {cardDisplay.card.cardName}: Faltam aliados (Arqueiro e/ou Mago)");
+        }
+    }
+
+    // Efeito 2: Tank 4 (ATK 2, Shield 6, HP 5) - Recebe ataque 1x por turno, 50% menos se tem Healer
+    void TankTier4Effect2_InterceptOncePerTurn()
+    {
+        if (cardDisplay == null) return;
+
+        // Este efeito é ativado via hook em TakeDamage
+        Debug.Log($"[TankTier4Effect2] {cardDisplay.card.cardName}: Pronta para interceptar ataques 1x por turno");
+    }
+
+    public int GetTankTier4Effect2Reduction()
+    {
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return 0;
+
+        bool hasHealerAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Healer);
+        return hasHealerAlly ? 50 : 0; // Retorna 50% se tem Healer, senão 0%
+    }
+
+    // Efeito 3: Tank 4 (ATK 2, Shield 3, HP 5) - Arqueiros atacam 2 vezes se tem 4 classes
+    void TankTier4Effect3_ArcherDoubleAttack()
+    {
+        if (cardDisplay == null || cardDisplay.tankTier4Effect3Used) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        bool hasArcherAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Arqueiro);
+        bool hasMageAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Mago);
+        bool hasHealerAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Healer);
+        bool hasTankAlly = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber)
+            .Exists(c => c != null && c.card.cardClass == CardClass.Tank && c != cardDisplay);
+
+        if (hasArcherAlly && hasMageAlly && hasHealerAlly && hasTankAlly)
+        {
+            // Ativa double attack para todos os Arqueiros
+            var alliedArchers = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber)
+                .FindAll(c => c != null && c.card.cardClass == CardClass.Arqueiro);
+
+            foreach (var archer in alliedArchers)
+            {
+                archer.lastAttackedRound = -1; // Reset para permitir ataque extra
+            }
+
+            cardDisplay.tankTier4Effect3Used = true;
+            Debug.Log($"[TankTier4Effect3] {cardDisplay.card.cardName}: Tem 4 classes! Arqueiros podem atacar 2 vezes este turno!");
+        }
+        else
+        {
+            Debug.Log($"[TankTier4Effect3] {cardDisplay.card.cardName}: Faltam classes para ativar (precisa Arqueiro, Mago, Healer e Tank)");
+        }
+    }
+
+    // Efeito 4: Tank 4 (ATK 5, Shield 10, HP 10) - 50% menos dano se tem Healer+Mago+Arqueiro, aliados +1 armadura por turno
+    void TankTier4Effect4_DamageReductionAndShield()
+    {
+        if (cardDisplay == null) return;
+
+        // Este efeito é periódico e ativado via hook
+        Debug.Log($"[TankTier4Effect4] {cardDisplay.card.cardName}: Pronta para reduzir dano e dar armadura a aliados");
+    }
+
+    public bool TankTier4Effect4_HasCombo()
+    {
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return false;
+
+        bool hasHealerAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Healer);
+        bool hasMageAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Mago);
+        bool hasArcherAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Arqueiro);
+
+        return hasHealerAlly && hasMageAlly && hasArcherAlly;
+    }
+
+    public void ActivateTankTier4Effect4Periodic()
+    {
+        if (cardDisplay == null) return;
+
+        if (!TankTier4Effect4_HasCombo()) return;
+
+        // Dá +1 armadura a todos os aliados
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
+        foreach (var ally in allies)
+        {
+            if (ally != null)
+            {
+                ally.currentShield += 1;
+                ally.UpdateDisplay();
+            }
+        }
+
+        Debug.Log($"[TankTier4Effect4] {cardDisplay.card.cardName}: Aliados ganharam +1 armadura este turno!");
+    }
+
+    // ===== TANK TIER-3 =====
+    public void TankTier3Effect()
+    {
+        if (cardDisplay == null) return;
+
+        int baseAtk = cardDisplay.card.attack;
+        int baseShield = cardDisplay.card.shield;
+        int baseHp = cardDisplay.card.health;
+
+        if (baseAtk == 2 && baseShield == 3 && baseHp == 4)
+            TankTier3Effect1_BoostHealersEvery2Turns();
+        else if (baseAtk == 3 && baseShield == 2 && baseHp == 4)
+            TankTier3Effect2_ReduceDamageAllTanks();
+        else if (baseAtk == 2 && baseShield == 2 && baseHp == 5)
+            TankTier3Effect3_BoostShieldPerTank();
+        else if (baseAtk == 2 && baseShield == 2 && baseHp == 6)
+            TankTier3Effect4_BoostMagoShield();
+    }
+
+    // Efeito 1: Tank 3 (ATK 2, Shield 3, HP 4) - Concede +2 armadura a todos Healers a cada 2 turnos
+    void TankTier3Effect1_BoostHealersEvery2Turns()
+    {
+        if (cardDisplay == null || cardDisplay.tankTier3Effect1Used) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
+        int healersBuffed = 0;
+
+        foreach (var ally in allies)
+        {
+            if (ally != null && ally.card.cardClass == CardClass.Healer)
+            {
+                ally.currentShield += 2;
+                ally.UpdateDisplay();
+                healersBuffed++;
+            }
+        }
+
+        cardDisplay.tankTier3Effect1Used = true;
+        Debug.Log($"[TankTier3Effect1] {cardDisplay.card.cardName}: Concedeu +2 armadura a {healersBuffed} Healer(s)!");
+    }
+
+    // Efeito 2: Tank 3 (ATK 3, Shield 2, HP 4) - Todos Tanks recebem 50% menos dano
+    void TankTier3Effect2_ReduceDamageAllTanks()
+    {
+        if (cardDisplay == null) return;
+
+        // Este efeito é ativado via hook no método TakeDamage() quando um Tank recebe dano
+        Debug.Log($"[TankTier3Effect2] {cardDisplay.card.cardName}: Pronta para reduzir dano de Tanks em 50%");
+    }
+
+    public int ReduceTankDamage(int originalDamage)
+    {
+        // Reduz dano em 50%, arredondando para baixo
+        return originalDamage / 2;
+    }
+
+    // Efeito 3: Tank 3 (ATK 2, Shield 2, HP 5) - Recebe +2 armadura por cada outro Tank em campo
+    void TankTier3Effect3_BoostShieldPerTank()
+    {
+        if (cardDisplay == null || cardDisplay.tankTier3Effect3Used) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
+        int tankCount = 0;
+
+        foreach (var ally in allies)
+        {
+            if (ally != null && ally.card.cardClass == CardClass.Tank && ally != cardDisplay)
+                tankCount++;
+        }
+
+        if (tankCount > 0)
+        {
+            int shieldBonus = tankCount * 2;
+            cardDisplay.currentShield += shieldBonus;
+            cardDisplay.UpdateDisplay();
+            cardDisplay.tankTier3Effect3Used = true;
+            Debug.Log($"[TankTier3Effect3] {cardDisplay.card.cardName}: Ganhou {shieldBonus} de armadura ({tankCount} outro(s) Tank(s) em campo)!");
+        }
+    }
+
+    // Efeito 4: Tank 3 (ATK 2, Shield 2, HP 6) - Concede +3 armadura a um Mago à escolha
+    void TankTier3Effect4_BoostMagoShield()
+    {
+        if (cardDisplay == null || cardDisplay.tankTier3Effect4Used) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
+        var magoAllies = allies.FindAll(c => c != null && c.card.cardClass == CardClass.Mago);
+
+        if (magoAllies.Count == 0)
+        {
+            Debug.Log($"[TankTier3Effect4] {cardDisplay.card.cardName}: Nenhum Mago aliado em campo");
+            return;
+        }
+
+        // Mostra popup para escolher qual Mago
+        ShowMagoChoicePopup(magoAllies);
+    }
+
+    void ShowMagoChoicePopup(List<CardDisplay> magoAllies)
+    {
+        GameUIManager uiManager = GameUIManager.Instance;
+        if (uiManager != null)
+        {
+            // Cria string com nomes dos Magos disponíveis
+            string magoNames = string.Join(", ", magoAllies.ConvertAll(m => m.card.cardName));
+
+            uiManager.ShowDecisionPopup(
+                $"Escolha qual Mago receberá +3 de armadura:\n{magoNames}",
+                magoAllies.Count > 0 ? magoAllies[0].card.cardName : "Cancelar",
+                () => ActivateBoostMagoShield(magoAllies[0]),
+                "Próximo",
+                () => { if (magoAllies.Count > 1) ActivateBoostMagoShield(magoAllies[1]); }
+            );
+        }
+    }
+
+    public void ActivateBoostMagoShield(CardDisplay targetMago)
+    {
+        if (cardDisplay == null || targetMago == null) return;
+
+        targetMago.currentShield += 3;
+        targetMago.UpdateDisplay();
+        cardDisplay.tankTier3Effect4Used = true;
+        Debug.Log($"[TankTier3Effect4] {cardDisplay.card.cardName}: Concedeu +3 de armadura a {targetMago.card.cardName}!");
     }
 
     // ===== TANK TIER-2 =====

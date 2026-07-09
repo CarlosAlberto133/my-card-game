@@ -37,6 +37,33 @@ public class CardDisplay : MonoBehaviour
     public bool archerTier3Effect2Used = false; // Archer 3 (ATK 5, HP 3): cópia já foi feita nesta partida
     public bool archerTier3Effect3Used = false; // Archer 3 (ATK 3, HP 2): dano à torre já foi feito nesta partida
     public bool archerTier3Effect4Used = false; // Archer 3 (ATK 4, HP 1): dano em cruz já foi feito nesta partida
+    public bool healerTier3Effect1Used = false; // Healer 3 (ATK 3, HP 3): ouro com Mago já foi ganho nesta partida
+    public bool healerTier3Effect3Used = false; // Healer 3 (ATK 2, HP 1): ouro por contagem já foi ganho nesta partida
+    public bool healerTier3Effect4Used = false; // Healer 3 (ATK 1, HP 2): ouro por Mago já foi ganho nesta partida
+    public bool mageTier3Effect1Used = false; // Mage 3 (ATK 0, HP 1): roubo de status já foi feito nesta partida
+    public bool mageTier3Effect2Used = false; // Mage 3 (ATK 4, HP 4): +1 ATK para todos já foi feito nesta partida
+    public bool mageTier3Effect3Used = false; // Mage 3 (ATK 3, HP 2): congelamento/dano já foi feito nesta partida
+    public bool mageTier3Effect4Used = false; // Mage 3 (ATK 3, HP 3): +1 ATK na mão já foi feito nesta partida
+    public bool tankTier3Effect1Used = false; // Tank 3 (ATK 2, Shield 3, HP 4): +2 armadura Healers já foi feito nesta partida
+    public bool tankTier3Effect3Used = false; // Tank 3 (ATK 2, Shield 2, HP 5): +2 armadura por Tank já foi feito nesta partida
+    public bool tankTier3Effect4Used = false; // Tank 3 (ATK 2, Shield 2, HP 6): +3 armadura Mago já foi feito nesta partida
+    public int archerTier4Effect2LastUsedRound = -3; // Archer 4 (ATK 6, HP 3): último round que usou stun (para reutilizar a cada 2 turnos)
+    public int archerTier4Effect4LastAttackRound = -1; // Archer 4 (ATK 6, HP 2): último round que atacou alvo ao lado
+    public int healerTier4Effect1LastCureRound = -3; // Healer 4 (ATK 3, HP 3): último round que curou (a cada 2 turnos)
+    public bool healerTier4Effect3Used = false; // Healer 4 (ATK 5, HP 3): invunerabilidade já foi dada nesta partida
+    public bool healerTier4Effect4Used = false; // Healer 4 (ATK 4, HP 4): +3 todos status já foi ativado nesta partida
+    public bool mageTier4Effect1Used = false; // Mage 4 (ATK 7, HP 4): remover bônus já foi feito nesta partida
+    public int mageTier4Effect1UsesLeft = 1; // Mage 4 (ATK 7, HP 4): pode usar 2 vezes se tem Healer + Arqueiro
+    public bool mageTier4Effect3Used = false; // Mage 4 (ATK 5, HP 4): destruir inimigo já foi feito nesta partida
+    public int mageTier4Effect4LastUsedRound = -1; // Mage 4 (ATK 6, HP 3): último round que ganhou ouro (uma vez por round)
+    public bool tankTier4Effect1Used = false; // Tank 4 (ATK 1, Shield 6, HP 3): +5 HP +2 Shield já foi feito nesta partida
+    public int tankTier4Effect2LastUsedRound = -1; // Tank 4 (ATK 2, Shield 6, HP 5): último round que recebeu ataque (uma vez por turno)
+    public bool tankTier4Effect3Used = false; // Tank 4 (ATK 2, Shield 3, HP 5): Arqueiros x2 ataque já foi ativado nesta partida
+    public bool archerTier5Effect2Used = false; // Archer 5 (ATK 10, HP 5): remover armadura inimigos já foi feito nesta partida
+    public bool healerTier5Effect3Used = false; // Healer 5 (ATK 4, HP 5): duplicar stats de aliado já foi feito nesta partida
+    public int mageTier5Effect1LastUsedRound = -1; // Mage 5 (ATK 8, HP 4): último round que congelou inimigos (uma vez por round)
+    public bool mageTier5Effect2Used = false; // Mage 5 (ATK 6, HP 5): copiar stats de inimigo já foi feito nesta partida
+    public int tankTier5Effect2LastArmorRound = -3; // Tank 5 (ATK 2, Shield 6, HP 8): último round que concedeu armadura (a cada 2 turnos)
 
     // Stats atuais (mudam durante o jogo)
     public int currentHealth;
@@ -257,24 +284,66 @@ public class CardDisplay : MonoBehaviour
         CardEffectSimple effect = GetComponent<CardEffectSimple>();
         if (effect == null) return;
 
-        if (card.cardClass == CardClass.Arqueiro && card.tier == CardTier.Tier3)
+        if (card.cardClass == CardClass.Arqueiro && card.tier == CardTier.Tier5)
+            effect.ArcherTier5Effect();
+        else if (card.cardClass == CardClass.Arqueiro && card.tier == CardTier.Tier4)
+            effect.ArcherTier4Effect();
+        else if (card.cardClass == CardClass.Arqueiro && card.tier == CardTier.Tier3)
             effect.ArcherTier3Effect();
         else if (card.cardClass == CardClass.Arqueiro && card.tier == CardTier.Tier2)
             effect.ArcherTier2Effect();
         else if (card.cardClass == CardClass.Arqueiro)
             effect.ArcherEffect();
+        else if (card.cardClass == CardClass.Healer && card.tier == CardTier.Tier5)
+            effect.HealerTier5Effect();
+        else if (card.cardClass == CardClass.Healer && card.tier == CardTier.Tier4)
+            effect.HealerTier4Effect();
+        else if (card.cardClass == CardClass.Healer && card.tier == CardTier.Tier3)
+            effect.HealerTier3Effect();
         else if (card.cardClass == CardClass.Healer && card.tier == CardTier.Tier2)
             effect.HealerTier2Effect();
         else if (card.cardClass == CardClass.Healer)
             effect.HealerEffect();
+        else if (card.cardClass == CardClass.Mago && card.tier == CardTier.Tier5)
+            effect.MageTier5Effect();
+        else if (card.cardClass == CardClass.Mago && card.tier == CardTier.Tier4)
+            effect.MageTier4Effect();
+        else if (card.cardClass == CardClass.Mago && card.tier == CardTier.Tier3)
+            effect.MageTier3Effect();
         else if (card.cardClass == CardClass.Mago && card.tier == CardTier.Tier2)
             effect.MageTier2Effect();
         else if (card.cardClass == CardClass.Mago)
             effect.MageEffect();
+        else if (card.cardClass == CardClass.Tank && card.tier == CardTier.Tier5)
+            effect.TankTier5Effect();
+        else if (card.cardClass == CardClass.Tank && card.tier == CardTier.Tier4)
+            effect.TankTier4Effect();
+        else if (card.cardClass == CardClass.Tank && card.tier == CardTier.Tier3)
+            effect.TankTier3Effect();
         else if (card.cardClass == CardClass.Tank && card.tier == CardTier.Tier2)
             effect.TankTier2Effect();
         else if (card.cardClass == CardClass.Tank)
             effect.TankEffect();
+
+        // Hook: Mage 4 (ATK 6, HP 6) ganha +1 ATK quando Healer entra em campo
+        if (card.cardClass == CardClass.Healer && ownerPlayerNumber != 0)
+        {
+            BoardManager board = BoardManager.Instance;
+            if (board != null)
+            {
+                var alliedMages = board.GetCardsByOwner(ownerPlayerNumber);
+                foreach (var mage in alliedMages)
+                {
+                    if (mage != null && mage.card.cardClass == CardClass.Mago &&
+                        mage.card.attack == 6 && mage.card.health == 6 && mage.card.tier == CardTier.Tier4)
+                    {
+                        CardEffectSimple mageEffect = mage.GetComponent<CardEffectSimple>();
+                        if (mageEffect != null)
+                            mageEffect.ActivateBoostOnHealerEnter();
+                    }
+                }
+            }
+        }
     }
 
     void ApplyMageEffect()
@@ -772,7 +841,112 @@ public class CardDisplay : MonoBehaviour
         // Rastreia quem atacou (para efeitos como Archer tier-2)
         target.attackerCardDisplay = this;
 
-        target.TakeDamage(damageDealt);
+        // Ativa efeitos de Archer tier-5 antes do dano
+        bool ignoreArmor = false;
+        int modifiedDamage = damageDealt;
+
+        if (card.cardClass == CardClass.Arqueiro && card.tier == CardTier.Tier5)
+        {
+            CardEffectSimple effect = GetComponent<CardEffectSimple>();
+            if (effect != null)
+            {
+                // Efeito 1: Double Damage Against Tank (ATK 8, HP 3)
+                if (card.attack == 8 && card.health == 3)
+                {
+                    if (effect.IsTargetTank(target))
+                    {
+                        modifiedDamage = damageDealt * 2;
+                        Debug.Log($"[ArcherTier5Effect1] {card.cardName}: Duplicou dano contra Tank!");
+                    }
+                }
+
+                // Efeito 2: Remove Enemy Armor + Ignore Armor if Has Tank (ATK 10, HP 5)
+                if (card.attack == 10 && card.health == 5)
+                {
+                    if (effect.ShouldIgnoreArmor_Tier5Effect2())
+                    {
+                        ignoreArmor = true;
+                        Debug.Log($"[ArcherTier5Effect2] {card.cardName}: Ignorando armadura do inimigo!");
+                    }
+                }
+
+                // Efeito 3: Ignore Armor + Execute (ATK 15, HP 4)
+                if (card.attack == 15 && card.health == 4)
+                {
+                    ignoreArmor = true;
+                    Debug.Log($"[ArcherTier5Effect3] {card.cardName}: Ignorando armadura do inimigo!");
+                }
+            }
+        }
+
+        // Ativa efeitos de Archer tier-4 antes do dano
+        if (card.cardClass == CardClass.Arqueiro && card.tier == CardTier.Tier4)
+        {
+            CardEffectSimple effect = GetComponent<CardEffectSimple>();
+            if (effect != null)
+            {
+                // Efeito 1: Double Attack Healer (ATK 5, HP 3)
+                if (card.attack == 5 && card.health == 3)
+                    effect.ActivateDoubleAttackHealer(target);
+
+                // Efeito 2: Stun Every 2 Turns (ATK 6, HP 3)
+                if (card.attack == 6 && card.health == 3)
+                    effect.ActivateStunEvery2Turns(target);
+
+                // Efeito 4: Extra Move on Side Attack (ATK 6, HP 2)
+                if (card.attack == 6 && card.health == 2)
+                    effect.CheckSideAttackAndMove(target);
+            }
+        }
+
+        // Se não é double attack do Tier-4 Efeito 1, faz o ataque normal
+        if (!(card.cardClass == CardClass.Arqueiro && card.tier == CardTier.Tier4 && card.attack == 5 && card.health == 3))
+        {
+            // Aplica armadura antes do dano se não ignorar
+            if (ignoreArmor)
+            {
+                // Ignora armadura: aplica dano direto
+                target.currentHealth -= modifiedDamage;
+                if (target.currentHealth < 0)
+                    target.currentHealth = 0;
+                target.UpdateCardDisplay();
+
+                // Efeito 3: Executar se HP <= 2
+                if (card.attack == 15 && card.health == 4 && card.tier == CardTier.Tier5)
+                {
+                    CardEffectSimple effect = GetComponent<CardEffectSimple>();
+                    if (effect != null)
+                        effect.CheckArcherTier5Effect3_Execute(target);
+                }
+                // Para outros efeitos com ignoreArmor, verifica se a carta morreu
+                else if (target.currentHealth <= 0)
+                {
+                    target.DestroyCard();
+                }
+            }
+            else
+            {
+                target.TakeDamage(modifiedDamage);
+            }
+        }
+
+        // Efeito 3: Copy on Kill (ATK 7, HP 3) - ativa após o dano
+        bool targetDied = target.currentHealth <= 0;
+        if (card.cardClass == CardClass.Arqueiro && card.attack == 7 && card.health == 3 && targetDied)
+        {
+            CardEffectSimple effect = GetComponent<CardEffectSimple>();
+            if (effect != null)
+                effect.ActivateCopyOnKill();
+        }
+
+        // Tank tier-5 efeito 1 (ATK 5, Shield 9, HP 6): Concede armadura a aliados ao matar
+        if (card.cardClass == CardClass.Tank && card.attack == 5 && card.shield == 9 && card.health == 6 &&
+            card.tier == CardTier.Tier5 && targetDied)
+        {
+            CardEffectSimple effect = GetComponent<CardEffectSimple>();
+            if (effect != null)
+                effect.ActivateShieldOnKill();
+        }
 
         // Marca que atacou neste round
         if (TurnManager.Instance != null)
@@ -856,6 +1030,72 @@ public class CardDisplay : MonoBehaviour
             return;
         }
 
+        // Reduz dano se for um Tank e houver outro Tank 3 (ATK 3, Shield 2, HP 4) em campo
+        if (card.cardClass == CardClass.Tank && ownerPlayerNumber != 0)
+        {
+            BoardManager board = BoardManager.Instance;
+            if (board != null)
+            {
+                var allies = board.GetCardsByOwner(ownerPlayerNumber);
+                foreach (var ally in allies)
+                {
+                    if (ally != null && ally.card.cardClass == CardClass.Tank &&
+                        ally.card.attack == 3 && ally.card.shield == 2 && ally.card.health == 4 &&
+                        ally.card.tier == CardTier.Tier3)
+                    {
+                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                        if (effect != null)
+                        {
+                            int reducedDamage = effect.ReduceTankDamage(damage);
+                            damage = reducedDamage;
+                            Debug.Log($"[TankTier3Effect2] {card.cardName}: Dano reduzido em 50% ({reducedDamage} de dano)");
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Tank 4 tier-4 (ATK 2, Shield 6, HP 5) - Intercepta ataque 1x por turno
+        if (card.cardClass != CardClass.Tank && ownerPlayerNumber != 0)
+        {
+            BoardManager board = BoardManager.Instance;
+            if (board != null)
+            {
+                var allies = board.GetCardsByOwner(ownerPlayerNumber);
+                foreach (var ally in allies)
+                {
+                    if (ally != null && ally.card.cardClass == CardClass.Tank &&
+                        ally.card.attack == 2 && ally.card.shield == 6 && ally.card.health == 5 &&
+                        ally.card.tier == CardTier.Tier4)
+                    {
+                        // Verifica se pode interceptar (1x por turno)
+                        if (TurnManager.Instance != null &&
+                            ally.tankTier4Effect2LastUsedRound < TurnManager.Instance.currentRound)
+                        {
+                            CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                            if (effect != null)
+                            {
+                                int reductionPercent = effect.GetTankTier4Effect2Reduction();
+                                if (reductionPercent > 0)
+                                {
+                                    damage = damage / 2; // 50% menos dano
+                                    Debug.Log($"[TankTier4Effect2] {ally.card.cardName}: Interceptou ataque e recebeu 50% menos dano! ({damage} de dano)");
+                                }
+                                else
+                                {
+                                    Debug.Log($"[TankTier4Effect2] {ally.card.cardName}: Interceptou ataque em lugar de {card.cardName}!");
+                                }
+                                ally.TakeDamage(damage);
+                                ally.tankTier4Effect2LastUsedRound = TurnManager.Instance.currentRound;
+                                return; // Tank recebeu o ataque
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Triggers para Mago tier-2 quando Healer é atacado
         if (card.cardClass == CardClass.Healer && ownerPlayerNumber != 0)
         {
@@ -899,6 +1139,28 @@ public class CardDisplay : MonoBehaviour
                         if (effect != null)
                             effect.TankTier2Effect4_TakeAnyAttack(this);
                         return; // Tank recebeu o ataque, não aplicar dano ao Healer
+                    }
+                }
+            }
+        }
+
+        // Triggers para Healer tier-3 quando Tank é atacado (Healer 3 ATK 3 HP 1 cura)
+        if (card.cardClass == CardClass.Tank && ownerPlayerNumber != 0)
+        {
+            BoardManager board = BoardManager.Instance;
+            if (board != null)
+            {
+                var allies = board.GetCardsByOwner(ownerPlayerNumber);
+
+                // Healer 3 (ATK 3, HP 1) cura o Tank que está levando dano
+                foreach (var ally in allies)
+                {
+                    if (ally != null && ally.card.cardClass == CardClass.Healer &&
+                        ally.card.attack == 3 && ally.card.health == 1 && ally.card.tier == CardTier.Tier3)
+                    {
+                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                        if (effect != null)
+                            effect.HealerTier3Effect2_CureTankWhenDamaged(this);
                     }
                 }
             }
@@ -1138,6 +1400,24 @@ public class CardDisplay : MonoBehaviour
         // Atualiza a UI
         UpdateCardDisplay();
 
+        // Tank tier-5 efeito 2 (ATK 2, Shield 6, HP 8): +1 ATK ao receber dano
+        if (card.cardClass == CardClass.Tank && card.attack == 2 && card.shield == 6 && card.health == 8 &&
+            card.tier == CardTier.Tier5)
+        {
+            CardEffectSimple effect = GetComponent<CardEffectSimple>();
+            if (effect != null)
+                effect.ActivateAttackBoostOnDamage_Tier5Effect2();
+        }
+
+        // Tank tier-5 efeito 3 (ATK 4, Shield 5, HP 10): +1 ATK ao receber dano, +armadura se tem Healer/Mago
+        if (card.cardClass == CardClass.Tank && card.attack == 4 && card.shield == 5 && card.health == 10 &&
+            card.tier == CardTier.Tier5)
+        {
+            CardEffectSimple effect = GetComponent<CardEffectSimple>();
+            if (effect != null)
+                effect.ActivateAttackBoostOnDamage_Tier5Effect3();
+        }
+
         // Se um Healer toma dano, aplica efeito do Mago
         if (card.cardClass == CardClass.Healer && ownerPlayerNumber != 0)
         {
@@ -1239,7 +1519,7 @@ public class CardDisplay : MonoBehaviour
     // Destrói a carta
     public CardDisplay attackerCardDisplay = null; // Rastreia quem atacou essa carta
 
-    void DestroyCard()
+    public void DestroyCard()
     {
         // Verifica se foi destruída por um Archer 2 (ATK 3, HP 3)
         if (attackerCardDisplay != null &&
