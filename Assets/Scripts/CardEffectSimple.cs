@@ -1057,7 +1057,7 @@ public class CardEffectSimple : MonoBehaviour
         if (baseAtk == 0 && baseShield == 2 && baseHp == 3)
             TankEffect1_AttackPerMago();
         else if (baseAtk == 1 && baseShield == 1 && baseHp == 1)
-            TankEffect2_BoostAllOnHeal();
+            TankEffect2_BoostOnHeal();
         else if (baseAtk == 0 && baseShield == 2 && baseHp == 1)
             TankEffect3_AttackOnHeal();
         else if (baseAtk == 2 && baseShield == 2 && baseHp == 3)
