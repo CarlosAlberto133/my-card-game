@@ -187,19 +187,17 @@ public class CardEffectSimple : MonoBehaviour
                 allyNames.Add(ally.card.cardName);
         }
 
-        // Mostra popup para escolher
-        GameUIManager uiManager = GameUIManager.Instance;
-        if (uiManager != null)
-        {
-            string allyList = string.Join(", ", allyNames);
-            uiManager.ShowDecisionPopup(
-                $"Escolha qual aliado terá seus status duplicados:\n{allyList}",
-                allyNames.Count > 0 ? allyNames[0] : "Cancelar",
-                () => ActivateDoubleStats(allies[0]),
-                "Próximo",
-                () => { if (allies.Count > 1) ActivateDoubleStats(allies[1]); }
-            );
-        }
+        // Decisão sincronizada: o dono da carta escolhe (listas têm a mesma ordem nos dois clientes)
+        string allyList = string.Join(", ", allyNames);
+        PhotonGameManager.AskEffectDecision(cardDisplay.ownerPlayerNumber,
+            $"Escolha qual aliado terá seus status duplicados:\n{allyList}",
+            allyNames.Count > 0 ? allyNames[0] : "Cancelar",
+            "Próximo",
+            accepted =>
+            {
+                if (accepted) ActivateDoubleStats(allies[0]);
+                else if (allies.Count > 1) ActivateDoubleStats(allies[1]);
+            });
     }
 
     public void ActivateDoubleStats(CardDisplay targetAlly)
@@ -840,19 +838,17 @@ public class CardEffectSimple : MonoBehaviour
         var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
         if (allies.Count == 0) return;
 
-        // Mostra popup para escolher qual aliado ganhar invunerabilidade
-        GameUIManager uiManager = GameUIManager.Instance;
-        if (uiManager != null)
-        {
-            string allyNames = string.Join(", ", allies.ConvertAll(a => a.card.cardName));
-            uiManager.ShowDecisionPopup(
-                $"Escolha qual aliado receberá invunerabilidade por 3 rounds:\n{allyNames}",
-                allies.Count > 0 ? allies[0].card.cardName : "Cancelar",
-                () => ActivateInvulnerability(allies[0]),
-                "Próximo",
-                () => { if (allies.Count > 1) ActivateInvulnerability(allies[1]); }
-            );
-        }
+        // Decisão sincronizada: o dono da carta escolhe
+        string allyNames = string.Join(", ", allies.ConvertAll(a => a.card.cardName));
+        PhotonGameManager.AskEffectDecision(cardDisplay.ownerPlayerNumber,
+            $"Escolha qual aliado receberá invunerabilidade por 3 rounds:\n{allyNames}",
+            allies.Count > 0 ? allies[0].card.cardName : "Cancelar",
+            "Próximo",
+            accepted =>
+            {
+                if (accepted) ActivateInvulnerability(allies[0]);
+                else if (allies.Count > 1) ActivateInvulnerability(allies[1]);
+            });
     }
 
     public void ActivateInvulnerability(CardDisplay targetAlly)
@@ -1339,18 +1335,17 @@ public class CardEffectSimple : MonoBehaviour
 
         if (enemies.Count == 0) return;
 
-        GameUIManager uiManager = GameUIManager.Instance;
-        if (uiManager != null)
-        {
-            string enemyNames = string.Join(", ", enemies.ConvertAll(e => e.card.cardName));
-            uiManager.ShowDecisionPopup(
-                $"Escolha um inimigo para remover bônus:\n{enemyNames}",
-                enemies.Count > 0 ? enemies[0].card.cardName : "Cancelar",
-                () => ActivateRemoveBonus(enemies[0]),
-                "Próximo",
-                () => { if (enemies.Count > 1) ActivateRemoveBonus(enemies[1]); }
-            );
-        }
+        // Decisão sincronizada: o dono da carta escolhe
+        string enemyNames = string.Join(", ", enemies.ConvertAll(e => e.card.cardName));
+        PhotonGameManager.AskEffectDecision(cardDisplay.ownerPlayerNumber,
+            $"Escolha um inimigo para remover bônus:\n{enemyNames}",
+            enemies.Count > 0 ? enemies[0].card.cardName : "Cancelar",
+            "Próximo",
+            accepted =>
+            {
+                if (accepted) ActivateRemoveBonus(enemies[0]);
+                else if (enemies.Count > 1) ActivateRemoveBonus(enemies[1]);
+            });
     }
 
     public void ActivateRemoveBonus(CardDisplay targetEnemy)
@@ -1417,18 +1412,17 @@ public class CardEffectSimple : MonoBehaviour
             return;
         }
 
-        GameUIManager uiManager = GameUIManager.Instance;
-        if (uiManager != null)
-        {
-            string enemyNames = string.Join(", ", lowerTierEnemies.ConvertAll(e => e.card.cardName));
-            uiManager.ShowDecisionPopup(
-                $"Escolha um inimigo de nível inferior para destruir:\n{enemyNames}",
-                lowerTierEnemies.Count > 0 ? lowerTierEnemies[0].card.cardName : "Cancelar",
-                () => ActivateDestroyLowerTier(lowerTierEnemies[0]),
-                "Próximo",
-                () => { if (lowerTierEnemies.Count > 1) ActivateDestroyLowerTier(lowerTierEnemies[1]); }
-            );
-        }
+        // Decisão sincronizada: o dono da carta escolhe
+        string lowerTierNames = string.Join(", ", lowerTierEnemies.ConvertAll(e => e.card.cardName));
+        PhotonGameManager.AskEffectDecision(cardDisplay.ownerPlayerNumber,
+            $"Escolha um inimigo de nível inferior para destruir:\n{lowerTierNames}",
+            lowerTierEnemies.Count > 0 ? lowerTierEnemies[0].card.cardName : "Cancelar",
+            "Próximo",
+            accepted =>
+            {
+                if (accepted) ActivateDestroyLowerTier(lowerTierEnemies[0]);
+                else if (lowerTierEnemies.Count > 1) ActivateDestroyLowerTier(lowerTierEnemies[1]);
+            });
     }
 
     public void ActivateDestroyLowerTier(CardDisplay targetEnemy)
@@ -1628,32 +1622,27 @@ public class CardEffectSimple : MonoBehaviour
 
     void ShowFreezeOrDamageChoicePopup()
     {
-        GameUIManager uiManager = GameUIManager.Instance;
-        if (uiManager != null)
-        {
-            uiManager.ShowDecisionPopup(
-                $"{cardDisplay.card.cardName} vai congelar ou causar dano?",
-                "Congelar",
-                () => ActivateFreezeOnly(),
-                "Causar Dano",
-                () => ActivateDamageOnly()
-            );
-        }
+        // Decisão sincronizada: o dono do Mago escolhe (Random dos callbacks roda re-seedado)
+        PhotonGameManager.AskEffectDecision(cardDisplay.ownerPlayerNumber,
+            $"{cardDisplay.card.cardName} vai congelar ou causar dano?",
+            "Congelar", "Causar Dano",
+            accepted =>
+            {
+                if (accepted) ActivateFreezeOnly();
+                else ActivateDamageOnly();
+            });
     }
 
     void ShowFreezeAndDamagePopup()
     {
-        GameUIManager uiManager = GameUIManager.Instance;
-        if (uiManager != null)
-        {
-            uiManager.ShowDecisionPopup(
-                $"{cardDisplay.card.cardName} vai congelar E causar dano!",
-                "Escolher Inimigo",
-                () => ActivateFreezeAndDamageChoice(),
-                "Cancelar",
-                () => { }
-            );
-        }
+        // Decisão sincronizada: o dono do Mago escolhe
+        PhotonGameManager.AskEffectDecision(cardDisplay.ownerPlayerNumber,
+            $"{cardDisplay.card.cardName} vai congelar E causar dano!",
+            "Escolher Inimigo", "Cancelar",
+            accepted =>
+            {
+                if (accepted) ActivateFreezeAndDamageChoice();
+            });
     }
 
     public void ActivateFreezeOnly()
@@ -2103,19 +2092,17 @@ public class CardEffectSimple : MonoBehaviour
                 enemyNames.Add(enemy.card.cardName);
         }
 
-        // Mostra popup para escolher
-        GameUIManager uiManager = GameUIManager.Instance;
-        if (uiManager != null)
-        {
-            string enemyList = string.Join(", ", enemyNames);
-            uiManager.ShowDecisionPopup(
-                $"Escolha qual inimigo terá seus stats copiados:\n{enemyList}",
-                enemyNames.Count > 0 ? enemyNames[0] : "Cancelar",
-                () => ActivateCopyStats(enemies[0]),
-                "Próximo",
-                () => { if (enemies.Count > 1) ActivateCopyStats(enemies[1]); }
-            );
-        }
+        // Decisão sincronizada: o dono da carta escolhe
+        string enemyList = string.Join(", ", enemyNames);
+        PhotonGameManager.AskEffectDecision(cardDisplay.ownerPlayerNumber,
+            $"Escolha qual inimigo terá seus stats copiados:\n{enemyList}",
+            enemyNames.Count > 0 ? enemyNames[0] : "Cancelar",
+            "Próximo",
+            accepted =>
+            {
+                if (accepted) ActivateCopyStats(enemies[0]);
+                else if (enemies.Count > 1) ActivateCopyStats(enemies[1]);
+            });
     }
 
     public void ActivateCopyStats(CardDisplay targetEnemy)
@@ -2557,20 +2544,18 @@ public class CardEffectSimple : MonoBehaviour
 
     void ShowMagoChoicePopup(List<CardDisplay> magoAllies)
     {
-        GameUIManager uiManager = GameUIManager.Instance;
-        if (uiManager != null)
-        {
-            // Cria string com nomes dos Magos disponíveis
-            string magoNames = string.Join(", ", magoAllies.ConvertAll(m => m.card.cardName));
+        // Decisão sincronizada: o dono da carta escolhe
+        string magoNames = string.Join(", ", magoAllies.ConvertAll(m => m.card.cardName));
 
-            uiManager.ShowDecisionPopup(
-                $"Escolha qual Mago receberá +3 de armadura:\n{magoNames}",
-                magoAllies.Count > 0 ? magoAllies[0].card.cardName : "Cancelar",
-                () => ActivateBoostMagoShield(magoAllies[0]),
-                "Próximo",
-                () => { if (magoAllies.Count > 1) ActivateBoostMagoShield(magoAllies[1]); }
-            );
-        }
+        PhotonGameManager.AskEffectDecision(cardDisplay.ownerPlayerNumber,
+            $"Escolha qual Mago receberá +3 de armadura:\n{magoNames}",
+            magoAllies.Count > 0 ? magoAllies[0].card.cardName : "Cancelar",
+            "Próximo",
+            accepted =>
+            {
+                if (accepted) ActivateBoostMagoShield(magoAllies[0]);
+                else if (magoAllies.Count > 1) ActivateBoostMagoShield(magoAllies[1]);
+            });
     }
 
     public void ActivateBoostMagoShield(CardDisplay targetMago)

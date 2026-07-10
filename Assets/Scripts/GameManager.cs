@@ -842,6 +842,14 @@ public class GameManager : MonoBehaviour
 
     public void StartFreezeSelection(CardDisplay mageCard)
     {
+        // Em multiplayer, só o dono do Mago escolhe o alvo (a escolha chega por RPC)
+        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null &&
+            mageCard.ownerPlayerNumber != PhotonGameManager.Instance.myPlayerNumber)
+        {
+            Debug.Log("[FreezeSelection] Oponente está escolhendo o alvo do congelamento...");
+            return;
+        }
+
         if (GameUIManager.Instance != null)
         {
             GameUIManager.Instance.ShowDecisionPopup(
@@ -870,12 +878,72 @@ public class GameManager : MonoBehaviour
             return;
         }
 
+        // Em multiplayer, a escolha do alvo viaja por RPC (congela nos dois clientes)
+        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
+        {
+            if (mageFreezingCard.currentTile != null && targetCard.currentTile != null)
+            {
+                PhotonGameManager.Instance.SendEffectTargetRPC(1,
+                    mageFreezingCard.currentTile.row, mageFreezingCard.currentTile.column,
+                    targetCard.currentTile.row, targetCard.currentTile.column);
+            }
+            isWaitingForFreezeTarget = false;
+            mageFreezingCard = null;
+            return;
+        }
+
         // Congela o inimigo
         targetCard.Freeze();
         isWaitingForFreezeTarget = false;
         mageFreezingCard = null;
 
         Debug.Log($"[FreezeSelection] {targetCard.card.cardName} foi congelada!");
+    }
+
+    // Executa efeitos com alvo escolhido (chamado via RPC nos dois clientes)
+    public void ExecuteEffectOnTarget(int effectType, int sourceRow, int sourceCol, int targetRow, int targetCol)
+    {
+        if (boardManager == null) boardManager = FindObjectOfType<BoardManager>();
+
+        CardTile targetTile = boardManager.GetTile(targetRow, targetCol);
+        if (targetTile == null || targetTile.occupiedCard == null)
+        {
+            Debug.LogError($"[GameManager] Alvo do efeito {effectType} não encontrado em ({targetRow},{targetCol})!");
+            return;
+        }
+        CardDisplay target = targetTile.occupiedCard.GetComponent<CardDisplay>();
+
+        CardTile sourceTile = boardManager.GetTile(sourceRow, sourceCol);
+        CardDisplay source = (sourceTile != null && sourceTile.occupiedCard != null)
+            ? sourceTile.occupiedCard.GetComponent<CardDisplay>() : null;
+
+        switch (effectType)
+        {
+            case 1: // Congelar (Mage 1)
+                target.Freeze();
+                Debug.Log($"[GameManager] {target.card.cardName} foi congelada!");
+                break;
+
+            case 2: // Quebrar armadura (Mage 2)
+                if (source != null)
+                {
+                    CardEffectSimple mageEffect = source.GetComponent<CardEffectSimple>();
+                    if (mageEffect != null) mageEffect.BreakEnemyShield(target);
+                }
+                break;
+
+            case 3: // +2 armadura do Healer 2 em um Tank
+                if (source != null)
+                {
+                    CardEffectSimple healerEffect = source.GetComponent<CardEffectSimple>();
+                    if (healerEffect != null) healerEffect.HealerTier2Effect2_BoostTankShield(target);
+                }
+                break;
+
+            default:
+                Debug.LogError($"[GameManager] Tipo de efeito desconhecido: {effectType}");
+                break;
+        }
     }
 
     public void CancelFreezeSelection()
@@ -911,7 +979,18 @@ public class GameManager : MonoBehaviour
                 CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
                 if (effect != null)
                 {
-                    effect.HealerTier2Effect2_BoostTankShield(targetCard);
+                    // Em multiplayer, a escolha viaja por RPC (executa nos dois clientes)
+                    if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null &&
+                        ally.currentTile != null && targetCard.currentTile != null)
+                    {
+                        PhotonGameManager.Instance.SendEffectTargetRPC(3,
+                            ally.currentTile.row, ally.currentTile.column,
+                            targetCard.currentTile.row, targetCard.currentTile.column);
+                    }
+                    else
+                    {
+                        effect.HealerTier2Effect2_BoostTankShield(targetCard);
+                    }
                     return true;
                 }
             }
@@ -927,6 +1006,14 @@ public class GameManager : MonoBehaviour
 
     public void StartShieldBreakSelection(CardDisplay mageCard)
     {
+        // Em multiplayer, só o dono do Mago escolhe os alvos (as escolhas chegam por RPC)
+        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null &&
+            mageCard.ownerPlayerNumber != PhotonGameManager.Instance.myPlayerNumber)
+        {
+            Debug.Log("[ShieldBreakSelection] Oponente está escolhendo os alvos...");
+            return;
+        }
+
         if (GameUIManager.Instance != null)
         {
             GameUIManager.Instance.ShowDecisionPopup(
@@ -956,11 +1043,21 @@ public class GameManager : MonoBehaviour
             return;
         }
 
-        // Quebra armadura
-        CardEffectSimple effect = shieldBreakMage.GetComponent<CardEffectSimple>();
-        if (effect != null)
+        // Quebra armadura — em multiplayer, a escolha viaja por RPC (executa nos dois clientes)
+        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null &&
+            shieldBreakMage.currentTile != null && targetCard.currentTile != null)
         {
-            effect.BreakEnemyShield(targetCard);
+            PhotonGameManager.Instance.SendEffectTargetRPC(2,
+                shieldBreakMage.currentTile.row, shieldBreakMage.currentTile.column,
+                targetCard.currentTile.row, targetCard.currentTile.column);
+        }
+        else
+        {
+            CardEffectSimple effect = shieldBreakMage.GetComponent<CardEffectSimple>();
+            if (effect != null)
+            {
+                effect.BreakEnemyShield(targetCard);
+            }
         }
 
         shieldBreakTargetsSelected++;

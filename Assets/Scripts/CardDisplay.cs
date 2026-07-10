@@ -416,9 +416,11 @@ public class CardDisplay : MonoBehaviour
         // Atualiza artwork
         if (artworkRenderer != null && card.artwork != null)
         {
+            // Fallback final: shader do material atual do quad (sempre existe no Build)
             Shader artShader = Shader.Find("Unlit/Texture")
                             ?? Shader.Find("Universal Render Pipeline/Unlit")
-                            ?? Shader.Find("Standard");
+                            ?? Shader.Find("Standard")
+                            ?? artworkRenderer.sharedMaterial.shader;
             Material artworkMat = new Material(artShader);
             artworkMat.mainTexture = card.artwork.texture;
             artworkMat.SetTexture("_BaseMap", card.artwork.texture); // URP
@@ -1362,20 +1364,17 @@ public class CardDisplay : MonoBehaviour
                         ally.card.attack == 3 && ally.card.health == 2 &&
                         !ally.archerShieldArrowUsed)
                     {
-                        // Mostra popup para ativar o efeito
-                        GameUIManager uiManager = GameUIManager.Instance;
-                        if (uiManager != null)
-                        {
-                            CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
-                            uiManager.ShowDecisionPopup(
-                                $"Um Archer pode parar este ataque!",
-                                "Parar ataque",
-                                () => { if (effect != null) effect.ArcherTier2Effect2_ShieldArrow(this); },
-                                "Não parar",
-                                () => ApplyDamageNormally(damage)
-                            );
-                            return;
-                        }
+                        // Decisão sincronizada: o dono da carta defendida escolhe
+                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                        PhotonGameManager.AskEffectDecision(ownerPlayerNumber,
+                            "Um Archer pode parar este ataque!",
+                            "Parar ataque", "Não parar",
+                            accepted =>
+                            {
+                                if (accepted) { if (effect != null) effect.ArcherTier2Effect2_ShieldArrow(this); }
+                                else ApplyDamageNormally(damage);
+                            });
+                        return;
                     }
                 }
             }
@@ -1385,20 +1384,17 @@ public class CardDisplay : MonoBehaviour
         if (card.cardClass == CardClass.Arqueiro && card.attack == 3 && card.health == 1 &&
             !archerStunOnHitUsed && ownerPlayerNumber != 0)
         {
-            // Mostra popup para ativar stun
-            GameUIManager uiManager = GameUIManager.Instance;
-            if (uiManager != null)
-            {
-                CardEffectSimple effect = GetComponent<CardEffectSimple>();
-                uiManager.ShowDecisionPopup(
-                    $"{card.cardName} pode stunar o atacante!",
-                    "Ativar stun",
-                    () => { if (effect != null) effect.ArcherTier2Effect3_ActivateStun(this); ApplyDamageNormally(damage); },
-                    "Não usar",
-                    () => ApplyDamageNormally(damage)
-                );
-                return;
-            }
+            // Decisão sincronizada: o dono do Archer escolhe se stuna o atacante
+            CardEffectSimple stunEffect = GetComponent<CardEffectSimple>();
+            PhotonGameManager.AskEffectDecision(ownerPlayerNumber,
+                $"{card.cardName} pode stunar o atacante!",
+                "Ativar stun", "Não usar",
+                accepted =>
+                {
+                    if (accepted && stunEffect != null) stunEffect.ArcherTier2Effect3_ActivateStun(this);
+                    ApplyDamageNormally(damage);
+                });
+            return;
         }
 
         // Verifica se há uma Healer 3 aliada que pode bloquear o ataque
@@ -1484,42 +1480,28 @@ public class CardDisplay : MonoBehaviour
 
     void ShowBlockAttackPopup(int damage, CardEffectSimple healerEffect)
     {
-        GameUIManager uiManager = GameUIManager.Instance;
-        if (uiManager != null)
-        {
-            uiManager.ShowDecisionPopup(
-                $"Uma Healer pode bloquear este ataque!",
-                "Bloquear ataque",
-                () => ActivateBlockAttack(damage, healerEffect),
-                "Não bloquear",
-                () => ApplyDamageNormally(damage)
-            );
-        }
-        else
-        {
-            Debug.LogWarning("GameUIManager não encontrado!");
-            ApplyDamageNormally(damage);
-        }
+        // Decisão sincronizada: o dono da carta defendida escolhe
+        PhotonGameManager.AskEffectDecision(ownerPlayerNumber,
+            "Uma Healer pode bloquear este ataque!",
+            "Bloquear ataque", "Não bloquear",
+            accepted =>
+            {
+                if (accepted) ActivateBlockAttack(damage, healerEffect);
+                else ApplyDamageNormally(damage);
+            });
     }
 
     void ShowTreeDefensePopup(int damage)
     {
-        GameUIManager uiManager = GameUIManager.Instance;
-        if (uiManager != null)
-        {
-            uiManager.ShowDecisionPopup(
-                $"{card.cardName} pode usar a árvore para esquivar o dano!",
-                "Ativar efeito",
-                () => ActivateTreeDefense(damage),
-                "Não usar",
-                () => ApplyDamageNormally(damage)
-            );
-        }
-        else
-        {
-            Debug.LogWarning("GameUIManager não encontrado!");
-            ApplyDamageNormally(damage);
-        }
+        // Decisão sincronizada: o dono do Archer escolhe
+        PhotonGameManager.AskEffectDecision(ownerPlayerNumber,
+            $"{card.cardName} pode usar a árvore para esquivar o dano!",
+            "Ativar efeito", "Não usar",
+            accepted =>
+            {
+                if (accepted) ActivateTreeDefense(damage);
+                else ApplyDamageNormally(damage);
+            });
     }
 
     void ActivateBlockAttack(int damage, CardEffectSimple healerEffect)

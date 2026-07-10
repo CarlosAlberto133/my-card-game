@@ -246,6 +246,115 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
         }
     }
 
+    // ========== DECISÕES DE EFEITO (popups sincronizados) ==========
+
+    // Decisões pendentes: registradas NOS DOIS clientes na mesma ordem (dentro de ações RPC),
+    // então o ID incremental é idêntico nos dois lados. Cada cliente guarda seu próprio callback.
+    private System.Collections.Generic.Dictionary<int, System.Action<bool>> pendingDecisions =
+        new System.Collections.Generic.Dictionary<int, System.Action<bool>>();
+    private int nextDecisionId = 0;
+
+    // Pergunta uma decisão de efeito. Em multiplayer: registra o callback nos dois clientes,
+    // mostra o popup SÓ para o dono (deciderPlayerNumber), e a escolha viaja por RPC.
+    // Em offline: mostra o popup local direto.
+    public static void AskEffectDecision(int deciderPlayerNumber, string message,
+        string yesLabel, string noLabel, System.Action<bool> onDecision)
+    {
+        // Modo offline / sem Photon: popup local
+        if (!PhotonNetwork.inRoom || Instance == null)
+        {
+            if (GameUIManager.Instance != null)
+            {
+                GameUIManager.Instance.ShowDecisionPopup(message, yesLabel,
+                    () => onDecision(true), noLabel, () => onDecision(false));
+            }
+            else
+            {
+                onDecision(true); // Sem UI: comporta-se como o auto-yes do ShowDecisionPopup
+            }
+            return;
+        }
+
+        int id = Instance.nextDecisionId++;
+        Instance.pendingDecisions[id] = onDecision;
+
+        if (deciderPlayerNumber == Instance.myPlayerNumber)
+        {
+            if (GameUIManager.Instance != null)
+            {
+                GameUIManager.Instance.ShowDecisionPopup(message, yesLabel,
+                    () => Instance.SendEffectDecisionRPC(id, true),
+                    noLabel,
+                    () => Instance.SendEffectDecisionRPC(id, false));
+            }
+            else
+            {
+                Instance.SendEffectDecisionRPC(id, true);
+            }
+        }
+        else
+        {
+            Debug.Log($"[PhotonGame] Aguardando decisão do oponente (id {id}): {message}");
+        }
+    }
+
+    void SendEffectDecisionRPC(int decisionId, bool accepted)
+    {
+        PhotonView photonView = GetComponent<PhotonView>();
+        if (photonView != null)
+        {
+            photonView.RPC("RPC_EffectDecision", PhotonTargets.All, decisionId, accepted);
+            Debug.Log($"[PhotonGame] Enviado RPC: Decisão {decisionId} = {accepted}");
+        }
+    }
+
+    [PunRPC]
+    public void RPC_EffectDecision(int decisionId, bool accepted)
+    {
+        Debug.Log($"[PhotonGame] RPC_EffectDecision: id {decisionId}, aceito: {accepted}");
+
+        ReseedForAction(); // Callbacks podem usar Random (ex: congelamento aleatório do Mage 3)
+
+        System.Action<bool> callback;
+        if (pendingDecisions.TryGetValue(decisionId, out callback))
+        {
+            pendingDecisions.Remove(decisionId);
+            callback(accepted);
+        }
+        else
+        {
+            Debug.LogError($"[PhotonGame] Decisão {decisionId} não encontrada neste cliente!");
+        }
+    }
+
+    // ========== SELEÇÃO DE ALVO DE EFEITO (congelar, quebrar armadura, escudo) ==========
+    // effectType: 1 = congelar (Mage 1), 2 = quebrar armadura (Mage 2), 3 = escudo do Healer 2 em Tank
+
+    public void SendEffectTargetRPC(int effectType, int sourceRow, int sourceCol, int targetRow, int targetCol)
+    {
+        if (!PhotonNetwork.connected) return;
+
+        PhotonView photonView = GetComponent<PhotonView>();
+        if (photonView != null)
+        {
+            photonView.RPC("RPC_EffectTarget", PhotonTargets.All, effectType, sourceRow, sourceCol, targetRow, targetCol);
+            Debug.Log($"[PhotonGame] Enviado RPC: Efeito {effectType} de ({sourceRow},{sourceCol}) em ({targetRow},{targetCol})");
+        }
+    }
+
+    [PunRPC]
+    public void RPC_EffectTarget(int effectType, int sourceRow, int sourceCol, int targetRow, int targetCol)
+    {
+        Debug.Log($"[PhotonGame] RPC_EffectTarget: tipo {effectType}, ({sourceRow},{sourceCol}) -> ({targetRow},{targetCol})");
+
+        ReseedForAction();
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.ExecuteEffectOnTarget(effectType, sourceRow, sourceCol, targetRow, targetCol);
+        }
+    }
+
     // ========== ATAQUE COM ALVO ESPECÍFICO (clique na carta inimiga) ==========
 
     public void SendTargetedAttackRPC(int fromRow, int fromCol, int toRow, int toCol)

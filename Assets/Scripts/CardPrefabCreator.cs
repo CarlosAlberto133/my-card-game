@@ -155,9 +155,11 @@ public class CardPrefabCreator : MonoBehaviour
         Renderer r = quad.GetComponent<Renderer>();
         if (r != null)
         {
+            // Fallback final: shader do material padrão do próprio quad (sempre existe no Build)
             Shader shader = Shader.Find("Universal Render Pipeline/Lit")
                          ?? Shader.Find("Unlit/Color")
-                         ?? Shader.Find("Standard");
+                         ?? Shader.Find("Standard")
+                         ?? r.sharedMaterial.shader;
             Material mat = new Material(shader);
             mat.color = color;
             mat.SetColor("_BaseColor", color);
@@ -182,10 +184,12 @@ public class CardPrefabCreator : MonoBehaviour
         Renderer r = quad.GetComponent<Renderer>();
         if (r != null)
         {
-            // Tenta URP Lit, usa Unlit/Color como fallback
+            // Tenta URP Lit, usa Unlit/Color como fallback.
+            // Fallback final: shader do material padrão do próprio quad (sempre existe no Build)
             Shader shader = Shader.Find("Universal Render Pipeline/Lit")
                          ?? Shader.Find("Unlit/Color")
-                         ?? Shader.Find("Standard");
+                         ?? Shader.Find("Standard")
+                         ?? r.sharedMaterial.shader;
             Material mat = new Material(shader);
             mat.color = color;                      // shaders legados
             mat.SetColor("_BaseColor", color);      // URP Lit

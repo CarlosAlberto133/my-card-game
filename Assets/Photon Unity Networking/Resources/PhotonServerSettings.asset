@@ -55,4 +55,7 @@ MonoBehaviour:
   - RPC_MoveCard
   - RPC_PlaceCard
   - RPC_TowerAttack
+  - RPC_EffectDecision
+  - RPC_EffectTarget
+  - RPC_TargetedAttack
   DisableAutoOpenWizard: 1
