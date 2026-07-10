@@ -20,6 +20,7 @@ public class CardManager : MonoBehaviour
     private List<GameObject> spawnedCards = new List<GameObject>();
     private Vector3 currentSpawnPosition;
     private bool verticalLayout = false; // Se true, cartas ficam uma abaixo da outra
+    private int shopSpawnCount = 0; // Quantas vezes a loja já foi gerada (para derivar seed única por spawn)
 
     void Awake()
     {
@@ -44,7 +45,16 @@ public class CardManager : MonoBehaviour
             cardPool = FindObjectOfType<CardPool>();
         }
 
-        SpawnRandomCards();
+        // Em multiplayer, quem spawna a loja é o PhotonGameManager (quando a seed chega).
+        // Só spawna direto aqui em modo offline/single player.
+        if (PhotonNetwork.inRoom)
+        {
+            Debug.Log("[CardManager] Multiplayer: aguardando seed sincronizada para spawnar a loja...");
+        }
+        else
+        {
+            SpawnRandomCards();
+        }
     }
 
     void Update()
@@ -58,8 +68,35 @@ public class CardManager : MonoBehaviour
 
     public void SpawnRandomCards()
     {
+        Debug.Log("[CardManager] SpawnRandomCards() chamado");
+
+        // Sincroniza seed com PhotonGameManager para gerar mesmas cartas em ambos
+        if (PhotonGameManager.Instance != null)
+        {
+            int baseSeed = PhotonGameManager.Instance.currentGameSeed;
+
+            if (baseSeed > 0)
+            {
+                // Deriva uma seed diferente a cada spawn (senão o refresh repetiria a mesma loja),
+                // mas determinística: ambos os clientes fazem o mesmo número de spawns
+                int derivedSeed = baseSeed + shopSpawnCount * 7919;
+                UnityEngine.Random.InitState(derivedSeed);
+                shopSpawnCount++;
+                Debug.Log($"[CardManager] Aplicado Random.InitState({derivedSeed}) (spawn #{shopSpawnCount})");
+            }
+            else
+            {
+                Debug.LogWarning("[CardManager] Seed ainda é 0! Usando Random padrão.");
+            }
+        }
+
         // Limpa cartas anteriores
         ClearSpawnedCards();
+
+        if (cardPool == null)
+        {
+            cardPool = FindObjectOfType<CardPool>();
+        }
 
         if (cardPool == null)
         {
@@ -111,6 +148,19 @@ public class CardManager : MonoBehaviour
         Debug.Log($"Spawning novas cartas em: {currentSpawnPosition} (layout vertical)");
         SpawnRandomCards();
         Debug.Log("========== CardManager: OnGameStart Completo ==========");
+    }
+
+    // Retorna o índice de uma carta na loja (-1 se não está na loja)
+    public int GetShopCardIndex(GameObject cardObject)
+    {
+        return spawnedCards.IndexOf(cardObject);
+    }
+
+    // Retorna a carta da loja em um índice específico
+    public GameObject GetShopCard(int index)
+    {
+        if (index < 0 || index >= spawnedCards.Count) return null;
+        return spawnedCards[index];
     }
 
     public void RefreshShop()

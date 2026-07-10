@@ -100,6 +100,19 @@ public class HandManager : MonoBehaviour
         return cardsInHand.Count;
     }
 
+    // Retorna o índice de uma carta na mão (-1 se não está)
+    public int GetCardIndex(GameObject cardObject)
+    {
+        return cardsInHand.IndexOf(cardObject);
+    }
+
+    // Retorna a carta da mão em um índice específico
+    public GameObject GetCardAtIndex(int index)
+    {
+        if (index < 0 || index >= cardsInHand.Count) return null;
+        return cardsInHand[index];
+    }
+
     // Verifica se a mão está cheia
     public bool IsHandFull()
     {

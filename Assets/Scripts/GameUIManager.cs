@@ -192,6 +192,13 @@ public class GameUIManager : MonoBehaviour
     {
         Debug.Log("Botão 'Iniciar Partida' foi clicado!");
 
+        // Em multiplayer, marca ESTE jogador como pronto nos dois clientes
+        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
+        {
+            PhotonGameManager.Instance.SendPlayerReadyRPC();
+            return;
+        }
+
         if (TurnManager.Instance != null)
         {
             Debug.Log($"Chamando OnPlayerReadyToStart para jogador {TurnManager.Instance.currentPlayerNumber}");
@@ -205,21 +212,32 @@ public class GameUIManager : MonoBehaviour
 
     void OnResetStoreButtonClicked()
     {
-        if (TurnManager.Instance != null)
-        {
-            TurnManager.Instance.TryResetStore();
-        }
-        else
+        if (TurnManager.Instance == null)
         {
             Debug.LogError("TurnManager.Instance é NULL!");
+            return;
         }
+
+        // Em multiplayer, valida o turno e sincroniza o reset nos dois clientes
+        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
+        {
+            if (TurnManager.Instance.currentPlayerNumber != PhotonGameManager.Instance.myPlayerNumber)
+            {
+                Debug.Log("[GameUI] Não é seu turno, não pode resetar a loja!");
+                return;
+            }
+            PhotonGameManager.Instance.SendResetStoreRPC();
+            return;
+        }
+
+        TurnManager.Instance.TryResetStore();
     }
 
     void OnEndTurnButtonClicked()
     {
         if (TurnManager.Instance != null)
         {
-            TurnManager.Instance.EndTurn();
+            TurnManager.Instance.RequestEndTurn();
         }
     }
 

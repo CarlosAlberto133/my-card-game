@@ -10,6 +10,7 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
     public int myPlayerNumber = 0; // 1 ou 2
     public int opponentPlayerNumber = 0;
     public bool isMyTurn = false;
+    public int currentGameSeed = 0; // Seed sincronizado para geração aleatória
 
     // Referências
     private TurnManager turnManager;
@@ -29,9 +30,38 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
     void Start()
     {
         turnManager = TurnManager.Instance;
-        
+
+        // Debug: verificar conexão Photon
+        DebugPhotonStatus();
+
         // Sincroniza quem é P1 e P2
         SyncPlayers();
+
+        // Sincroniza seed de geração aleatória
+        SyncGameSeed();
+    }
+
+    void DebugPhotonStatus()
+    {
+        Debug.Log("========== PHOTON STATUS ==========");
+        Debug.Log($"[Photon] Conectado: {PhotonNetwork.connected}");
+        Debug.Log($"[Photon] Em sala: {PhotonNetwork.inRoom}");
+
+        if (PhotonNetwork.inRoom)
+        {
+            Debug.Log($"[Photon] Nome da sala: {PhotonNetwork.room.name}");
+            Debug.Log($"[Photon] Players na sala: {PhotonNetwork.room.playerCount}");
+
+            foreach (var player in PhotonNetwork.playerList)
+            {
+                Debug.Log($"  - Player {player.ID}: {player.name} (Master: {player.isMasterClient})");
+            }
+        }
+        else
+        {
+            Debug.LogWarning("[Photon] Não há sala ativa!");
+        }
+        Debug.Log("==================================");
     }
 
     void SyncPlayers()
@@ -60,76 +90,147 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
         Debug.Log($"[PhotonGame] Sincronizado: Eu={myPlayerNumber}, Oponente={opponentPlayerNumber}");
     }
 
-    // Método para sincronizar ataque via RPC
-    public void RPC_CardAttack(int attackerCardID, int targetCardID, int damageAmount, int attackerPlayerNumber)
+    // Contador de ações sincronizadas (para reseed determinístico dos efeitos aleatórios)
+    private int syncedActionCount = 0;
+
+    // Reseeda o Random de forma determinística antes de cada ação sincronizada.
+    // Como ambos os clientes executam as mesmas ações na mesma ordem, os efeitos
+    // aleatórios (congelamento, etc.) dão o mesmo resultado nos dois lados.
+    void ReseedForAction()
     {
-        Debug.Log($"[PhotonGame] RPC Recebido: Carta {attackerCardID} atacou {targetCardID} com {damageAmount} de dano");
+        if (currentGameSeed > 0)
+        {
+            syncedActionCount++;
+            UnityEngine.Random.InitState(currentGameSeed + syncedActionCount * 31);
+        }
+    }
 
-        // Se o atacante foi este jogador, não faz nada (já foi processado localmente)
-        if (attackerPlayerNumber == myPlayerNumber)
-            return;
+    // ========== ATAQUE (identificado pelo tile do atacante) ==========
 
-        // Busca as cartas no tabuleiro
+    public void SendAttackRPC(int row, int column)
+    {
+        if (!PhotonNetwork.connected) return;
+
+        PhotonView photonView = GetComponent<PhotonView>();
+        if (photonView != null)
+        {
+            photonView.RPC("RPC_Attack", PhotonTargets.All, row, column);
+            Debug.Log($"[PhotonGame] Enviado RPC: Ataque da carta em ({row}, {column})");
+        }
+    }
+
+    [PunRPC]
+    public void RPC_Attack(int row, int column)
+    {
+        Debug.Log($"[PhotonGame] RPC_Attack: carta em ({row}, {column})");
+
+        ReseedForAction();
+
         BoardManager board = BoardManager.Instance;
         if (board == null) return;
 
-        CardDisplay attacker = board.FindCardByInstanceID(attackerCardID);
-        CardDisplay target = board.FindCardByInstanceID(targetCardID);
-
-        if (attacker == null || target == null) return;
-
-        // Aplica o dano (sincroniza visualmente)
-        target.TakeDamage(damageAmount);
-        Debug.Log($"[PhotonGame] Sincronização: {target.card.cardName} recebeu {damageAmount} de dano");
-    }
-
-    // Método para sincronizar movimento via RPC
-    public void RPC_CardMove(int cardID, int newRow, int newColumn, int moverPlayerNumber)
-    {
-        Debug.Log($"[PhotonGame] RPC Recebido: Carta {cardID} moveu para ({newRow}, {newColumn}) [P{moverPlayerNumber}]");
-
-        // Se quem se moveu foi este jogador, não faz nada (já foi processado localmente)
-        if (moverPlayerNumber == myPlayerNumber)
-            return;
-
-        // Busca a carta no tabuleiro
-        BoardManager board = BoardManager.Instance;
-        if (board == null) return;
-
-        CardDisplay card = board.FindCardByInstanceID(cardID);
-        if (card == null) return;
-
-        // Tira da tile antiga
-        if (card.currentTile != null)
-            card.currentTile.FreeTile();
-
-        // Coloca na tile nova
-        CardTile newTile = board.GetTile(newRow, newColumn);
-        if (newTile != null)
+        CardTile tile = board.GetTile(row, column);
+        if (tile == null || tile.occupiedCard == null)
         {
-            newTile.OccupyTile(card.gameObject);
-            card.currentTile = newTile;
-            card.transform.position = newTile.transform.position;
-            Debug.Log($"[PhotonGame] Sincronização: {card.card.cardName} moveu para ({newRow}, {newColumn})");
+            Debug.LogError($"[PhotonGame] Nenhuma carta no tile ({row}, {column})!");
+            return;
+        }
+
+        CardDisplay attacker = tile.occupiedCard.GetComponent<CardDisplay>();
+        if (attacker != null)
+        {
+            // Executa o ataque completo nos dois clientes (mesmo estado = mesmo resultado)
+            bool result = attacker.AttackAdjacentEnemy();
+            Debug.Log($"[PhotonGame] RPC_Attack executado: {attacker.card.cardName} atacou? {result}");
+        }
+        else
+        {
+            Debug.LogError($"[PhotonGame] Objeto no tile ({row},{column}) não tem CardDisplay!");
         }
     }
 
-    // Método para sincronizar compra de carta via RPC
-    public void RPC_BuyCard(int cardID, int cost, int buyerPlayerNumber)
+    // ========== MOVIMENTO (identificado por tiles origem/destino) ==========
+
+    public void SendMoveCardRPC(int fromRow, int fromCol, int toRow, int toCol)
     {
-        Debug.Log($"[PhotonGame] RPC Recebido: Carta {cardID} foi comprada por {cost} ouro [P{buyerPlayerNumber}]");
+        if (!PhotonNetwork.connected) return;
 
-        // Se o comprador foi este jogador, não faz nada (já foi processado localmente)
-        if (buyerPlayerNumber == myPlayerNumber)
-            return;
-
-        // Aqui você pode atualizar a loja visualmente se necessário
-        // Por enquanto apenas log para confirmação
-        Debug.Log($"[PhotonGame] Sincronização: Player {buyerPlayerNumber} comprou carta {cardID}");
+        PhotonView photonView = GetComponent<PhotonView>();
+        if (photonView != null)
+        {
+            photonView.RPC("RPC_MoveCard", PhotonTargets.All, fromRow, fromCol, toRow, toCol);
+            Debug.Log($"[PhotonGame] Enviado RPC: Movimento ({fromRow},{fromCol}) -> ({toRow},{toCol})");
+        }
     }
 
-    // Método para chamar RPC de ataque
-    public void SendAttackRPC(int attackerCardID, int targetCardID, int damageAmount, int attackerPlayerNumber)
+    [PunRPC]
+    public void RPC_MoveCard(int fromRow, int fromCol, int toRow, int toCol)
+    {
+        Debug.Log($"[PhotonGame] RPC_MoveCard: ({fromRow},{fromCol}) -> ({toRow},{toCol})");
+
+        ReseedForAction();
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.ExecuteMoveCard(fromRow, fromCol, toRow, toCol);
+        }
+    }
+
+    // ========== COLOCAR CARTA EM CAMPO (índice da mão + tile destino) ==========
+
+    public void SendPlaceCardRPC(int handIndex, int ownerPlayerNumber, int row, int column)
+    {
+        if (!PhotonNetwork.connected) return;
+
+        PhotonView photonView = GetComponent<PhotonView>();
+        if (photonView != null)
+        {
+            photonView.RPC("RPC_PlaceCard", PhotonTargets.All, handIndex, ownerPlayerNumber, row, column);
+            Debug.Log($"[PhotonGame] Enviado RPC: P{ownerPlayerNumber} colocou carta {handIndex} da mão em ({row}, {column})");
+        }
+    }
+
+    [PunRPC]
+    public void RPC_PlaceCard(int handIndex, int ownerPlayerNumber, int row, int column)
+    {
+        Debug.Log($"[PhotonGame] RPC_PlaceCard: mão[{handIndex}] de P{ownerPlayerNumber} -> ({row}, {column})");
+
+        ReseedForAction();
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.ExecutePlaceCard(handIndex, ownerPlayerNumber, row, column);
+        }
+    }
+
+    // Executa a compra nos DOIS clientes (identifica a carta pelo índice na loja)
+    [PunRPC]
+    public void RPC_BuyCard(int shopIndex, int buyerPlayerNumber)
+    {
+        Debug.Log($"[PhotonGame] RPC_BuyCard: slot {shopIndex} comprado por P{buyerPlayerNumber}");
+
+        if (CardManager.Instance == null)
+        {
+            Debug.LogError("[PhotonGame] CardManager não encontrado!");
+            return;
+        }
+
+        GameObject cardObject = CardManager.Instance.GetShopCard(shopIndex);
+        if (cardObject == null)
+        {
+            Debug.LogError($"[PhotonGame] Carta no slot {shopIndex} não encontrada!");
+            return;
+        }
+
+        CardDisplay cardDisplay = cardObject.GetComponent<CardDisplay>();
+        if (cardDisplay != null)
+        {
+            cardDisplay.ExecuteBuy(buyerPlayerNumber);
+        }
+    }
+
+    // Método para chamar RPC de compra (PhotonTargets.All executa nos dois clientes, incluindo este)
+    public void SendBuyCardRPC(int shopIndex, int buyerPlayerNumber)
     {
         if (!PhotonNetwork.connected)
         {
@@ -140,42 +241,228 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
         PhotonView photonView = GetComponent<PhotonView>();
         if (photonView != null)
         {
-            photonView.RPC("RPC_CardAttack", PhotonTargets.All, attackerCardID, targetCardID, damageAmount, attackerPlayerNumber);
-            Debug.Log($"[PhotonGame] Enviado RPC: Ataque {attackerCardID} -> {targetCardID} ({damageAmount} dano) [P{attackerPlayerNumber}]");
+            photonView.RPC("RPC_BuyCard", PhotonTargets.All, shopIndex, buyerPlayerNumber);
+            Debug.Log($"[PhotonGame] Enviado RPC: Compra slot {shopIndex} [P{buyerPlayerNumber}]");
         }
     }
 
-    // Método para chamar RPC de movimento
-    public void SendMoveRPC(int cardID, int newRow, int newColumn, int moverPlayerNumber)
+    // ========== ATAQUE COM ALVO ESPECÍFICO (clique na carta inimiga) ==========
+
+    public void SendTargetedAttackRPC(int fromRow, int fromCol, int toRow, int toCol)
     {
-        if (!PhotonNetwork.connected)
+        if (!PhotonNetwork.connected) return;
+
+        PhotonView photonView = GetComponent<PhotonView>();
+        if (photonView != null)
         {
-            Debug.LogWarning("[PhotonGame] Não conectado ao Photon! RPC não enviado.");
+            photonView.RPC("RPC_TargetedAttack", PhotonTargets.All, fromRow, fromCol, toRow, toCol);
+            Debug.Log($"[PhotonGame] Enviado RPC: Ataque com alvo ({fromRow},{fromCol}) -> ({toRow},{toCol})");
+        }
+    }
+
+    [PunRPC]
+    public void RPC_TargetedAttack(int fromRow, int fromCol, int toRow, int toCol)
+    {
+        Debug.Log($"[PhotonGame] RPC_TargetedAttack: ({fromRow},{fromCol}) -> ({toRow},{toCol})");
+
+        ReseedForAction();
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.ExecuteTargetedAttack(fromRow, fromCol, toRow, toCol);
+        }
+    }
+
+    // ========== ATAQUE À TORRE ==========
+
+    public void SendTowerAttackRPC(int row, int column, int targetPlayerNumber)
+    {
+        if (!PhotonNetwork.connected) return;
+
+        PhotonView photonView = GetComponent<PhotonView>();
+        if (photonView != null)
+        {
+            photonView.RPC("RPC_TowerAttack", PhotonTargets.All, row, column, targetPlayerNumber);
+            Debug.Log($"[PhotonGame] Enviado RPC: Ataque à torre do P{targetPlayerNumber} pela carta em ({row}, {column})");
+        }
+    }
+
+    [PunRPC]
+    public void RPC_TowerAttack(int row, int column, int targetPlayerNumber)
+    {
+        Debug.Log($"[PhotonGame] RPC_TowerAttack: carta em ({row}, {column}) ataca torre do P{targetPlayerNumber}");
+
+        ReseedForAction();
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.ExecuteTowerAttack(row, column, targetPlayerNumber);
+        }
+    }
+
+    // ========== SINCRONIZAÇÃO DE TURNO ==========
+
+    // Envia "passar a vez" para os dois clientes
+    public void SendEndTurnRPC()
+    {
+        if (!PhotonNetwork.connected) return;
+
+        PhotonView photonView = GetComponent<PhotonView>();
+        if (photonView != null)
+        {
+            photonView.RPC("RPC_EndTurn", PhotonTargets.All);
+        }
+    }
+
+    [PunRPC]
+    public void RPC_EndTurn()
+    {
+        Debug.Log("[PhotonGame] RPC_EndTurn recebido");
+
+        // Reseed: efeitos de fim de turno usam Random (ex: congelamento aleatório do Mage 5)
+        ReseedForAction();
+
+        if (TurnManager.Instance != null)
+        {
+            TurnManager.Instance.EndTurn();
+        }
+    }
+
+    // ========== SINCRONIZAÇÃO DE INÍCIO DE PARTIDA ==========
+
+    // Este jogador clicou em "Iniciar Partida"
+    public void SendPlayerReadyRPC()
+    {
+        if (!PhotonNetwork.connected) return;
+
+        PhotonView photonView = GetComponent<PhotonView>();
+        if (photonView != null)
+        {
+            photonView.RPC("RPC_PlayerReady", PhotonTargets.All, myPlayerNumber);
+        }
+    }
+
+    [PunRPC]
+    public void RPC_PlayerReady(int playerNumber)
+    {
+        Debug.Log($"[PhotonGame] RPC_PlayerReady: Jogador {playerNumber} está pronto");
+        if (TurnManager.Instance != null)
+        {
+            TurnManager.Instance.SetPlayerReady(playerNumber);
+        }
+    }
+
+    // ========== SINCRONIZAÇÃO DE RESET DA LOJA ==========
+
+    public void SendResetStoreRPC()
+    {
+        if (!PhotonNetwork.connected) return;
+
+        PhotonView photonView = GetComponent<PhotonView>();
+        if (photonView != null)
+        {
+            photonView.RPC("RPC_ResetStore", PhotonTargets.All);
+        }
+    }
+
+    [PunRPC]
+    public void RPC_ResetStore()
+    {
+        Debug.Log("[PhotonGame] RPC_ResetStore recebido");
+        if (TurnManager.Instance != null)
+        {
+            TurnManager.Instance.TryResetStore();
+        }
+    }
+
+    // Sincroniza a seed aleatória para ambos os jogadores
+    void SyncGameSeed()
+    {
+        Debug.Log($"[PhotonGame] SyncGameSeed() chamado. isMasterClient: {PhotonNetwork.isMasterClient}");
+
+        if (PhotonNetwork.isMasterClient)
+        {
+            // P1 gera a seed e já spawna sua loja com ela
+            currentGameSeed = UnityEngine.Random.Range(1, 100000);
+            Debug.Log($"[PhotonGame] P1 gerou seed: {currentGameSeed}");
+            ApplySeedAndSpawnShop(currentGameSeed);
+        }
+        else
+        {
+            // P2 pede a seed ao P1 (repete até receber, pois o P1 pode ainda estar carregando)
+            Debug.Log("[PhotonGame] Sou P2, pedindo seed ao P1...");
+            StartCoroutine(RequestSeedRoutine());
+        }
+    }
+
+    System.Collections.IEnumerator RequestSeedRoutine()
+    {
+        while (currentGameSeed == 0)
+        {
+            if (PhotonNetwork.connected)
+            {
+                PhotonView photonView = GetComponent<PhotonView>();
+                if (photonView != null)
+                {
+                    Debug.Log("[PhotonGame] Enviando RPC_RequestSeed ao Master...");
+                    photonView.RPC("RPC_RequestSeed", PhotonTargets.MasterClient);
+                }
+            }
+            yield return new WaitForSeconds(1f);
+        }
+    }
+
+    // P2 pede a seed; o Master responde com RPC_SetGameSeed
+    [PunRPC]
+    public void RPC_RequestSeed()
+    {
+        Debug.Log("[PhotonGame] RPC_RequestSeed recebido");
+
+        if (!PhotonNetwork.isMasterClient) return;
+        if (currentGameSeed == 0)
+        {
+            Debug.LogWarning("[PhotonGame] Seed ainda não gerada, pedido ignorado (P2 vai pedir de novo)");
             return;
         }
 
         PhotonView photonView = GetComponent<PhotonView>();
         if (photonView != null)
         {
-            photonView.RPC("RPC_CardMove", PhotonTargets.All, cardID, newRow, newColumn, moverPlayerNumber);
-            Debug.Log($"[PhotonGame] Enviado RPC: Movimento {cardID} -> ({newRow}, {newColumn}) [P{moverPlayerNumber}]");
+            Debug.Log($"[PhotonGame] Respondendo com seed {currentGameSeed}");
+            photonView.RPC("RPC_SetGameSeed", PhotonTargets.Others, currentGameSeed);
         }
     }
 
-    // Método para chamar RPC de compra
-    public void SendBuyCardRPC(int cardID, int cost, int buyerPlayerNumber)
+    // Aplica a seed e spawna a loja
+    void ApplySeedAndSpawnShop(int seed)
     {
-        if (!PhotonNetwork.connected)
+        UnityEngine.Random.InitState(seed);
+        Debug.Log($"[PhotonGame] Random.InitState({seed}) aplicado");
+
+        if (CardManager.Instance != null)
         {
-            Debug.LogWarning("[PhotonGame] Não conectado ao Photon! RPC não enviado.");
+            CardManager.Instance.SpawnRandomCards();
+        }
+        else
+        {
+            Debug.LogWarning("[PhotonGame] CardManager ainda não existe, loja será spawnada quando ele iniciar");
+        }
+    }
+
+    // RPC para sincronizar seed
+    [PunRPC]
+    public void RPC_SetGameSeed(int seed)
+    {
+        // Se já aplicou essa seed, ignora (evita spawns duplicados)
+        if (currentGameSeed == seed)
+        {
+            Debug.Log($"[PhotonGame] Seed {seed} já aplicada, ignorando");
             return;
         }
 
-        PhotonView photonView = GetComponent<PhotonView>();
-        if (photonView != null)
-        {
-            photonView.RPC("RPC_BuyCard", PhotonTargets.All, cardID, cost, buyerPlayerNumber);
-            Debug.Log($"[PhotonGame] Enviado RPC: Compra {cardID} ({cost} ouro) [P{buyerPlayerNumber}]");
-        }
+        currentGameSeed = seed;
+        Debug.Log($"[PhotonGame] RPC_SetGameSeed recebido com seed: {seed}");
+
+        ApplySeedAndSpawnShop(seed);
     }
 }

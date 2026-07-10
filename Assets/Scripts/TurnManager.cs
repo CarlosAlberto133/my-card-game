@@ -55,7 +55,45 @@ public class TurnManager : MonoBehaviour
         // ESPAÇO passa a vez
         if (Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
         {
+            RequestEndTurn();
+        }
+    }
+
+    // Pede para passar a vez. Em multiplayer, valida se é seu turno e sincroniza via RPC.
+    public void RequestEndTurn()
+    {
+        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
+        {
+            if (currentPlayerNumber != PhotonGameManager.Instance.myPlayerNumber)
+            {
+                Debug.Log("[TurnManager] Não é seu turno, não pode passar a vez!");
+                return;
+            }
+            PhotonGameManager.Instance.SendEndTurnRPC();
+        }
+        else
+        {
             EndTurn();
+        }
+    }
+
+    // Marca um jogador como pronto (multiplayer: chamado via RPC nos dois clientes)
+    public void SetPlayerReady(int playerNumber)
+    {
+        if (gameState != GameState.Lobby)
+        {
+            Debug.LogWarning($"SetPlayerReady ignorado, estado atual: {gameState}");
+            return;
+        }
+
+        if (playerNumber == 1) player1Ready = true;
+        else if (playerNumber == 2) player2Ready = true;
+
+        Debug.Log($"[TurnManager] Jogador {playerNumber} pronto! (P1: {player1Ready}, P2: {player2Ready})");
+
+        if (player1Ready && player2Ready)
+        {
+            StartGame();
         }
     }
 

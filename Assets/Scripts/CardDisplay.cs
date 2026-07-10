@@ -129,7 +129,22 @@ public class CardDisplay : MonoBehaviour
                     // Botão direito do mouse ou tecla A para atacar
                     if (mouse.rightButton.wasPressedThisFrame || keyboard.aKey.wasPressedThisFrame)
                     {
-                        AttackAdjacentEnemy();
+                        // Em multiplayer, só ataca no SEU turno e via RPC (executa nos dois clientes)
+                        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
+                        {
+                            if (currentPlayerNumber != PhotonGameManager.Instance.myPlayerNumber)
+                            {
+                                Debug.Log("[CardDisplay] Não é seu turno, não pode atacar!");
+                            }
+                            else if (currentTile != null)
+                            {
+                                PhotonGameManager.Instance.SendAttackRPC(currentTile.row, currentTile.column);
+                            }
+                        }
+                        else
+                        {
+                            AttackAdjacentEnemy();
+                        }
                     }
                 }
             }
@@ -658,6 +673,14 @@ public class CardDisplay : MonoBehaviour
 
         PlayerData currentPlayer = TurnManager.Instance.GetCurrentPlayer();
 
+        // Em multiplayer, só pode comprar no SEU turno
+        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null &&
+            currentPlayer.playerNumber != PhotonGameManager.Instance.myPlayerNumber)
+        {
+            Debug.Log("[CardDisplay] Não é seu turno, não pode comprar!");
+            return;
+        }
+
         // Verifica se o jogador já comprou sua carta neste turno
         if (!currentPlayer.CanBuyCard())
         {
@@ -672,23 +695,39 @@ public class CardDisplay : MonoBehaviour
             return;
         }
 
-        // Compra a carta
-        currentPlayer.BuyCard(cost);
-
-        // Sincroniza compra via RPC (Photon multiplayer)
-        if (PhotonGameManager.Instance != null)
+        // Em multiplayer, envia RPC — a compra executa nos DOIS clientes (inclusive este)
+        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null && CardManager.Instance != null)
         {
-            int buyerPlayerNumber = ownerPlayerNumber;
-            int cardInstanceID = gameObject.GetInstanceID();
-            PhotonGameManager.Instance.SendBuyCardRPC(cardInstanceID, cost, buyerPlayerNumber);
+            int shopIndex = CardManager.Instance.GetShopCardIndex(gameObject);
+            if (shopIndex < 0)
+            {
+                Debug.LogError("[CardDisplay] Carta não encontrada na loja!");
+                return;
+            }
+            PhotonGameManager.Instance.SendBuyCardRPC(shopIndex, currentPlayer.playerNumber);
+            return;
         }
+
+        // Modo offline: executa direto
+        ExecuteBuy(currentPlayer.playerNumber);
+    }
+
+    // Executa a compra de fato (chamado localmente em offline, ou via RPC nos dois clientes)
+    public void ExecuteBuy(int buyerPlayerNumber)
+    {
+        PlayerData buyer = TurnManager.Instance.GetPlayer(buyerPlayerNumber);
+
+        // Deduz o ouro e marca a compra do turno
+        int cost = card.GetGoldCost();
+        buyer.BuyCard(cost);
+        Debug.Log($"[CardDisplay] {buyer.playerName} comprou {card.cardName} por {cost} ouro. Ouro restante: {buyer.gold}");
 
         // Remove da loja e adiciona à mão DO JOGADOR CORRETO
         isInShop = false;
-        ownerPlayerNumber = currentPlayer.playerNumber; // Define o dono da carta
+        ownerPlayerNumber = buyerPlayerNumber; // Define o dono da carta
 
         // Busca o HandManager do jogador correto
-        HandManager correctHandManager = GetHandManagerForPlayer(currentPlayer.playerNumber);
+        HandManager correctHandManager = GetHandManagerForPlayer(buyerPlayerNumber);
 
         if (correctHandManager != null)
         {
@@ -705,7 +744,7 @@ public class CardDisplay : MonoBehaviour
         }
         else
         {
-            Debug.LogError($"HandManager para {currentPlayer.playerName} não encontrado!");
+            Debug.LogError($"HandManager para {buyer.playerName} não encontrado!");
         }
     }
 
@@ -831,6 +870,7 @@ public class CardDisplay : MonoBehaviour
         // Verifica se pode atacar
         if (!CanAttackThisRound())
         {
+            Debug.Log($"[Attack] {card.cardName} NÃO pode atacar (lastAttackedRound={lastAttackedRound}, currentRound={(TurnManager.Instance != null ? TurnManager.Instance.currentRound : -99)})");
             return false;
         }
 
@@ -839,8 +879,11 @@ public class CardDisplay : MonoBehaviour
 
         if (enemies.Count == 0)
         {
+            Debug.Log($"[Attack] {card.cardName} não encontrou inimigos adjacentes (tile: {(currentTile != null ? $"({currentTile.row},{currentTile.column})" : "NULL")})");
             return false;
         }
+
+        Debug.Log($"[Attack] {card.cardName} em ({currentTile.row},{currentTile.column}) vai atacar {enemies[0].card.cardName} (dono P{enemies[0].ownerPlayerNumber})");
 
         // Ataca o primeiro inimigo encontrado
         CardDisplay target = enemies[0];
@@ -960,15 +1003,6 @@ public class CardDisplay : MonoBehaviour
         if (TurnManager.Instance != null)
         {
             lastAttackedRound = TurnManager.Instance.currentRound;
-        }
-
-        // Sincroniza ataque via RPC (Photon multiplayer)
-        if (PhotonGameManager.Instance != null)
-        {
-            int attackerPlayerNumber = ownerPlayerNumber;
-            int attackerID = gameObject.GetInstanceID();
-            int targetID = target.gameObject.GetInstanceID();
-            PhotonGameManager.Instance.SendAttackRPC(attackerID, targetID, modifiedDamage, attackerPlayerNumber);
         }
 
         return true;

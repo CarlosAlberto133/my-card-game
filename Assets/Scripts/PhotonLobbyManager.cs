@@ -77,10 +77,17 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
             return;
         }
 
-        // Usa nome fixo para testar
+        // Usa nome fixo para funcionar entre Build e Editor
         string roomName = "CardGame_TestRoom";
         bool success = PhotonNetwork.CreateRoom(roomName, null, null, null);
+
         Debug.Log($"[Lobby] Criando sala: {roomName}, Success: {success}");
+
+        if (!success)
+        {
+            Debug.LogWarning("[Lobby] Falha ao criar sala! Pode já existir. Tentando entrar...");
+            PhotonNetwork.JoinRoom(roomName);
+        }
     }
 
     // Entra na sala conhecida
@@ -98,7 +105,7 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
             return;
         }
 
-        // Tenta entrar diretamente na sala (usando nome fixo para teste)
+        // Usa mesmo nome fixo para funcionar entre Build e Editor
         string roomName = "CardGame_TestRoom";
         bool success = PhotonNetwork.JoinRoom(roomName);
         Debug.Log($"[Lobby] Tentando entrar na sala {roomName}, Success: {success}");

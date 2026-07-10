@@ -128,6 +128,14 @@ public class GameManager : MonoBehaviour
     // Seleciona uma carta da mão para colocar no tabuleiro
     public void SelectCardFromHand(GameObject card, CardDisplay cardDisplay)
     {
+        // Em multiplayer, só pode mexer nas SUAS cartas
+        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null &&
+            cardDisplay.ownerPlayerNumber != PhotonGameManager.Instance.myPlayerNumber)
+        {
+            Debug.Log("[GameManager] Esta carta não é sua!");
+            return;
+        }
+
         // Verifica se a carta pertence ao jogador atual
         if (TurnManager.Instance != null)
         {
@@ -151,6 +159,15 @@ public class GameManager : MonoBehaviour
     // Seleciona uma carta que já está no tabuleiro para mover
     public void SelectCardFromBoard(GameObject card, CardDisplay cardDisplay, CardTile tile)
     {
+        // Em multiplayer, só pode mexer nas SUAS cartas (exceto seleção de alvo de efeito)
+        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null &&
+            !IsWaitingForFreezeTarget() && !IsWaitingForShieldBreakTargets() &&
+            cardDisplay.ownerPlayerNumber != PhotonGameManager.Instance.myPlayerNumber)
+        {
+            Debug.Log("[GameManager] Esta carta não é sua!");
+            return;
+        }
+
         // Se está aguardando seleção de alvo para congelar (Mage 3)
         if (IsWaitingForFreezeTarget())
         {
@@ -273,9 +290,84 @@ public class GameManager : MonoBehaviour
             return false;
         }
 
+        // Em multiplayer, envia RPC — a colocação executa nos DOIS clientes
+        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
+        {
+            HandManager ownerHand = GetHandManagerForPlayer(playerNumber);
+            int handIndex = ownerHand != null ? ownerHand.GetCardIndex(selectedCard) : -1;
+            if (handIndex < 0)
+            {
+                Debug.LogError("[GameManager] Carta não encontrada na mão!");
+                return false;
+            }
+
+            PhotonGameManager.Instance.SendPlaceCardRPC(handIndex, playerNumber, tile.row, tile.column);
+            CancelSelection(); // A execução real vem pelo RPC
+            return true;
+        }
+
         // Coloca a carta no tile
         PlaceCard(tile);
         return true;
+    }
+
+    // Busca o HandManager de um jogador específico
+    HandManager GetHandManagerForPlayer(int playerNum)
+    {
+        HandManager[] allHandManagers = FindObjectsOfType<HandManager>();
+        foreach (HandManager hm in allHandManagers)
+        {
+            if (hm.playerNumber == playerNum)
+                return hm;
+        }
+        return null;
+    }
+
+    // Executa a colocação de fato (chamado via RPC nos dois clientes, ou localmente em offline)
+    public void ExecutePlaceCard(int handIndex, int ownerPlayerNumber, int row, int column)
+    {
+        HandManager ownerHand = GetHandManagerForPlayer(ownerPlayerNumber);
+        if (ownerHand == null)
+        {
+            Debug.LogError($"[GameManager] HandManager do jogador {ownerPlayerNumber} não encontrado!");
+            return;
+        }
+
+        GameObject cardObject = ownerHand.GetCardAtIndex(handIndex);
+        if (cardObject == null)
+        {
+            Debug.LogError($"[GameManager] Carta no índice {handIndex} da mão não encontrada!");
+            return;
+        }
+
+        CardTile tile = boardManager != null ? boardManager.GetTile(row, column) : null;
+        if (tile == null)
+        {
+            Debug.LogError($"[GameManager] Tile ({row}, {column}) não encontrado!");
+            return;
+        }
+
+        CardDisplay cardDisplay = cardObject.GetComponent<CardDisplay>();
+
+        // Remove da mão do dono
+        ownerHand.RemoveCardFromHand(cardObject);
+
+        // Move a carta para a posição do tile
+        Vector3 cardPosition = tile.transform.position + new Vector3(0, 1.5f, 0);
+        cardObject.transform.position = cardPosition;
+
+        // Marca o tile como ocupado
+        tile.OccupyTile(cardObject);
+
+        // Atualiza o estado da carta
+        cardDisplay.isInHand = false;
+        cardDisplay.isOnBoard = true;
+        cardDisplay.currentTile = tile;
+
+        // Aplica o efeito da carta ao entrar no tabuleiro
+        cardDisplay.ApplyCardEffect("onEnter");
+
+        Debug.Log($"[GameManager] {cardDisplay.card.cardName} colocada em ({row}, {column}) pelo P{ownerPlayerNumber}");
     }
 
     // Tenta mover uma carta do tabuleiro
@@ -308,9 +400,54 @@ public class GameManager : MonoBehaviour
             return false;
         }
 
+        // Em multiplayer, envia RPC — o movimento executa nos DOIS clientes
+        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
+        {
+            PhotonGameManager.Instance.SendMoveCardRPC(currentTile.row, currentTile.column, targetTile.row, targetTile.column);
+            CancelSelection(); // A execução real vem pelo RPC
+            return true;
+        }
+
         // Move a carta
         MoveCard(targetTile);
         return true;
+    }
+
+    // Executa o movimento de fato (chamado via RPC nos dois clientes)
+    public void ExecuteMoveCard(int fromRow, int fromCol, int toRow, int toCol)
+    {
+        if (boardManager == null) boardManager = FindObjectOfType<BoardManager>();
+
+        CardTile fromTile = boardManager.GetTile(fromRow, fromCol);
+        CardTile toTile = boardManager.GetTile(toRow, toCol);
+
+        if (fromTile == null || toTile == null || fromTile.occupiedCard == null)
+        {
+            Debug.LogError($"[GameManager] Movimento inválido: ({fromRow},{fromCol}) -> ({toRow},{toCol})");
+            return;
+        }
+
+        GameObject cardObject = fromTile.occupiedCard;
+        CardDisplay cardDisplay = cardObject.GetComponent<CardDisplay>();
+
+        // Libera o tile atual
+        fromTile.FreeTile();
+
+        // Move a carta para a nova posição
+        Vector3 cardPosition = toTile.transform.position + new Vector3(0, 1.5f, 0);
+        cardObject.transform.position = cardPosition;
+
+        // Ocupa o novo tile
+        toTile.OccupyTile(cardObject);
+        cardDisplay.currentTile = toTile;
+
+        // Marca que a carta se moveu neste round
+        if (TurnManager.Instance != null)
+        {
+            cardDisplay.lastMovedRound = TurnManager.Instance.currentRound;
+        }
+
+        Debug.Log($"[GameManager] {cardDisplay.card.cardName} moveu de ({fromRow},{fromCol}) para ({toRow},{toCol})");
     }
 
     // Verifica se o movimento é válido (formato de +)
@@ -524,19 +661,69 @@ public class GameManager : MonoBehaviour
             return false;
         }
 
-        int damageDealt = selectedCardDisplay.currentAttack;
-        targetCard.TakeDamage(damageDealt);
-
-        // Marca que atacou neste round
-        if (TurnManager.Instance != null)
+        // Em multiplayer, envia RPC — o ataque com alvo executa nos DOIS clientes
+        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
         {
-            selectedCardDisplay.lastAttackedRound = TurnManager.Instance.currentRound;
+            if (TurnManager.Instance != null &&
+                TurnManager.Instance.currentPlayerNumber != PhotonGameManager.Instance.myPlayerNumber)
+            {
+                Debug.Log("[GameManager] Não é seu turno, não pode atacar!");
+                return false;
+            }
+
+            if (selectedCardDisplay.currentTile == null || targetCard.currentTile == null)
+            {
+                Debug.LogError("[GameManager] Tile do atacante ou do alvo é null!");
+                return false;
+            }
+
+            PhotonGameManager.Instance.SendTargetedAttackRPC(
+                selectedCardDisplay.currentTile.row, selectedCardDisplay.currentTile.column,
+                targetCard.currentTile.row, targetCard.currentTile.column);
+
+            CancelSelection();
+            return true;
         }
+
+        ExecuteTargetedAttack(selectedCardDisplay.currentTile.row, selectedCardDisplay.currentTile.column,
+                              targetCard.currentTile.row, targetCard.currentTile.column);
 
         // Cancela a seleção após o ataque
         CancelSelection();
 
         return true;
+    }
+
+    // Executa o ataque com alvo específico (chamado via RPC nos dois clientes, ou localmente em offline)
+    public void ExecuteTargetedAttack(int fromRow, int fromCol, int toRow, int toCol)
+    {
+        if (boardManager == null) boardManager = FindObjectOfType<BoardManager>();
+
+        CardTile fromTile = boardManager.GetTile(fromRow, fromCol);
+        CardTile toTile = boardManager.GetTile(toRow, toCol);
+
+        if (fromTile == null || toTile == null || fromTile.occupiedCard == null || toTile.occupiedCard == null)
+        {
+            Debug.LogError($"[GameManager] Ataque com alvo inválido: ({fromRow},{fromCol}) -> ({toRow},{toCol})");
+            return;
+        }
+
+        CardDisplay attacker = fromTile.occupiedCard.GetComponent<CardDisplay>();
+        CardDisplay target = toTile.occupiedCard.GetComponent<CardDisplay>();
+
+        // Rastreia quem atacou (para efeitos reativos como congelar o atacante)
+        target.attackerCardDisplay = attacker;
+
+        int damageDealt = attacker.currentAttack;
+        target.TakeDamage(damageDealt);
+
+        // Marca que atacou neste round
+        if (TurnManager.Instance != null)
+        {
+            attacker.lastAttackedRound = TurnManager.Instance.currentRound;
+        }
+
+        Debug.Log($"[GameManager] {attacker.card.cardName} atacou {target.card.cardName} causando {damageDealt} de dano");
     }
 
     // Checa efeitos periódicos das cartas (chamado a cada round)
@@ -599,34 +786,54 @@ public class GameManager : MonoBehaviour
             return false;
         }
 
-        // Executa o ataque à torre
-        PlayerData targetPlayer = TurnManager.Instance.GetPlayer(targetPlayerNumber);
-        int damage = selectedCardDisplay.currentAttack;
+        // Em multiplayer, envia RPC — o ataque à torre executa nos DOIS clientes
+        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
+        {
+            PhotonGameManager.Instance.SendTowerAttackRPC(currentTile.row, currentTile.column, targetPlayerNumber);
+            CancelSelection();
+            return true;
+        }
 
-        Debug.Log($">>> {selectedCardDisplay.card.cardName} ataca a torre do {targetPlayer.playerName} causando {damage} de dano!");
+        ExecuteTowerAttack(currentTile.row, currentTile.column, targetPlayerNumber);
+        CancelSelection();
+        return true;
+    }
+
+    // Executa o ataque à torre de fato (chamado via RPC nos dois clientes, ou localmente em offline)
+    public void ExecuteTowerAttack(int row, int column, int targetPlayerNumber)
+    {
+        if (boardManager == null) boardManager = FindObjectOfType<BoardManager>();
+
+        CardTile tile = boardManager.GetTile(row, column);
+        if (tile == null || tile.occupiedCard == null)
+        {
+            Debug.LogError($"[GameManager] Nenhuma carta no tile ({row}, {column}) para atacar a torre!");
+            return;
+        }
+
+        CardDisplay attackerDisplay = tile.occupiedCard.GetComponent<CardDisplay>();
+        PlayerData targetPlayer = TurnManager.Instance.GetPlayer(targetPlayerNumber);
+        int damage = attackerDisplay.currentAttack;
+
+        Debug.Log($">>> {attackerDisplay.card.cardName} ataca a torre do {targetPlayer.playerName} causando {damage} de dano!");
 
         targetPlayer.TakeDamage(damage);
 
         // Marca que atacou neste round
-        selectedCardDisplay.lastAttackedRound = TurnManager.Instance.currentRound;
+        attackerDisplay.lastAttackedRound = TurnManager.Instance.currentRound;
 
         // Verifica se o jogador foi derrotado
         if (targetPlayer.IsDefeated())
         {
-            Debug.Log($"==========================================");
-            Debug.Log($"==========================================");
+            Debug.Log($"========== JOGADOR {targetPlayerNumber} DERROTADO ==========");
 
             // Mostra a tela de vitória
             if (GameUIManager.Instance != null)
             {
-                GameUIManager.Instance.ShowVictoryScreen(TurnManager.Instance.currentPlayerNumber);
+                int winnerPlayerNumber = targetPlayerNumber == 1 ? 2 : 1;
+                GameUIManager.Instance.ShowVictoryScreen(winnerPlayerNumber);
             }
         }
-
-        // Cancela a seleção após o ataque
-        CancelSelection();
-
-        return true;
     }
 
     // Sistema para seleção de alvo para congelar (Mage 3)

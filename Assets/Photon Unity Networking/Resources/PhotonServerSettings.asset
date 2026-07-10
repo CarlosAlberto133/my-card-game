@@ -43,4 +43,16 @@ MonoBehaviour:
   - RequestForPickupItems
   - RequestForPickupTimes
   - TaggedPlayer
+  - RPC_BuyCard
+  - RPC_CardAttack
+  - RPC_CardMove
+  - RPC_SetGameSeed
+  - RPC_RequestSeed
+  - RPC_EndTurn
+  - RPC_PlayerReady
+  - RPC_ResetStore
+  - RPC_Attack
+  - RPC_MoveCard
+  - RPC_PlaceCard
+  - RPC_TowerAttack
   DisableAutoOpenWizard: 1
