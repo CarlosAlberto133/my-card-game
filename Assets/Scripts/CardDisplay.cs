@@ -416,27 +416,31 @@ public class CardDisplay : MonoBehaviour
         // Atualiza artwork
         if (artworkRenderer != null && card.artwork != null)
         {
-            // Fallback final: shader do material atual do quad (sempre existe no Build)
+            // Fallback final: shader do material atual do quad (pode ser nulo no Build)
             Shader artShader = Shader.Find("Unlit/Texture")
                             ?? Shader.Find("Universal Render Pipeline/Unlit")
                             ?? Shader.Find("Standard")
-                            ?? artworkRenderer.sharedMaterial.shader;
-            Material artworkMat = new Material(artShader);
-            artworkMat.mainTexture = card.artwork.texture;
-            artworkMat.SetTexture("_BaseMap", card.artwork.texture); // URP
-            // O quad do Artwork já é criado com rotação Euler(90,0,180) que orienta a
-            // imagem corretamente. Não invertemos o V aqui para não duplicar a inversão
-            // (isso deixava a foto de cabeça para baixo).
-            artworkMat.mainTextureScale = new Vector2(1, 1);
-            artworkMat.mainTextureOffset = new Vector2(0, 0);
-            artworkMat.SetTextureScale("_BaseMap", new Vector2(1, 1));   // URP
-            artworkMat.SetTextureOffset("_BaseMap", new Vector2(0, 0));  // URP
-            artworkRenderer.material = artworkMat;
+                            ?? (artworkRenderer.sharedMaterial != null ? artworkRenderer.sharedMaterial.shader : null);
+            if (artShader != null)
+            {
+                Material artworkMat = new Material(artShader);
+                artworkMat.mainTexture = card.artwork.texture;
+                artworkMat.SetTexture("_BaseMap", card.artwork.texture); // URP
+                // O quad do Artwork já é criado com rotação Euler(90,0,180) que orienta a
+                // imagem corretamente. Não invertemos o V aqui para não duplicar a inversão
+                // (isso deixava a foto de cabeça para baixo).
+                artworkMat.mainTextureScale = new Vector2(1, 1);
+                artworkMat.mainTextureOffset = new Vector2(0, 0);
+                artworkMat.SetTextureScale("_BaseMap", new Vector2(1, 1));   // URP
+                artworkMat.SetTextureOffset("_BaseMap", new Vector2(0, 0));  // URP
+                artworkRenderer.material = artworkMat;
+            }
         }
 
         // Atualiza cor de fundo baseado na classe
         if (backgroundRenderer != null)
         {
+            EnsureQuadMaterial(backgroundRenderer);
             Color classColor = GetClassColor(card.cardClass);
             backgroundRenderer.material.color = classColor;
             backgroundRenderer.material.SetColor("_BaseColor", classColor);
@@ -457,6 +461,7 @@ public class CardDisplay : MonoBehaviour
         // Atualiza cor da barra de tier
         if (tierBarRenderer != null)
         {
+            EnsureQuadMaterial(tierBarRenderer);
             Color tierColor = GetTierColor(card.tier);
             tierBarRenderer.material.color = tierColor;
             tierBarRenderer.material.SetColor("_BaseColor", tierColor);
@@ -504,9 +509,24 @@ public class CardDisplay : MonoBehaviour
         if (t == null) return;
         Renderer r = t.GetComponent<Renderer>();
         if (r == null) return;
+        EnsureQuadMaterial(r);
+        if (r.sharedMaterial == null) return;
         r.material.color = color;
         r.material.SetColor("_BaseColor", color);
         r.material.SetColor("_Color", color);
+    }
+
+    // O material dos quads não é salvo dentro do prefab (fica nulo no Build).
+    // Garante que o renderer tenha um material válido antes de pintar.
+    void EnsureQuadMaterial(Renderer r)
+    {
+        if (r.sharedMaterial != null && r.sharedMaterial.shader != null) return;
+        Shader shader = Shader.Find("Universal Render Pipeline/Unlit")
+                     ?? Shader.Find("Unlit/Color")
+                     ?? Shader.Find("Universal Render Pipeline/Lit")
+                     ?? Shader.Find("Standard");
+        if (shader == null) return;
+        r.material = new Material(shader);
     }
 
     Color GetTierColor(CardTier tier)
