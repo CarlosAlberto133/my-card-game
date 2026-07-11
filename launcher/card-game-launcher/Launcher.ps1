@@ -1,8 +1,11 @@
 # ============================================================
-#  Card Game - Launcher
+#  Card Game - Launcher  (v2)
 #  Baixa automaticamente a versao mais nova publicada no
-#  GitHub Releases e abre o jogo. Nao precisa instalar nada:
-#  usa a interface grafica que ja vem no Windows.
+#  GitHub Releases e abre o jogo.
+#
+#  v2: o jogo agora e instalado em %LOCALAPPDATA%\CardGame
+#  (fora do OneDrive/Desktop sincronizado, que travava a
+#  extracao), download mais robusto e log em launcher.log.
 # ============================================================
 
 # ---------- CONFIGURACAO (edite se mudar o repositorio) ----------
@@ -18,17 +21,42 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 # ---------- Caminhos ----------
-$Root        = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$GameDir     = Join-Path $Root "game"
-$VersionFile = Join-Path $Root "installed.txt"
-$ZipTemp     = Join-Path $env:TEMP "card-game-update.zip"
+# O jogo mora SEMPRE em LocalAppData: pasta local, rapida e fora de
+# qualquer sincronizacao (OneDrive etc.). O launcher pode ficar onde quiser.
+$InstallRoot = Join-Path $env:LOCALAPPDATA "CardGame"
+$GameDir     = Join-Path $InstallRoot "game"
+$VersionFile = Join-Path $InstallRoot "installed.txt"
+$ZipTemp     = Join-Path $InstallRoot "update.zip"
+$LogFile     = Join-Path $InstallRoot "launcher.log"
 
-# ---------- Estado compartilhado com a thread de download ----------
-$script:progress      = 0
-$script:downloadDone  = $false
-$script:downloadError = $null
-$script:latestTag     = $null
-$script:assetUrl      = $null
+if (-not (Test-Path $InstallRoot)) { New-Item -ItemType Directory -Path $InstallRoot | Out-Null }
+
+function Write-Log([string]$msg) {
+    try { Add-Content -Path $LogFile -Value ("[{0}] {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $msg) } catch {}
+}
+Write-Log "----- Launcher iniciado -----"
+
+# ---------- Evita duas instancias abertas ao mesmo tempo ----------
+$mutex = New-Object System.Threading.Mutex($false, "CardGameLauncherMutex")
+if (-not $mutex.WaitOne(0, $false)) {
+    [System.Windows.Forms.MessageBox]::Show("O launcher do Card Game ja esta aberto.", "Card Game") | Out-Null
+    exit
+}
+
+# ---------- Limpa instalacao antiga ao lado do launcher (versoes v1) ----------
+$OldRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
+foreach ($legacy in @((Join-Path $OldRoot "game"), (Join-Path $OldRoot "installed.txt"))) {
+    if (Test-Path $legacy) {
+        try { Remove-Item $legacy -Recurse -Force -ErrorAction Stop; Write-Log "Removido legado: $legacy" } catch {}
+    }
+}
+
+# ---------- Estado ----------
+$script:latestTag = $null
+$script:assetUrl  = $null
+$script:assetSize = 0
+$script:dlTask    = $null
+$script:webClient = $null
 
 # ============================================================
 #  Janela
@@ -82,15 +110,18 @@ $form.Controls.Add($playBtn)
 # ============================================================
 #  Funcoes
 # ============================================================
-function Set-Status([string]$text) { $status.Text = $text }
+function Set-Status([string]$text) {
+    $status.Text = $text
+    $status.Refresh()   # atualiza mesmo se a interface for travar logo em seguida
+}
 
 function Set-Ready([string]$text) {
-    $status.Text     = $text
+    Set-Status $text
     $bar.Value       = 100
     $playBtn.Enabled = $true
 }
 
-# Localiza o .exe do jogo dentro da pasta 'game' (ignora o UnityCrashHandler)
+# Localiza o .exe do jogo (ignora o UnityCrashHandler)
 function Get-GameExe {
     if (-not (Test-Path $GameDir)) { return $null }
     $exe = Get-ChildItem -Path $GameDir -Recurse -Filter *.exe -ErrorAction SilentlyContinue |
@@ -102,11 +133,11 @@ function Get-GameExe {
 
 # Extrai o zip baixado por cima da pasta 'game'
 function Install-Game {
+    Write-Log "Instalando em $GameDir"
     if (Test-Path $GameDir) { Remove-Item $GameDir -Recurse -Force }
     New-Item -ItemType Directory -Path $GameDir | Out-Null
 
-    # O antivirus do Windows costuma travar o zip recem-baixado por
-    # 1-2 segundos. Tentamos extrair algumas vezes antes de desistir.
+    # O antivirus pode segurar o zip recem-baixado por 1-2s: tenta algumas vezes
     $attempt = 0
     while ($true) {
         $attempt++
@@ -114,54 +145,65 @@ function Install-Game {
             Expand-Archive -Path $ZipTemp -DestinationPath $GameDir -Force -ErrorAction Stop
             break
         } catch {
+            Write-Log ("Extracao falhou (tentativa {0}): {1}" -f $attempt, $_.Exception.Message)
             if ($attempt -ge 5) { throw }
             Start-Sleep -Milliseconds 1200
         }
     }
 
+    # Confere se realmente saiu um executavel do zip
+    if (-not (Get-GameExe)) { throw "O zip foi extraido mas nenhum executavel foi encontrado." }
+
     Set-Content -Path $VersionFile -Value $script:latestTag -Encoding UTF8
     Remove-Item $ZipTemp -Force -ErrorAction SilentlyContinue
+    Write-Log "Instalacao concluida: $($script:latestTag)"
 }
 
-# Baixa o zip da release em segundo plano, atualizando a barra
+# Baixa o zip em segundo plano SEM eventos (Task do .NET) e acompanha o
+# progresso pelo tamanho do arquivo — mais robusto que os eventos do WebClient
 function Start-Download {
     Set-Status "Baixando atualizacao..."
-    $script:progress     = 0
-    $script:downloadDone = $false
-    $script:downloadError = $null
+    Write-Log "Baixando: $($script:assetUrl) ($([math]::Round($script:assetSize/1MB,1)) MB)"
 
-    $wc = New-Object System.Net.WebClient
-    $wc.Headers.Add("User-Agent", "CardGameLauncher")
+    Remove-Item $ZipTemp -Force -ErrorAction SilentlyContinue
 
-    $wc.add_DownloadProgressChanged({ param($s, $e)
-        $script:progress = $e.ProgressPercentage
-    })
-    $wc.add_DownloadFileCompleted({ param($s, $e)
-        if ($e.Error) { $script:downloadError = $e.Error.Message }
-        $script:downloadDone = $true
-    })
+    $script:webClient = New-Object System.Net.WebClient
+    $script:webClient.Headers.Add("User-Agent", "CardGameLauncher")
+    $script:dlTask = $script:webClient.DownloadFileTaskAsync($script:assetUrl, $ZipTemp)
 
-    $wc.DownloadFileAsync([Uri]$script:assetUrl, $ZipTemp)
-
-    # Timer na thread da interface: le o progresso e finaliza quando termina
     $timer = New-Object System.Windows.Forms.Timer
-    $timer.Interval = 200
+    $timer.Interval = 300
     $timer.add_Tick({
-        $p = [Math]::Max(0, [Math]::Min(100, $script:progress))
-        $bar.Value = $p
-        if ($script:downloadDone) {
+        # Progresso = tamanho atual do arquivo / tamanho informado pela API
+        if ($script:assetSize -gt 0 -and (Test-Path $ZipTemp)) {
+            $item = Get-Item $ZipTemp -ErrorAction SilentlyContinue
+            if ($item) {
+                $pct = [Math]::Max(0, [Math]::Min(100, [int](100 * $item.Length / $script:assetSize)))
+                $bar.Value = $pct
+            }
+        }
+
+        if ($script:dlTask -ne $null -and $script:dlTask.IsCompleted) {
             $timer.Stop()
-            if ($script:downloadError) {
-                Set-Status "Erro no download. Tente novamente."
-                # Se ja existe uma versao instalada, deixa jogar mesmo assim
+            $script:webClient.Dispose()
+
+            if ($script:dlTask.IsFaulted) {
+                $err = "desconhecido"
+                if ($script:dlTask.Exception -and $script:dlTask.Exception.InnerException) {
+                    $err = $script:dlTask.Exception.InnerException.Message
+                }
+                Write-Log "Download falhou: $err"
+                Set-Status "Erro no download. Feche e tente novamente."
                 if (Get-GameExe) { $playBtn.Enabled = $true }
                 return
             }
+
             try {
                 Set-Status "Instalando..."
                 Install-Game
                 Set-Ready ("Atualizado (versao " + $script:latestTag + ")")
             } catch {
+                Write-Log "Instalacao falhou: $($_.Exception.Message)"
                 Set-Status ("Erro ao instalar: " + $_.Exception.Message)
                 if (Get-GameExe) { $playBtn.Enabled = $true }
             }
@@ -179,14 +221,17 @@ function Check-Updates {
         $script:latestTag = $rel.tag_name
         $asset = $rel.assets | Where-Object { $_.name -eq $AssetName } | Select-Object -First 1
         if (-not $asset) {
+            Write-Log "Release $($rel.tag_name) sem o asset $AssetName"
             Set-Status "Release sem o arquivo $AssetName."
             if (Get-GameExe) { $playBtn.Enabled = $true }
             return
         }
-        $script:assetUrl = $asset.browser_download_url
+        $script:assetUrl  = $asset.browser_download_url
+        $script:assetSize = [long]$asset.size
 
         $installed = ""
         if (Test-Path $VersionFile) { $installed = (Get-Content $VersionFile -Raw).Trim() }
+        Write-Log "Instalado: '$installed' | Mais novo: '$($script:latestTag)'"
 
         if ($installed -ne $script:latestTag -or -not (Get-GameExe)) {
             Start-Download
@@ -194,7 +239,7 @@ function Check-Updates {
             Set-Ready ("Atualizado (versao " + $script:latestTag + ")")
         }
     } catch {
-        # Sem internet ou GitHub indisponivel: joga a versao ja instalada, se houver
+        Write-Log "Sem conexao / erro na API: $($_.Exception.Message)"
         if (Get-GameExe) {
             Set-Ready "Sem conexao - jogando versao instalada"
         } else {
@@ -209,6 +254,7 @@ function Check-Updates {
 $playBtn.add_Click({
     $exe = Get-GameExe
     if ($exe) {
+        Write-Log "Abrindo o jogo: $exe"
         Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe)
         $form.Close()
     } else {
@@ -220,3 +266,4 @@ $form.add_Shown({ $form.Activate(); Check-Updates })
 
 [System.Windows.Forms.Application]::EnableVisualStyles()
 [void]$form.ShowDialog()
+$mutex.ReleaseMutex()
