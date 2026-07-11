@@ -52,11 +52,13 @@ foreach ($legacy in @((Join-Path $OldRoot "game"), (Join-Path $OldRoot "installe
 }
 
 # ---------- Estado ----------
-$script:latestTag = $null
-$script:assetUrl  = $null
-$script:assetSize = 0
-$script:dlTask    = $null
-$script:webClient = $null
+$script:latestTag   = $null
+$script:assetUrl    = $null
+$script:assetSize   = 0
+$script:dlTask      = $null
+$script:webClient   = $null
+$script:timer       = $null   # PRECISA ser script: — variavel local da funcao
+$script:installDone = $false  # nao existe mais quando o evento Tick dispara!
 
 # ============================================================
 #  Janela
@@ -171,9 +173,10 @@ function Start-Download {
     $script:webClient.Headers.Add("User-Agent", "CardGameLauncher")
     $script:dlTask = $script:webClient.DownloadFileTaskAsync($script:assetUrl, $ZipTemp)
 
-    $timer = New-Object System.Windows.Forms.Timer
-    $timer.Interval = 300
-    $timer.add_Tick({
+    $script:installDone = $false
+    $script:timer = New-Object System.Windows.Forms.Timer
+    $script:timer.Interval = 300
+    $script:timer.add_Tick({
         # Progresso = tamanho atual do arquivo / tamanho informado pela API
         if ($script:assetSize -gt 0 -and (Test-Path $ZipTemp)) {
             $item = Get-Item $ZipTemp -ErrorAction SilentlyContinue
@@ -183,33 +186,38 @@ function Start-Download {
             }
         }
 
-        if ($script:dlTask -ne $null -and $script:dlTask.IsCompleted) {
-            $timer.Stop()
-            $script:webClient.Dispose()
+        if ($script:dlTask -eq $null -or -not $script:dlTask.IsCompleted) { return }
 
-            if ($script:dlTask.IsFaulted) {
-                $err = "desconhecido"
-                if ($script:dlTask.Exception -and $script:dlTask.Exception.InnerException) {
-                    $err = $script:dlTask.Exception.InnerException.Message
-                }
-                Write-Log "Download falhou: $err"
-                Set-Status "Erro no download. Feche e tente novamente."
-                if (Get-GameExe) { $playBtn.Enabled = $true }
-                return
-            }
+        # Trava dupla contra reexecucao: para o timer (agora em escopo script:,
+        # visivel daqui de dentro) E marca que a instalacao ja rodou
+        $script:timer.Stop()
+        if ($script:installDone) { return }
+        $script:installDone = $true
 
-            try {
-                Set-Status "Instalando..."
-                Install-Game
-                Set-Ready ("Atualizado (versao " + $script:latestTag + ")")
-            } catch {
-                Write-Log "Instalacao falhou: $($_.Exception.Message)"
-                Set-Status ("Erro ao instalar: " + $_.Exception.Message)
-                if (Get-GameExe) { $playBtn.Enabled = $true }
+        $script:webClient.Dispose()
+
+        if ($script:dlTask.IsFaulted) {
+            $err = "desconhecido"
+            if ($script:dlTask.Exception -and $script:dlTask.Exception.InnerException) {
+                $err = $script:dlTask.Exception.InnerException.Message
             }
+            Write-Log "Download falhou: $err"
+            Set-Status "Erro no download. Feche e tente novamente."
+            if (Get-GameExe) { $playBtn.Enabled = $true }
+            return
+        }
+
+        try {
+            Set-Status "Instalando..."
+            Install-Game
+            Set-Ready ("Atualizado (versao " + $script:latestTag + ")")
+        } catch {
+            Write-Log "Instalacao falhou: $($_.Exception.Message)"
+            Set-Status ("Erro ao instalar: " + $_.Exception.Message)
+            if (Get-GameExe) { $playBtn.Enabled = $true }
         }
     })
-    $timer.Start()
+    $script:timer.Start()
 }
 
 # Consulta a release mais recente e decide se precisa baixar
