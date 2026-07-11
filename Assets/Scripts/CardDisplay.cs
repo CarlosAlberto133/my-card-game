@@ -519,8 +519,19 @@ public class CardDisplay : MonoBehaviour
                              currentShield < lastShownShield ||
                              currentHealth < lastShownHealth;
 
-            if (increased) visuals.FlashBuff();
-            if (decreased) visuals.FlashDamage();
+            if (increased)
+            {
+                visuals.FlashBuff();
+                CardAnimator.Get(gameObject).Hop();
+                bool healed = currentHealth > lastShownHealth;
+                SoundManager.Play(healed ? SoundManager.Sound.Heal : SoundManager.Sound.Buff);
+            }
+            if (decreased)
+            {
+                visuals.FlashDamage();
+                CardAnimator.Get(gameObject).Shake();
+                SoundManager.Play(SoundManager.Sound.Hit);
+            }
         }
 
         lastShownAttack = currentAttack;
@@ -855,6 +866,7 @@ public class CardDisplay : MonoBehaviour
         // Deduz o ouro e marca a compra do turno
         int cost = card.GetGoldCost();
         buyer.BuyCard(cost);
+        SoundManager.Play(SoundManager.Sound.Buy);
         Debug.Log($"[CardDisplay] {buyer.playerName} comprou {card.cardName} por {cost} ouro. Ouro restante: {buyer.gold}");
 
         // Remove da loja e adiciona à mão DO JOGADOR CORRETO
@@ -997,6 +1009,15 @@ public class CardDisplay : MonoBehaviour
     }
 
     // Ataca a primeira carta inimiga adjacente encontrada
+    // Anima a investida do atacante em direção ao alvo + som de ataque.
+    // Puramente visual; roda igual nos dois clientes (ambos executam o ataque).
+    public void PlayAttackAnim(CardDisplay target)
+    {
+        if (target == null) return;
+        CardAnimator.Get(gameObject).Lunge(target.transform.position);
+        SoundManager.Play(SoundManager.Sound.Attack);
+    }
+
     public bool AttackAdjacentEnemy()
     {
 
@@ -1024,6 +1045,9 @@ public class CardDisplay : MonoBehaviour
 
         // Rastreia quem atacou (para efeitos como Archer tier-2)
         target.attackerCardDisplay = this;
+
+        // Investida visual em direção ao alvo
+        PlayAttackAnim(target);
 
         // Ativa efeitos de Archer tier-5 antes do dano
         bool ignoreArmor = false;
@@ -1708,6 +1732,14 @@ public class CardDisplay : MonoBehaviour
         {
             handManager.RemoveCardFromHand(gameObject);
         }
+
+        // Explosão de partículas + som na posição da carta (objeto independente,
+        // sobrevive à destruição da carta)
+        Color poofColor = ownerPlayerNumber == 1 ? new Color(0.35f, 0.55f, 1f)
+                        : ownerPlayerNumber == 2 ? new Color(1f, 0.4f, 0.35f)
+                        : new Color(0.8f, 0.8f, 0.85f);
+        CardAnimator.SpawnPoof(transform.position, poofColor);
+        SoundManager.Play(SoundManager.Sound.Death);
 
         Debug.Log($"Carta '{card.cardName}' destruída!");
         Destroy(gameObject);

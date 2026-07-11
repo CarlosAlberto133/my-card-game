@@ -36,6 +36,7 @@ public class GameManager : MonoBehaviour
 
         // Fundo espacial (céu escuro + estrelas + meteoros), criado por código
         SpaceBackground.Ensure();
+        SoundManager.Ensure();
     }
 
     void Update()
@@ -381,6 +382,7 @@ public class GameManager : MonoBehaviour
 
         // Marca o tile como ocupado
         tile.OccupyTile(cardObject);
+        SoundManager.Play(SoundManager.Sound.Place);
 
         // Atualiza o estado da carta
         cardDisplay.isInHand = false;
@@ -741,6 +743,9 @@ public class GameManager : MonoBehaviour
         // Rastreia quem atacou (para efeitos reativos como congelar o atacante)
         target.attackerCardDisplay = attacker;
 
+        // Investida visual do atacante em direção ao alvo
+        attacker.PlayAttackAnim(target);
+
         int damageDealt = attacker.currentAttack;
         target.TakeDamage(damageDealt);
 
@@ -843,6 +848,12 @@ public class GameManager : MonoBehaviour
         int damage = attackerDisplay.currentAttack;
 
         Debug.Log($">>> {attackerDisplay.card.cardName} ataca a torre do {targetPlayer.playerName} causando {damage} de dano!");
+
+        // Investida visual para frente (lado do inimigo) + som
+        int forward = attackerDisplay.ownerPlayerNumber == 1 ? -1 : 1;
+        Vector3 aheadTile = attackerDisplay.transform.position + new Vector3(0f, 0f, forward * 6f);
+        CardAnimator.Get(attackerDisplay.gameObject).Lunge(aheadTile);
+        SoundManager.Play(SoundManager.Sound.Attack);
 
         targetPlayer.TakeDamage(damage);
 
