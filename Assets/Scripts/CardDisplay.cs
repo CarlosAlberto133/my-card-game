@@ -70,8 +70,26 @@ public class CardDisplay : MonoBehaviour
     public int currentShield;
     public int currentAttack;
 
+    // Escalas padrão por zona (o tabuleiro tem tiles 6x6, cartas pequenas ficavam ilegíveis)
+    public const float HandScale = 2f;
+    public const float BoardScale = 2f;
+
+    // No TABULEIRO a carta fica DEITADA sobre o tile, centralizada
+    public const float BoardYOffset = 0.75f; // Um pouco acima do topo do tile (evita z-fighting)
+    public static readonly Quaternion BoardRotation = Quaternion.Euler(0f, 180f, 0f); // Deitada, face para cima
+
+    // Na LOJA e na MÃO a carta fica "em pé" (de frente para a câmera): o centro
+    // precisa subir metade do comprimento dela (1.25 × escala) + folga,
+    // senão a base afunda no chão
+    public static float GroundY(float scale)
+    {
+        return 1.25f * scale + 0.6f;
+    }
+
     private HandManager handManager;
-    private Vector3 originalScale;
+    private Vector3 preHoverScale = Vector3.zero;    // Escala antes do hover (restaurada ao sair)
+    private Vector3 preHoverPosition = Vector3.zero; // Posição antes do hover (cartas da loja sobem)
+    private bool hoverLifted = false;
     private bool isMouseOver = false; // Flag para saber se o mouse está sobre a carta
 
     [Header("UI Elements (Assign in Inspector)")]
@@ -94,8 +112,7 @@ public class CardDisplay : MonoBehaviour
 
     void Awake()
     {
-        // Inicializa a escala original antes de qualquer coisa
-        originalScale = transform.localScale;
+        // (escala por zona é aplicada por CardManager/HandManager/GameManager)
     }
 
     void Start()
@@ -437,11 +454,13 @@ public class CardDisplay : MonoBehaviour
             }
         }
 
-        // Atualiza cor de fundo baseado na classe
+        // Atualiza cor de fundo baseado na classe (azul-gelo se congelada)
         if (backgroundRenderer != null)
         {
             EnsureQuadMaterial(backgroundRenderer);
-            Color classColor = GetClassColor(card.cardClass);
+            Color classColor = isFrozen
+                ? new Color(0.45f, 0.75f, 1.00f)
+                : GetClassColor(card.cardClass);
             backgroundRenderer.material.color = classColor;
             backgroundRenderer.material.SetColor("_BaseColor", classColor);
         }
@@ -469,12 +488,56 @@ public class CardDisplay : MonoBehaviour
 
         // Aplica as cores dos quads estáticos (corrige shaders URP em runtime)
         ApplyCardTheme();
+
+        // Overlays de status (congelada/atordoada/marcada) e flash de buff/dano
+        UpdateStatusVisuals();
+    }
+
+    // Rastreia os últimos stats exibidos para detectar mudanças automaticamente:
+    // qualquer aumento pisca verde, qualquer redução pisca vermelho — vale para
+    // TODOS os efeitos sem precisar ligar um por um
+    private int lastShownAttack;
+    private int lastShownShield;
+    private int lastShownHealth;
+    private bool statsTracked = false;
+
+    void UpdateStatusVisuals()
+    {
+        CardStatusVisuals visuals = GetComponent<CardStatusVisuals>();
+        if (visuals == null) visuals = gameObject.AddComponent<CardStatusVisuals>();
+
+        visuals.SetFrozen(isFrozen);
+        visuals.SetStunned(isStunned);
+        visuals.SetEagleMark(eagleMarked);
+
+        if (statsTracked)
+        {
+            bool increased = currentAttack > lastShownAttack ||
+                             currentShield > lastShownShield ||
+                             currentHealth > lastShownHealth;
+            bool decreased = currentAttack < lastShownAttack ||
+                             currentShield < lastShownShield ||
+                             currentHealth < lastShownHealth;
+
+            if (increased) visuals.FlashBuff();
+            if (decreased) visuals.FlashDamage();
+        }
+
+        lastShownAttack = currentAttack;
+        lastShownShield = currentShield;
+        lastShownHealth = currentHealth;
+        statsTracked = true;
     }
 
     // Define a cor dos quads estáticos que não mudam por carta
     void ApplyCardTheme()
     {
-        SetQuadColor("Border", new Color(0.06f, 0.06f, 0.10f));
+        // Borda colorida pelo dono: azul = Jogador 1, vermelho = Jogador 2, escuro = loja
+        Color borderColor;
+        if (ownerPlayerNumber == 1) borderColor = new Color(0.15f, 0.40f, 1.00f);
+        else if (ownerPlayerNumber == 2) borderColor = new Color(0.95f, 0.25f, 0.20f);
+        else borderColor = new Color(0.06f, 0.06f, 0.10f);
+        SetQuadColor("Border", borderColor);
         SetQuadColor("NameHeader", new Color(0.18f, 0.18f, 0.28f));
         SetQuadColor("EffectBackground", new Color(0.22f, 0.22f, 0.32f));
         SetQuadColor("StatsBackground", new Color(0.16f, 0.16f, 0.24f));
@@ -559,27 +622,49 @@ public class CardDisplay : MonoBehaviour
         }
     }
 
-    // Para interação com o mouse
+    // Para interação com o mouse — zoom RELATIVO à escala atual (o bug antigo usava
+    // uma "escala original" capturada antes da escala da loja ser aplicada, então
+    // o hover ENCOLHIA a carta em vez de aumentar)
     void OnMouseEnter()
     {
         isMouseOver = true;
+        if (isInHand) return;
 
-        // Destaque visual quando passar o mouse (apenas se não estiver na mão)
-        if (!isInHand && originalScale != Vector3.zero)
+        preHoverScale = transform.localScale;
+        hoverLifted = false;
+
+        if (isInShop)
         {
-            transform.localScale = originalScale * 1.1f;
+            // Zoom forte na loja para conseguir ler o efeito;
+            // sobe a carta para ficar por cima das vizinhas
+            transform.localScale = preHoverScale * 2f;
+            preHoverPosition = transform.position;
+            transform.position = preHoverPosition + Vector3.up * 2f;
+            hoverLifted = true;
+        }
+        else
+        {
+            // Destaque leve no tabuleiro
+            transform.localScale = preHoverScale * 1.15f;
         }
     }
 
     void OnMouseExit()
     {
         isMouseOver = false;
+        // Se a carta foi comprada durante o hover, a mão já definiu escala/posição
+        if (isInHand) return;
 
-        // Volta ao tamanho normal (apenas se não estiver na mão)
-        if (!isInHand && originalScale != Vector3.zero)
+        if (preHoverScale != Vector3.zero)
         {
-            transform.localScale = originalScale;
+            transform.localScale = preHoverScale;
         }
+        if (hoverLifted)
+        {
+            transform.position = preHoverPosition;
+            hoverLifted = false;
+        }
+        preHoverScale = Vector3.zero;
     }
 
     void OnMouseDown()
@@ -588,6 +673,22 @@ public class CardDisplay : MonoBehaviour
         if (card == null)
         {
             Debug.LogWarning("Carta não foi inicializada ainda!");
+            return;
+        }
+
+        // Se o jogo aguarda seleção de alvo de efeito (congelar / quebrar armadura),
+        // qualquer clique em carta do tabuleiro vai direto para a escolha de alvo —
+        // sem isso, cliques em cartas inimigas nunca chegariam à seleção
+        if (isOnBoard && GameManager.Instance != null &&
+            (GameManager.Instance.IsWaitingForFreezeTarget() ||
+             GameManager.Instance.IsWaitingForShieldBreakTargets() ||
+             GameManager.Instance.IsWaitingForEffectTarget()))
+        {
+            CardTile selectionTile = currentTile != null ? currentTile : FindCurrentTile();
+            if (selectionTile != null)
+            {
+                GameManager.Instance.SelectCardFromBoard(gameObject, this, selectionTile);
+            }
             return;
         }
 
@@ -646,6 +747,7 @@ public class CardDisplay : MonoBehaviour
                 PlayerData currentPlayer = TurnManager.Instance.GetCurrentPlayer();
                 handManager = GetHandManagerForPlayer(currentPlayer.playerNumber);
                 ownerPlayerNumber = currentPlayer.playerNumber; // Define o dono
+                UpdateCardDisplay(); // Atualiza a borda com a cor do dono
             }
             else if (handManager == null)
             {
@@ -660,10 +762,7 @@ public class CardDisplay : MonoBehaviour
                 {
                     isInHand = true;
                     isInShop = false;
-                    if (originalScale != Vector3.zero)
-                    {
-                        transform.localScale = originalScale; // Reseta o tamanho
-                    }
+                    transform.localScale = Vector3.one * HandScale; // Tamanho da mão
                 }
             }
             else
@@ -701,6 +800,20 @@ public class CardDisplay : MonoBehaviour
         {
             Debug.Log("[CardDisplay] Não é seu turno, não pode comprar!");
             return;
+        }
+
+        // Na fase de compra (Lobby): quem já clicou "Iniciar Partida" não compra mais
+        // até a partida realmente começar
+        if (TurnManager.Instance.gameState == GameState.Lobby)
+        {
+            bool alreadyReady =
+                (currentPlayer.playerNumber == 1 && TurnManager.Instance.player1Ready) ||
+                (currentPlayer.playerNumber == 2 && TurnManager.Instance.player2Ready);
+            if (alreadyReady)
+            {
+                Debug.Log("[CardDisplay] Você já clicou em Iniciar Partida — aguarde a partida começar para comprar!");
+                return;
+            }
         }
 
         // Verifica se o jogador já comprou sua carta neste turno
@@ -747,6 +860,7 @@ public class CardDisplay : MonoBehaviour
         // Remove da loja e adiciona à mão DO JOGADOR CORRETO
         isInShop = false;
         ownerPlayerNumber = buyerPlayerNumber; // Define o dono da carta
+        UpdateCardDisplay(); // Atualiza a borda com a cor do dono
 
         // Busca o HandManager do jogador correto
         HandManager correctHandManager = GetHandManagerForPlayer(buyerPlayerNumber);
@@ -758,10 +872,7 @@ public class CardDisplay : MonoBehaviour
             {
                 isInHand = true;
                 handManager = correctHandManager; // Atualiza a referência
-                if (originalScale != Vector3.zero)
-                {
-                    transform.localScale = originalScale;
-                }
+                transform.localScale = Vector3.one * HandScale; // Tamanho da mão
             }
         }
         else
@@ -1159,8 +1270,10 @@ public class CardDisplay : MonoBehaviour
                                 {
                                     Debug.Log($"[TankTier4Effect2] {ally.card.cardName}: Interceptou ataque em lugar de {card.cardName}!");
                                 }
-                                ally.TakeDamage(damage);
+                                // Marca o uso ANTES de aplicar o dano e usa ApplyDamageNormally
+                                // para o dano interceptado não disparar novos redirecionamentos
                                 ally.tankTier4Effect2LastUsedRound = TurnManager.Instance.currentRound;
+                                ally.ApplyDamageNormally(damage);
                                 return; // Tank recebeu o ataque
                             }
                         }
@@ -1192,28 +1305,19 @@ public class CardDisplay : MonoBehaviour
                 // Tank 2 (ATK 2, Shield 1, HP 3) recebe o ataque
                 foreach (var ally in allies)
                 {
-                    if (ally != null && ally.card.cardClass == CardClass.Tank &&
+                    if (ally != null && ally != this && ally.card.cardClass == CardClass.Tank &&
                         ally.card.attack == 2 && ally.card.shield == 1 && ally.card.health == 3)
                     {
                         CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
                         if (effect != null)
-                            effect.TankTier2Effect1_TakeHealerAttack(this);
+                            effect.TankTier2Effect1_TakeHealerAttack(this, damage);
                         return; // Tank recebeu o ataque, não aplicar dano ao Healer
                     }
                 }
 
-                // Tank tier 2 (ATK 1, Shield 3, HP 2) pode receber qualquer ataque
-                foreach (var ally in allies)
-                {
-                    if (ally != null && ally.card.cardClass == CardClass.Tank &&
-                        ally.card.attack == 1 && ally.card.shield == 3 && ally.card.health == 2)
-                    {
-                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
-                        if (effect != null)
-                            effect.TankTier2Effect4_TakeAnyAttack(this);
-                        return; // Tank recebeu o ataque, não aplicar dano ao Healer
-                    }
-                }
+                // Tank tier 2 (ATK 1, Shield 3, HP 2) pode assumir o dano (o dono escolhe)
+                if (TryTankAssumeAnyDamage(damage))
+                    return; // Decisão pendente: o dano é resolvido no callback
             }
         }
 
@@ -1262,28 +1366,19 @@ public class CardDisplay : MonoBehaviour
                 // Tank tier 2 (ATK 2, Shield 2, HP 2) recebe o ataque
                 foreach (var ally in allies)
                 {
-                    if (ally != null && ally.card.cardClass == CardClass.Tank &&
+                    if (ally != null && ally != this && ally.card.cardClass == CardClass.Tank &&
                         ally.card.attack == 2 && ally.card.shield == 2 && ally.card.health == 2)
                     {
                         CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
                         if (effect != null)
-                            effect.TankTier2Effect2_TakeArcherAttack(this);
+                            effect.TankTier2Effect2_TakeArcherAttack(this, damage);
                         return; // Tank recebeu o ataque, não aplicar dano ao Arqueiro
                     }
                 }
 
-                // Tank tier 2 (ATK 1, Shield 3, HP 2) pode receber qualquer ataque
-                foreach (var ally in allies)
-                {
-                    if (ally != null && ally.card.cardClass == CardClass.Tank &&
-                        ally.card.attack == 1 && ally.card.shield == 3 && ally.card.health == 2)
-                    {
-                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
-                        if (effect != null)
-                            effect.TankTier2Effect4_TakeAnyAttack(this);
-                        return; // Tank recebeu o ataque, não aplicar dano ao Arqueiro
-                    }
-                }
+                // Tank tier 2 (ATK 1, Shield 3, HP 2) pode assumir o dano (o dono escolhe)
+                if (TryTankAssumeAnyDamage(damage))
+                    return; // Decisão pendente: o dano é resolvido no callback
             }
         }
 
@@ -1310,28 +1405,19 @@ public class CardDisplay : MonoBehaviour
                 // Tank tier 2 (ATK 2, Shield 2, HP 2) recebe o ataque
                 foreach (var ally in allies)
                 {
-                    if (ally != null && ally.card.cardClass == CardClass.Tank &&
+                    if (ally != null && ally != this && ally.card.cardClass == CardClass.Tank &&
                         ally.card.attack == 2 && ally.card.shield == 2 && ally.card.health == 2)
                     {
                         CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
                         if (effect != null)
-                            effect.TankTier2Effect2_TakeArcherAttack(this);
+                            effect.TankTier2Effect2_TakeArcherAttack(this, damage);
                         return; // Tank recebeu o ataque, não aplicar dano
                     }
                 }
 
-                // Tank tier 2 (ATK 1, Shield 3, HP 2) pode receber qualquer ataque
-                foreach (var ally in allies)
-                {
-                    if (ally != null && ally.card.cardClass == CardClass.Tank &&
-                        ally.card.attack == 1 && ally.card.shield == 3 && ally.card.health == 2)
-                    {
-                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
-                        if (effect != null)
-                            effect.TankTier2Effect4_TakeAnyAttack(this);
-                        return; // Tank recebeu o ataque, não aplicar dano
-                    }
-                }
+                // Tank tier 2 (ATK 1, Shield 3, HP 2) pode assumir o dano (o dono escolhe)
+                if (TryTankAssumeAnyDamage(damage))
+                    return; // Decisão pendente: o dano é resolvido no callback
             }
         }
 
@@ -1346,28 +1432,19 @@ public class CardDisplay : MonoBehaviour
                 // Tank tier 2 (ATK 0, Shield 4, HP 1) recebe o ataque
                 foreach (var ally in allies)
                 {
-                    if (ally != null && ally.card.cardClass == CardClass.Tank &&
+                    if (ally != null && ally != this && ally.card.cardClass == CardClass.Tank &&
                         ally.card.attack == 0 && ally.card.shield == 4 && ally.card.health == 1)
                     {
                         CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
                         if (effect != null)
-                            effect.TankTier2Effect3_TakeMagoAttack(this);
+                            effect.TankTier2Effect3_TakeMagoAttack(this, damage);
                         return; // Tank recebeu o ataque, não aplicar dano ao Mago
                     }
                 }
 
-                // Tank tier 2 (ATK 1, Shield 3, HP 2) pode receber qualquer ataque
-                foreach (var ally in allies)
-                {
-                    if (ally != null && ally.card.cardClass == CardClass.Tank &&
-                        ally.card.attack == 1 && ally.card.shield == 3 && ally.card.health == 2)
-                    {
-                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
-                        if (effect != null)
-                            effect.TankTier2Effect4_TakeAnyAttack(this);
-                        return; // Tank recebeu o ataque, não aplicar dano ao Mago
-                    }
-                }
+                // Tank tier 2 (ATK 1, Shield 3, HP 2) pode assumir o dano (o dono escolhe)
+                if (TryTankAssumeAnyDamage(damage))
+                    return; // Decisão pendente: o dano é resolvido no callback
             }
         }
 
@@ -1537,7 +1614,39 @@ public class CardDisplay : MonoBehaviour
         Debug.Log($"[TreeDefense] {card.cardName} ativou o efeito! Esquivando dano neste turno.");
     }
 
-    void ApplyDamageNormally(int damage)
+    // Tank tier 2 (ATK 1, Shield 3, HP 2): pode assumir o dano de qualquer aliado atacado.
+    // O dono escolhe via popup sincronizado. Retorna true se a decisão ficou pendente.
+    bool TryTankAssumeAnyDamage(int damage)
+    {
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return false;
+
+        var allies = board.GetCardsByOwner(ownerPlayerNumber);
+        foreach (var ally in allies)
+        {
+            // ally != this: o Tank não pode "assumir" o próprio dano (causava loop infinito)
+            if (ally != null && ally != this && ally.card.cardClass == CardClass.Tank &&
+                ally.card.attack == 1 && ally.card.shield == 3 && ally.card.health == 2)
+            {
+                CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                if (effect == null) continue;
+
+                CardDisplay tank = ally;
+                PhotonGameManager.AskEffectDecision(ownerPlayerNumber,
+                    $"{tank.card.cardName} pode assumir o dano de {card.cardName}!",
+                    "Assumir dano", "Não assumir",
+                    accepted =>
+                    {
+                        if (accepted) effect.TankTier2Effect4_TakeAnyAttack(this, damage);
+                        else ApplyDamageNormally(damage);
+                    });
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public void ApplyDamageNormally(int damage)
     {
         // Primeiro o escudo absorve o dano
         if (currentShield > 0)
@@ -1634,6 +1743,7 @@ public class CardDisplay : MonoBehaviour
 
         isFrozen = true;
         frozenAtRound = TurnManager.Instance.currentRound;
+        UpdateCardDisplay(); // Tinge a carta de azul-gelo
         Debug.Log($"[Freeze] {card.cardName} foi congelada! Descongelará no próximo turno");
     }
 
@@ -1646,6 +1756,7 @@ public class CardDisplay : MonoBehaviour
         {
             isFrozen = false;
             frozenAtRound = -1;
+            UpdateCardDisplay(); // Restaura a cor normal da carta
             Debug.Log($"[Unfreeze] {card.cardName} foi descongelada!");
         }
     }
@@ -1657,6 +1768,7 @@ public class CardDisplay : MonoBehaviour
 
         isStunned = true;
         stunnedAtRound = TurnManager.Instance.currentRound;
+        UpdateCardDisplay(); // Mostra o overlay "ATORDOADA"
         Debug.Log($"[Stun] {card.cardName} foi stunada! Desestunará no próximo turno");
     }
 
@@ -1669,6 +1781,7 @@ public class CardDisplay : MonoBehaviour
         {
             isStunned = false;
             stunnedAtRound = -1;
+            UpdateCardDisplay(); // Remove o overlay "ATORDOADA"
             Debug.Log($"[Unstun] {card.cardName} foi desestunada!");
         }
     }
@@ -1680,6 +1793,7 @@ public class CardDisplay : MonoBehaviour
 
         eagleMarked = true;
         eagleMarkedRound = TurnManager.Instance.currentRound;
+        UpdateCardDisplay(); // Mostra o overlay "MARCADA"
         Debug.Log($"[Eagle] {card.cardName} foi marcada pela águia! Não pode atacar por 2 turnos");
     }
 
@@ -1692,6 +1806,7 @@ public class CardDisplay : MonoBehaviour
         {
             eagleMarked = false;
             eagleMarkedRound = -1;
+            UpdateCardDisplay(); // Remove o overlay "MARCADA"
             Debug.Log($"[Eagle] A marca de águia foi removida de {card.cardName}!");
         }
     }

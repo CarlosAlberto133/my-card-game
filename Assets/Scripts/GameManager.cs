@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 public class GameManager : MonoBehaviour
 {
@@ -32,10 +33,22 @@ public class GameManager : MonoBehaviour
     {
         handManager = FindObjectOfType<HandManager>();
         boardManager = FindObjectOfType<BoardManager>();
+
+        // Fundo espacial (céu escuro + estrelas + meteoros), criado por código
+        SpaceBackground.Ensure();
     }
 
     void Update()
     {
+        // ESC cancela seleção de alvo de efeito (congelar / quebrar armadura / alvo genérico)
+        if (UnityEngine.InputSystem.Keyboard.current != null &&
+            UnityEngine.InputSystem.Keyboard.current.escapeKey.wasPressedThisFrame)
+        {
+            if (IsWaitingForFreezeTarget()) CancelFreezeSelection();
+            if (IsWaitingForShieldBreakTargets()) CancelShieldBreakSelection();
+            if (IsWaitingForEffectTarget()) CancelEffectTargetSelection();
+        }
+
         // Verifica tecla T para atacar a torre
         if (UnityEngine.InputSystem.Keyboard.current != null &&
             UnityEngine.InputSystem.Keyboard.current.tKey.wasPressedThisFrame)
@@ -159,6 +172,14 @@ public class GameManager : MonoBehaviour
     // Seleciona uma carta que já está no tabuleiro para mover
     public void SelectCardFromBoard(GameObject card, CardDisplay cardDisplay, CardTile tile)
     {
+        // Se está aguardando escolha de alvo de efeito genérico (aliado OU inimigo),
+        // o clique é a escolha — vem antes de qualquer checagem de dono
+        if (IsWaitingForEffectTarget())
+        {
+            TryApplyEffectTarget(cardDisplay);
+            return;
+        }
+
         // Em multiplayer, só pode mexer nas SUAS cartas (exceto seleção de alvo de efeito)
         if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null &&
             !IsWaitingForFreezeTarget() && !IsWaitingForShieldBreakTargets() &&
@@ -353,8 +374,10 @@ public class GameManager : MonoBehaviour
         ownerHand.RemoveCardFromHand(cardObject);
 
         // Move a carta para a posição do tile
-        Vector3 cardPosition = tile.transform.position + new Vector3(0, 1.5f, 0);
+        Vector3 cardPosition = tile.transform.position + new Vector3(0, CardDisplay.BoardYOffset, 0);
         cardObject.transform.position = cardPosition;
+        cardObject.transform.rotation = CardDisplay.BoardRotation; // Deitada sobre o tile
+        cardObject.transform.localScale = Vector3.one * CardDisplay.BoardScale;
 
         // Marca o tile como ocupado
         tile.OccupyTile(cardObject);
@@ -434,8 +457,9 @@ public class GameManager : MonoBehaviour
         fromTile.FreeTile();
 
         // Move a carta para a nova posição
-        Vector3 cardPosition = toTile.transform.position + new Vector3(0, 1.5f, 0);
+        Vector3 cardPosition = toTile.transform.position + new Vector3(0, CardDisplay.BoardYOffset, 0);
         cardObject.transform.position = cardPosition;
+        cardObject.transform.rotation = CardDisplay.BoardRotation; // Deitada sobre o tile
 
         // Ocupa o novo tile
         toTile.OccupyTile(cardObject);
@@ -479,8 +503,9 @@ public class GameManager : MonoBehaviour
         currentTile.FreeTile();
 
         // Move a carta para a nova posição (altura maior para não enterrar no chão)
-        Vector3 cardPosition = targetTile.transform.position + new Vector3(0, 1.5f, 0);
+        Vector3 cardPosition = targetTile.transform.position + new Vector3(0, CardDisplay.BoardYOffset, 0);
         selectedCard.transform.position = cardPosition;
+        selectedCard.transform.rotation = CardDisplay.BoardRotation; // Deitada sobre o tile
 
         // Ocupa o novo tile
         targetTile.OccupyTile(selectedCard);
@@ -516,8 +541,10 @@ public class GameManager : MonoBehaviour
         }
 
         // Move a carta para a posição do tile (altura maior para não enterrar no chão)
-        Vector3 cardPosition = tile.transform.position + new Vector3(0, 1.5f, 0);
+        Vector3 cardPosition = tile.transform.position + new Vector3(0, CardDisplay.BoardYOffset, 0);
         selectedCard.transform.position = cardPosition;
+        selectedCard.transform.rotation = CardDisplay.BoardRotation; // Deitada sobre o tile
+        selectedCard.transform.localScale = Vector3.one * CardDisplay.BoardScale;
 
         // Marca o tile como ocupado
         tile.OccupyTile(selectedCard);
@@ -850,11 +877,20 @@ public class GameManager : MonoBehaviour
             return;
         }
 
+        // Sem inimigos em campo, não há o que congelar — não entra no modo de seleção
+        int enemyPlayer = mageCard.ownerPlayerNumber == 1 ? 2 : 1;
+        BoardManager board = BoardManager.Instance;
+        if (board == null || board.GetCardsByOwner(enemyPlayer).Count == 0)
+        {
+            Debug.Log("[FreezeSelection] Nenhum inimigo em campo, efeito não ativado");
+            return;
+        }
+
         if (GameUIManager.Instance != null)
         {
             GameUIManager.Instance.ShowDecisionPopup(
-                "Selecione um inimigo para congelar clicando nele",
-                "Confirmar seleção",
+                "Clique em um inimigo no tabuleiro para congelar (ESC cancela)",
+                "Entendi",
                 () => { /* aguardando clique no inimigo */ },
                 "Cancelar",
                 () => CancelFreezeSelection()
@@ -874,7 +910,7 @@ public class GameManager : MonoBehaviour
         if (targetCard.ownerPlayerNumber == mageFreezingCard.ownerPlayerNumber ||
             targetCard.ownerPlayerNumber == 0)
         {
-            Debug.Log("[FreezeSelection] Alvo inválido! Deve ser um inimigo.");
+            Debug.Log("[FreezeSelection] Alvo inválido! Deve ser um inimigo. (ESC cancela a seleção)");
             return;
         }
 
@@ -941,7 +977,129 @@ public class GameManager : MonoBehaviour
                 break;
 
             default:
-                Debug.LogError($"[GameManager] Tipo de efeito desconhecido: {effectType}");
+                // Tipos 4+ são efeitos com alvo escolhido por clique
+                DispatchEffectOnTarget(effectType, source, target);
+                break;
+        }
+    }
+
+    // ── Seleção genérica de alvo por clique ─────────────────────────────
+    // Tipos: 4=copiar stats (Mage 5), 5=destruir tier inferior (Mage 4),
+    //        6=remover bônus (Mage 4), 7=duplicar stats de aliado (Healer 5),
+    //        8=invulnerabilidade (Healer 4), 9=+3 armadura em Mago (Tank 3)
+    private CardDisplay effectTargetSource = null;
+    private int effectTargetType = 0;
+    private List<CardDisplay> effectTargetCandidates = null;
+    private bool isWaitingForEffectTarget = false;
+
+    public void StartEffectTargetSelection(CardDisplay sourceCard, int effectType,
+        List<CardDisplay> candidates, string prompt)
+    {
+        // Em multiplayer, só o dono da carta escolhe (a escolha chega por RPC)
+        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null &&
+            sourceCard.ownerPlayerNumber != PhotonGameManager.Instance.myPlayerNumber)
+        {
+            Debug.Log("[EffectTarget] Oponente está escolhendo o alvo do efeito...");
+            return;
+        }
+
+        if (candidates == null) return;
+        candidates.RemoveAll(c => c == null || c.currentTile == null);
+        if (candidates.Count == 0)
+        {
+            Debug.Log("[EffectTarget] Nenhum alvo válido em campo, efeito não ativado");
+            return;
+        }
+
+        // Um único alvo possível: aplica direto, sem pedir clique
+        if (candidates.Count == 1)
+        {
+            ApplyEffectTargetChoice(sourceCard, effectType, candidates[0]);
+            return;
+        }
+
+        if (GameUIManager.Instance != null)
+        {
+            GameUIManager.Instance.ShowDecisionPopup(
+                prompt + "\nClique na carta desejada no tabuleiro (ESC cancela)",
+                "Entendi", () => { /* aguardando clique */ },
+                "Cancelar", () => CancelEffectTargetSelection());
+        }
+
+        effectTargetSource = sourceCard;
+        effectTargetType = effectType;
+        effectTargetCandidates = candidates;
+        isWaitingForEffectTarget = true;
+        Debug.Log($"[EffectTarget] Aguardando clique no alvo (efeito {effectType}, {candidates.Count} opções)...");
+    }
+
+    public bool IsWaitingForEffectTarget()
+    {
+        return isWaitingForEffectTarget;
+    }
+
+    public void TryApplyEffectTarget(CardDisplay targetCard)
+    {
+        if (!isWaitingForEffectTarget || effectTargetSource == null) return;
+
+        if (effectTargetCandidates == null || !effectTargetCandidates.Contains(targetCard))
+        {
+            Debug.Log("[EffectTarget] Esta carta não é um alvo válido para o efeito! (ESC cancela)");
+            return;
+        }
+
+        CardDisplay source = effectTargetSource;
+        int effectType = effectTargetType;
+        CancelEffectTargetSelection(); // Encerra o modo antes de aplicar
+        ApplyEffectTargetChoice(source, effectType, targetCard);
+    }
+
+    public void CancelEffectTargetSelection()
+    {
+        isWaitingForEffectTarget = false;
+        effectTargetSource = null;
+        effectTargetType = 0;
+        effectTargetCandidates = null;
+        Debug.Log("[EffectTarget] Seleção de alvo encerrada");
+    }
+
+    void ApplyEffectTargetChoice(CardDisplay source, int effectType, CardDisplay target)
+    {
+        // Em multiplayer, a escolha viaja por RPC como coordenadas de tile
+        // (executa nos dois clientes); offline aplica direto
+        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null &&
+            source.currentTile != null && target.currentTile != null)
+        {
+            PhotonGameManager.Instance.SendEffectTargetRPC(effectType,
+                source.currentTile.row, source.currentTile.column,
+                target.currentTile.row, target.currentTile.column);
+        }
+        else
+        {
+            DispatchEffectOnTarget(effectType, source, target);
+        }
+    }
+
+    // Aplica o efeito escolhido (offline direto; multiplayer via ExecuteEffectOnTarget/RPC)
+    public void DispatchEffectOnTarget(int effectType, CardDisplay source, CardDisplay target)
+    {
+        CardEffectSimple effect = source != null ? source.GetComponent<CardEffectSimple>() : null;
+        if (effect == null)
+        {
+            Debug.LogError($"[GameManager] Fonte do efeito {effectType} sem CardEffectSimple!");
+            return;
+        }
+
+        switch (effectType)
+        {
+            case 4: effect.ActivateCopyStats(target); break;        // Mage 5: copiar stats do inimigo
+            case 5: effect.ActivateDestroyLowerTier(target); break; // Mage 4: destruir inimigo de tier inferior
+            case 6: effect.ActivateRemoveBonus(target); break;      // Mage 4: remover bônus do inimigo
+            case 7: effect.ActivateDoubleStats(target); break;      // Healer 5: duplicar stats de aliado
+            case 8: effect.ActivateInvulnerability(target); break;  // Healer 4: invulnerabilidade em aliado
+            case 9: effect.ActivateBoostMagoShield(target); break;  // Tank 3: +3 armadura em Mago aliado
+            default:
+                Debug.LogError($"[GameManager] Tipo de efeito com alvo desconhecido: {effectType}");
                 break;
         }
     }
@@ -1002,6 +1160,8 @@ public class GameManager : MonoBehaviour
     // Sistema para seleção de 2 inimigos para quebra de armadura (Mage 2 ATK 4, HP 3)
     private CardDisplay shieldBreakMage = null;
     private int shieldBreakTargetsSelected = 0;
+    private int shieldBreakTargetsRequired = 2;
+    private CardDisplay shieldBreakFirstTarget = null;
     private bool isWaitingForShieldBreakTargets = false;
 
     public void StartShieldBreakSelection(CardDisplay mageCard)
@@ -1014,11 +1174,24 @@ public class GameManager : MonoBehaviour
             return;
         }
 
+        // Sem inimigos em campo, não há alvo — não entra no modo de seleção
+        int enemyPlayer = mageCard.ownerPlayerNumber == 1 ? 2 : 1;
+        BoardManager board = BoardManager.Instance;
+        int enemyCount = board != null ? board.GetCardsByOwner(enemyPlayer).Count : 0;
+        if (enemyCount == 0)
+        {
+            Debug.Log("[ShieldBreakSelection] Nenhum inimigo em campo, efeito não ativado");
+            return;
+        }
+
+        // Se só há 1 inimigo, pede apenas 1 alvo
+        shieldBreakTargetsRequired = Mathf.Min(2, enemyCount);
+
         if (GameUIManager.Instance != null)
         {
             GameUIManager.Instance.ShowDecisionPopup(
-                "Selecione 2 inimigos para quebrar a armadura clicando neles",
-                "Confirmar",
+                $"Clique em {shieldBreakTargetsRequired} inimigo(s) no tabuleiro para quebrar a armadura (ESC cancela)",
+                "Entendi",
                 () => { /* aguardando clique */ },
                 "Cancelar",
                 () => CancelShieldBreakSelection()
@@ -1027,8 +1200,9 @@ public class GameManager : MonoBehaviour
 
         shieldBreakMage = mageCard;
         shieldBreakTargetsSelected = 0;
+        shieldBreakFirstTarget = null;
         isWaitingForShieldBreakTargets = true;
-        Debug.Log("[ShieldBreakSelection] Aguardando seleção de 2 alvos...");
+        Debug.Log($"[ShieldBreakSelection] Aguardando seleção de {shieldBreakTargetsRequired} alvo(s)...");
     }
 
     public void TryBreakShield(CardDisplay targetCard)
@@ -1039,7 +1213,14 @@ public class GameManager : MonoBehaviour
         if (targetCard.ownerPlayerNumber == shieldBreakMage.ownerPlayerNumber ||
             targetCard.ownerPlayerNumber == 0)
         {
-            Debug.Log("[ShieldBreakSelection] Alvo inválido! Deve ser um inimigo.");
+            Debug.Log("[ShieldBreakSelection] Alvo inválido! Deve ser um inimigo. (ESC cancela a seleção)");
+            return;
+        }
+
+        // Não deixa escolher o mesmo inimigo duas vezes
+        if (targetCard == shieldBreakFirstTarget)
+        {
+            Debug.Log("[ShieldBreakSelection] Este inimigo já foi selecionado! Escolha outro.");
             return;
         }
 
@@ -1060,18 +1241,20 @@ public class GameManager : MonoBehaviour
             }
         }
 
+        shieldBreakFirstTarget = targetCard;
         shieldBreakTargetsSelected++;
 
-        if (shieldBreakTargetsSelected >= 2)
+        if (shieldBreakTargetsSelected >= shieldBreakTargetsRequired)
         {
             isWaitingForShieldBreakTargets = false;
             shieldBreakMage = null;
             shieldBreakTargetsSelected = 0;
+            shieldBreakFirstTarget = null;
             Debug.Log("[ShieldBreakSelection] Seleção completa!");
         }
         else
         {
-            Debug.Log($"[ShieldBreakSelection] {1} alvo selecionado, faltam {2 - shieldBreakTargetsSelected}");
+            Debug.Log($"[ShieldBreakSelection] Alvo selecionado, falta(m) {shieldBreakTargetsRequired - shieldBreakTargetsSelected}");
         }
     }
 
@@ -1080,6 +1263,7 @@ public class GameManager : MonoBehaviour
         isWaitingForShieldBreakTargets = false;
         shieldBreakMage = null;
         shieldBreakTargetsSelected = 0;
+        shieldBreakFirstTarget = null;
         Debug.Log("[ShieldBreakSelection] Seleção cancelada");
     }
 

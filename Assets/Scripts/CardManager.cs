@@ -33,6 +33,16 @@ public class CardManager : MonoBehaviour
             Destroy(gameObject);
         }
 
+        // Força os valores por código (os da cena estavam desatualizados):
+        // cartas 2x maiores e espaçamento que evita sobreposição na loja
+        cardScale = 3f;
+        cardSpacing = 8f;
+
+        // Altura correta para a nova escala (a base da carta não pode afundar no chão)
+        float shopY = CardDisplay.GroundY(cardScale);
+        centerPosition = new Vector3(centerPosition.x, shopY, centerPosition.z);
+        shopPosition = new Vector3(shopPosition.x, shopY, shopPosition.z);
+
         // Inicialmente no centro (lobby)
         currentSpawnPosition = centerPosition;
     }
@@ -197,12 +207,11 @@ public class CardManager : MonoBehaviour
         }
 
         Debug.Log($"Limpeza da loja: {destroyed} destruídas, {preserved} preservadas");
-        spawnedCards.RemoveAll(card =>
-        {
-            if (card == null) return true;
-            CardDisplay display = card.GetComponent<CardDisplay>();
-            return display != null && (display.isInHand || display.isOnBoard);
-        });
+
+        // Esvazia a lista COMPLETA: as destruídas ainda não são "null" neste frame
+        // (Destroy é adiado), e as preservadas já saíram da loja (mão/tabuleiro).
+        // Sem isso, a lista acumulava entradas mortas e os índices da loja ficavam errados.
+        spawnedCards.Clear();
     }
 
     public void DestroyAllCards()
@@ -278,17 +287,21 @@ public class CardManager : MonoBehaviour
     {
         if (card == null || tile == null) return null;
 
-        GameObject cardObject = SpawnCard(card, tile.transform.position);
+        GameObject cardObject = SpawnCard(card,
+            tile.transform.position + Vector3.up * CardDisplay.BoardYOffset);
         if (cardObject == null) return null;
+        cardObject.transform.rotation = CardDisplay.BoardRotation; // Deitada sobre o tile
 
         CardDisplay cardDisplay = cardObject.GetComponent<CardDisplay>();
         if (cardDisplay != null)
         {
             // Coloca a carta no tile
             tile.OccupyTile(cardObject);
+            cardObject.transform.localScale = Vector3.one * CardDisplay.BoardScale;
             cardDisplay.currentTile = tile;
             cardDisplay.isOnBoard = true;
             cardDisplay.ownerPlayerNumber = ownerPlayerNumber;
+            cardDisplay.UpdateDisplay(); // Atualiza a borda com a cor do dono
 
             // Aplica o efeito de entrada em campo
             cardDisplay.ApplyCardEffect();

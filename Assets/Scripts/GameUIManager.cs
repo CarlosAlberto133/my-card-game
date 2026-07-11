@@ -87,6 +87,128 @@ public class GameUIManager : MonoBehaviour
         {
             Debug.LogError("ResetStoreButton é NULL!");
         }
+
+        CreateQuitButton();
+        CreateShopButton();
+    }
+
+    private TextMeshProUGUI shopButtonText;
+
+    // Cria o botão "Loja" via código (ao lado do botão Sair)
+    void CreateShopButton()
+    {
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null) canvas = FindObjectOfType<Canvas>();
+        if (canvas == null) return;
+
+        GameObject btnObj = new GameObject("ShopToggleButton",
+            typeof(RectTransform), typeof(Image), typeof(Button));
+        btnObj.transform.SetParent(canvas.transform, false);
+
+        RectTransform rt = btnObj.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(1f, 1f);
+        rt.anchorMax = new Vector2(1f, 1f);
+        rt.pivot = new Vector2(1f, 1f);
+        rt.anchoredPosition = new Vector2(-172f, -12f); // à esquerda do botão Sair
+        rt.sizeDelta = new Vector2(130f, 40f);
+
+        Image img = btnObj.GetComponent<Image>();
+        img.color = new Color(0.12f, 0.35f, 0.55f, 0.92f);
+
+        Button btn = btnObj.GetComponent<Button>();
+        btn.onClick.AddListener(OnShopButtonClicked);
+
+        GameObject txtObj = new GameObject("Text", typeof(RectTransform));
+        txtObj.transform.SetParent(btnObj.transform, false);
+        RectTransform trt = txtObj.GetComponent<RectTransform>();
+        trt.anchorMin = Vector2.zero;
+        trt.anchorMax = Vector2.one;
+        trt.offsetMin = Vector2.zero;
+        trt.offsetMax = Vector2.zero;
+
+        shopButtonText = txtObj.AddComponent<TextMeshProUGUI>();
+        shopButtonText.text = "Loja";
+        shopButtonText.fontSize = 20f;
+        shopButtonText.alignment = TextAlignmentOptions.Center;
+        shopButtonText.color = Color.white;
+        shopButtonText.raycastTarget = false;
+    }
+
+    void OnShopButtonClicked()
+    {
+        // Cria o controlador da janela da loja na primeira vez
+        if (ShopOverlayView.Instance == null)
+        {
+            new GameObject("ShopOverlayView").AddComponent<ShopOverlayView>();
+        }
+
+        ShopOverlayView.Instance.Toggle();
+
+        if (shopButtonText != null)
+        {
+            shopButtonText.text = ShopOverlayView.Instance.IsOpen ? "Fechar Loja" : "Loja";
+        }
+    }
+
+    // Cria o botão "Sair do Jogo" via código (canto superior direito)
+    void CreateQuitButton()
+    {
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null) canvas = FindObjectOfType<Canvas>();
+        if (canvas == null)
+        {
+            Debug.LogWarning("[GameUIManager] Nenhum Canvas encontrado, botão Sair não criado");
+            return;
+        }
+
+        GameObject btnObj = new GameObject("QuitGameButton",
+            typeof(RectTransform), typeof(Image), typeof(Button));
+        btnObj.transform.SetParent(canvas.transform, false);
+
+        RectTransform rt = btnObj.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(1f, 1f);
+        rt.anchorMax = new Vector2(1f, 1f);
+        rt.pivot = new Vector2(1f, 1f);
+        rt.anchoredPosition = new Vector2(-12f, -12f);
+        rt.sizeDelta = new Vector2(150f, 40f);
+
+        Image img = btnObj.GetComponent<Image>();
+        img.color = new Color(0.55f, 0.12f, 0.12f, 0.92f);
+
+        Button btn = btnObj.GetComponent<Button>();
+        btn.onClick.AddListener(QuitGame);
+
+        GameObject txtObj = new GameObject("Text", typeof(RectTransform));
+        txtObj.transform.SetParent(btnObj.transform, false);
+        RectTransform trt = txtObj.GetComponent<RectTransform>();
+        trt.anchorMin = Vector2.zero;
+        trt.anchorMax = Vector2.one;
+        trt.offsetMin = Vector2.zero;
+        trt.offsetMax = Vector2.zero;
+
+        TextMeshProUGUI tmp = txtObj.AddComponent<TextMeshProUGUI>();
+        tmp.text = "Sair do Jogo";
+        tmp.fontSize = 20f;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.color = Color.white;
+        tmp.raycastTarget = false;
+    }
+
+    public void QuitGame()
+    {
+        Debug.Log("[GameUIManager] Saindo do jogo...");
+
+        // Desconecta do Photon antes de fechar (avisa o oponente)
+        if (PhotonNetwork.connected)
+        {
+            PhotonNetwork.Disconnect();
+        }
+
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+#else
+        Application.Quit();
+#endif
     }
 
     void Update()

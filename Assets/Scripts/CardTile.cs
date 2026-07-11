@@ -24,6 +24,18 @@ public class CardTile : MonoBehaviour
         }
     }
 
+    // Permite ao BoardManager tematizar o tile (tema espacial: tons escuros alternados)
+    public void SetBaseColor(Color baseColor)
+    {
+        normalColor = baseColor;
+        occupiedColor = new Color(baseColor.r * 0.55f, baseColor.g * 0.55f, baseColor.b * 0.55f);
+        if (tileRenderer == null) tileRenderer = GetComponent<Renderer>();
+        if (tileRenderer != null && !isHighlighted)
+        {
+            tileRenderer.material.color = normalColor;
+        }
+    }
+
     public void Initialize(int row, int column)
     {
         this.row = row;

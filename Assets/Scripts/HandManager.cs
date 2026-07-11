@@ -17,6 +17,18 @@ public class HandManager : MonoBehaviour
 
     private List<GameObject> cardsInHand = new List<GameObject>();
 
+    void Awake()
+    {
+        // Força por código (valor da cena estava desatualizado): cartas na mão
+        // agora têm escala 2 (3.6 de largura), espaçamento 4 evita sobreposição
+        cardSpacing = 4f;
+        // Altura correta para a nova escala (a base da carta não afunda no chão)
+        handYPosition = CardDisplay.GroundY(CardDisplay.HandScale);
+        // Mão mais afastada do tabuleiro (cartas 2x maiores invadiam a visão do campo).
+        // Cada jogador tem a mão do seu lado: P1 embaixo (-Z), P2 em cima (+Z)
+        handZPosition = playerNumber == 2 ? 46f : -46f;
+    }
+
     // Adiciona uma carta à mão
     public bool AddCardToHand(GameObject cardObject)
     {

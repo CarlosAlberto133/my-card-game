@@ -63,6 +63,11 @@ public class BoardManager : MonoBehaviour
                 {
                     tile.Initialize(row, col);
                     board[row, col] = tile;
+
+                    // Tema espacial: pedra escura em xadrez sutil
+                    tile.SetBaseColor((row + col) % 2 == 0
+                        ? new Color(0.30f, 0.33f, 0.43f)
+                        : new Color(0.22f, 0.25f, 0.34f));
                 }
             }
         }
@@ -94,6 +99,10 @@ public class BoardManager : MonoBehaviour
             mf.mesh = CreateQuadMesh();
             mr.material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
             mr.material.color = Color.white;
+            // Textura rochosa procedural (a cor do CardTile tinge por cima)
+            Texture2D rock = GetRockTexture();
+            mr.material.mainTexture = rock;
+            mr.material.SetTexture("_BaseMap", rock);
 
             // Ajusta o tamanho e rotação para ficar horizontal
             tile.transform.localScale = new Vector3(tileSize, 1, tileSize);
@@ -110,6 +119,33 @@ public class BoardManager : MonoBehaviour
         }
 
         return tile;
+    }
+
+    // Textura de pedra gerada por código (ruído Perlin em camadas), compartilhada
+    // por todos os tiles — valores claros (0.7-1.0) para a cor do tile dominar
+    private static Texture2D rockTexture;
+
+    static Texture2D GetRockTexture()
+    {
+        if (rockTexture != null) return rockTexture;
+
+        const int size = 128;
+        rockTexture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                // Duas oitavas de Perlin: forma geral + granulado fino
+                float n1 = Mathf.PerlinNoise(x * 0.045f, y * 0.045f);
+                float n2 = Mathf.PerlinNoise(x * 0.18f + 37f, y * 0.18f + 91f);
+                float v = 0.72f + 0.20f * n1 + 0.08f * n2;
+                rockTexture.SetPixel(x, y, new Color(v, v, v, 1f));
+            }
+        }
+
+        rockTexture.Apply();
+        return rockTexture;
     }
 
     // Cria um mesh quad simples

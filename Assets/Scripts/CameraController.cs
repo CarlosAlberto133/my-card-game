@@ -23,7 +23,15 @@ public class CameraController : MonoBehaviour
     {
         mainCamera = GetComponent<Camera>();
         if (mainCamera != null)
+        {
             targetZoom = mainCamera.orthographicSize;
+
+            // Câmera ortográfica: afastar ao longo do eixo dela NÃO muda a imagem,
+            // só afasta o near plane — evita cortar o topo das cartas (que ficam
+            // "em pé") quando elas estão na parte de baixo da tela
+            transform.position -= transform.forward * 30f;
+            mainCamera.nearClipPlane = 0.1f;
+        }
     }
 
     void Update()
@@ -44,7 +52,29 @@ public class CameraController : MonoBehaviour
             // Converte pixels de tela em unidades de mundo no zoom atual:
             // arrastar X pixels move o mundo X pixels — o tabuleiro "gruda" no mouse
             float worldPerPixel = (mainCamera.orthographicSize * 2f) / mainCamera.pixelHeight;
-            transform.Translate(-delta * worldPerPixel * dragSensitivity, Space.Self);
+
+            // Pan no PLANO DO CHÃO (altura constante). Mover no espaço local da
+            // câmera inclinada abaixava a câmera ao arrastar para baixo, fazendo
+            // o near plane cortar o topo das cartas.
+            Vector3 right = transform.right;
+            right.y = 0f;
+            right.Normalize();
+
+            Vector3 forwardOnGround = transform.up;
+            forwardOnGround.y = 0f;
+            float foreshorten = forwardOnGround.magnitude; // compressão visual do chão (câmera inclinada)
+            if (foreshorten < 0.15f)
+            {
+                // Câmera quase de topo: usa o forward projetado no chão
+                forwardOnGround = transform.forward;
+                forwardOnGround.y = 0f;
+                foreshorten = Mathf.Max(forwardOnGround.magnitude, 0.15f);
+            }
+            forwardOnGround.Normalize();
+
+            Vector3 move = (-delta.x * right - (delta.y / foreshorten) * forwardOnGround)
+                           * worldPerPixel * dragSensitivity;
+            transform.position += move;
 
             lastMousePos = currentMousePos;
         }

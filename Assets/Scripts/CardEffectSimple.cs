@@ -187,17 +187,13 @@ public class CardEffectSimple : MonoBehaviour
                 allyNames.Add(ally.card.cardName);
         }
 
-        // Decisão sincronizada: o dono da carta escolhe (listas têm a mesma ordem nos dois clientes)
-        string allyList = string.Join(", ", allyNames);
-        PhotonGameManager.AskEffectDecision(cardDisplay.ownerPlayerNumber,
-            $"Escolha qual aliado terá seus status duplicados:\n{allyList}",
-            allyNames.Count > 0 ? allyNames[0] : "Cancelar",
-            "Próximo",
-            accepted =>
-            {
-                if (accepted) ActivateDoubleStats(allies[0]);
-                else if (allies.Count > 1) ActivateDoubleStats(allies[1]);
-            });
+        // O dono clica no aliado desejado (a escolha viaja por RPC como tile)
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.StartEffectTargetSelection(cardDisplay, 7,
+                new List<CardDisplay>(allies),
+                "Escolha qual aliado terá seus status duplicados");
+        }
     }
 
     public void ActivateDoubleStats(CardDisplay targetAlly)
@@ -838,17 +834,13 @@ public class CardEffectSimple : MonoBehaviour
         var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
         if (allies.Count == 0) return;
 
-        // Decisão sincronizada: o dono da carta escolhe
-        string allyNames = string.Join(", ", allies.ConvertAll(a => a.card.cardName));
-        PhotonGameManager.AskEffectDecision(cardDisplay.ownerPlayerNumber,
-            $"Escolha qual aliado receberá invunerabilidade por 3 rounds:\n{allyNames}",
-            allies.Count > 0 ? allies[0].card.cardName : "Cancelar",
-            "Próximo",
-            accepted =>
-            {
-                if (accepted) ActivateInvulnerability(allies[0]);
-                else if (allies.Count > 1) ActivateInvulnerability(allies[1]);
-            });
+        // O dono clica no aliado desejado (a escolha viaja por RPC como tile)
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.StartEffectTargetSelection(cardDisplay, 8,
+                new List<CardDisplay>(allies),
+                "Escolha qual aliado receberá invulnerabilidade por 3 rounds");
+        }
     }
 
     public void ActivateInvulnerability(CardDisplay targetAlly)
@@ -1335,17 +1327,13 @@ public class CardEffectSimple : MonoBehaviour
 
         if (enemies.Count == 0) return;
 
-        // Decisão sincronizada: o dono da carta escolhe
-        string enemyNames = string.Join(", ", enemies.ConvertAll(e => e.card.cardName));
-        PhotonGameManager.AskEffectDecision(cardDisplay.ownerPlayerNumber,
-            $"Escolha um inimigo para remover bônus:\n{enemyNames}",
-            enemies.Count > 0 ? enemies[0].card.cardName : "Cancelar",
-            "Próximo",
-            accepted =>
-            {
-                if (accepted) ActivateRemoveBonus(enemies[0]);
-                else if (enemies.Count > 1) ActivateRemoveBonus(enemies[1]);
-            });
+        // O dono clica no inimigo desejado (a escolha viaja por RPC como tile)
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.StartEffectTargetSelection(cardDisplay, 6,
+                new List<CardDisplay>(enemies),
+                "Escolha um inimigo para remover os bônus");
+        }
     }
 
     public void ActivateRemoveBonus(CardDisplay targetEnemy)
@@ -1412,17 +1400,13 @@ public class CardEffectSimple : MonoBehaviour
             return;
         }
 
-        // Decisão sincronizada: o dono da carta escolhe
-        string lowerTierNames = string.Join(", ", lowerTierEnemies.ConvertAll(e => e.card.cardName));
-        PhotonGameManager.AskEffectDecision(cardDisplay.ownerPlayerNumber,
-            $"Escolha um inimigo de nível inferior para destruir:\n{lowerTierNames}",
-            lowerTierEnemies.Count > 0 ? lowerTierEnemies[0].card.cardName : "Cancelar",
-            "Próximo",
-            accepted =>
-            {
-                if (accepted) ActivateDestroyLowerTier(lowerTierEnemies[0]);
-                else if (lowerTierEnemies.Count > 1) ActivateDestroyLowerTier(lowerTierEnemies[1]);
-            });
+        // O dono clica no inimigo desejado (a escolha viaja por RPC como tile)
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.StartEffectTargetSelection(cardDisplay, 5,
+                lowerTierEnemies,
+                "Escolha um inimigo de nível inferior para destruir");
+        }
     }
 
     public void ActivateDestroyLowerTier(CardDisplay targetEnemy)
@@ -1550,7 +1534,8 @@ public class CardEffectSimple : MonoBehaviour
                 Debug.Log($"[MageTier3Effect1] {cardDisplay.card.cardName}: Roubou stats de {targetEnemy.card.cardName} (ATK: {stolenAtk}, Shield: {stolenShield}, HP: {stolenHp})");
             }
 
-            // Inimigo fica com status 0
+            // Inimigo fica com status 0, mas NÃO é destruído — a carta permanece
+            // em campo com os status zerados (morre se levar qualquer dano depois)
             targetEnemy.currentAttack = 0;
             targetEnemy.currentShield = 0;
             targetEnemy.currentHealth = 0;
@@ -1558,9 +1543,6 @@ public class CardEffectSimple : MonoBehaviour
 
             cardDisplay.mageTier3Effect1Used = true;
             cardDisplay.UpdateDisplay();
-
-            // Inimigo morre (HP 0)
-            targetEnemy.DestroyCard();
         }
     }
 
@@ -2092,17 +2074,13 @@ public class CardEffectSimple : MonoBehaviour
                 enemyNames.Add(enemy.card.cardName);
         }
 
-        // Decisão sincronizada: o dono da carta escolhe
-        string enemyList = string.Join(", ", enemyNames);
-        PhotonGameManager.AskEffectDecision(cardDisplay.ownerPlayerNumber,
-            $"Escolha qual inimigo terá seus stats copiados:\n{enemyList}",
-            enemyNames.Count > 0 ? enemyNames[0] : "Cancelar",
-            "Próximo",
-            accepted =>
-            {
-                if (accepted) ActivateCopyStats(enemies[0]);
-                else if (enemies.Count > 1) ActivateCopyStats(enemies[1]);
-            });
+        // O dono clica no inimigo desejado (a escolha viaja por RPC como tile)
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.StartEffectTargetSelection(cardDisplay, 4,
+                new List<CardDisplay>(enemies),
+                "Escolha qual inimigo terá os stats copiados");
+        }
     }
 
     public void ActivateCopyStats(CardDisplay targetEnemy)
@@ -2544,18 +2522,13 @@ public class CardEffectSimple : MonoBehaviour
 
     void ShowMagoChoicePopup(List<CardDisplay> magoAllies)
     {
-        // Decisão sincronizada: o dono da carta escolhe
-        string magoNames = string.Join(", ", magoAllies.ConvertAll(m => m.card.cardName));
-
-        PhotonGameManager.AskEffectDecision(cardDisplay.ownerPlayerNumber,
-            $"Escolha qual Mago receberá +3 de armadura:\n{magoNames}",
-            magoAllies.Count > 0 ? magoAllies[0].card.cardName : "Cancelar",
-            "Próximo",
-            accepted =>
-            {
-                if (accepted) ActivateBoostMagoShield(magoAllies[0]);
-                else if (magoAllies.Count > 1) ActivateBoostMagoShield(magoAllies[1]);
-            });
+        // O dono clica no Mago desejado (a escolha viaja por RPC como tile)
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.StartEffectTargetSelection(cardDisplay, 9,
+                magoAllies,
+                "Escolha qual Mago receberá +3 de armadura");
+        }
     }
 
     public void ActivateBoostMagoShield(CardDisplay targetMago)
@@ -2597,14 +2570,15 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[TankTier2Effect1] {cardDisplay.card.cardName}: Pronta para receber ataque de Healer");
     }
 
-    public void TankTier2Effect1_TakeHealerAttack(CardDisplay attacker)
+    public void TankTier2Effect1_TakeHealerAttack(CardDisplay victim, int damage)
     {
-        if (cardDisplay == null || attacker == null) return;
+        if (cardDisplay == null || victim == null) return;
 
-        // O Tank recebe o dano ao invés do Healer
-        cardDisplay.TakeDamage(attacker.currentAttack);
+        // O Tank recebe o dano ao invés do Healer (ApplyDamageNormally evita
+        // disparar novos redirecionamentos em cadeia)
+        cardDisplay.ApplyDamageNormally(damage);
 
-        Debug.Log($"[TankTier2Effect1] {cardDisplay.card.cardName}: Recebeu ataque de {attacker.card.cardName}");
+        Debug.Log($"[TankTier2Effect1] {cardDisplay.card.cardName}: Assumiu {damage} de dano no lugar de {victim.card.cardName}");
     }
 
     // Efeito 2: Tank tier 2 (ATK 2, Shield 2, HP 2) - Recebe ataque de Arqueiro
@@ -2614,14 +2588,14 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[TankTier2Effect2] {cardDisplay.card.cardName}: Pronta para receber ataque de Arqueiro");
     }
 
-    public void TankTier2Effect2_TakeArcherAttack(CardDisplay attacker)
+    public void TankTier2Effect2_TakeArcherAttack(CardDisplay victim, int damage)
     {
-        if (cardDisplay == null || attacker == null) return;
+        if (cardDisplay == null || victim == null) return;
 
         // O Tank recebe o dano ao invés do Arqueiro
-        cardDisplay.TakeDamage(attacker.currentAttack);
+        cardDisplay.ApplyDamageNormally(damage);
 
-        Debug.Log($"[TankTier2Effect2] {cardDisplay.card.cardName}: Recebeu ataque de {attacker.card.cardName}");
+        Debug.Log($"[TankTier2Effect2] {cardDisplay.card.cardName}: Assumiu {damage} de dano no lugar de {victim.card.cardName}");
     }
 
     // Efeito 3: Tank tier 2 (ATK 0, Shield 4, HP 1) - Recebe ataque de Mago
@@ -2631,14 +2605,14 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[TankTier2Effect3] {cardDisplay.card.cardName}: Pronta para receber ataque de Mago");
     }
 
-    public void TankTier2Effect3_TakeMagoAttack(CardDisplay attacker)
+    public void TankTier2Effect3_TakeMagoAttack(CardDisplay victim, int damage)
     {
-        if (cardDisplay == null || attacker == null) return;
+        if (cardDisplay == null || victim == null) return;
 
         // O Tank recebe o dano ao invés do Mago
-        cardDisplay.TakeDamage(attacker.currentAttack);
+        cardDisplay.ApplyDamageNormally(damage);
 
-        Debug.Log($"[TankTier2Effect3] {cardDisplay.card.cardName}: Recebeu ataque de {attacker.card.cardName}");
+        Debug.Log($"[TankTier2Effect3] {cardDisplay.card.cardName}: Assumiu {damage} de dano no lugar de {victim.card.cardName}");
     }
 
     // Efeito 4: Tank tier 2 (ATK 1, Shield 3, HP 2) - Pode receber qualquer ataque
@@ -2648,14 +2622,14 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[TankTier2Effect4] {cardDisplay.card.cardName}: Pronta para receber qualquer ataque");
     }
 
-    public void TankTier2Effect4_TakeAnyAttack(CardDisplay attacker)
+    public void TankTier2Effect4_TakeAnyAttack(CardDisplay victim, int damage)
     {
-        if (cardDisplay == null || attacker == null) return;
+        if (cardDisplay == null || victim == null) return;
 
-        // O Tank recebe o dano
-        cardDisplay.TakeDamage(attacker.currentAttack);
+        // O Tank recebe o dano no lugar do aliado
+        cardDisplay.ApplyDamageNormally(damage);
 
-        Debug.Log($"[TankTier2Effect4] {cardDisplay.card.cardName}: Recebeu ataque de {attacker.card.cardName}");
+        Debug.Log($"[TankTier2Effect4] {cardDisplay.card.cardName}: Assumiu {damage} de dano no lugar de {victim.card.cardName}");
     }
 
     // Combo: Quando os 3 Tanks tier-2 defensores estão em campo, +10 armadura a todos
