@@ -37,9 +37,11 @@ public class PlayerData
         storeResetsThisTurn = 0;
     }
 
+    public const int MaxCardsPerTurn = 2;
+
     public bool CanBuyCard()
     {
-        return cardsBoughtThisTurn < 1; // Apenas 1 carta por turno
+        return cardsBoughtThisTurn < MaxCardsPerTurn; // Até 2 cartas por turno
     }
 
     public bool HasEnoughGold(int cost)

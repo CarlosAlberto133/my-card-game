@@ -14,6 +14,9 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
 
     void Start()
     {
+        // Mesmo fundo espacial do jogo (versão de frente para a câmera do lobby)
+        SpaceBackground.EnsureFacingCamera();
+
         // Conecta ao Photon quando a cena carrega
         if (!PhotonNetwork.connected)
         {

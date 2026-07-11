@@ -287,7 +287,7 @@ public class GameUIManager : MonoBehaviour
 
             string readyMsg = readyCount == 0 ? "Clique 2x em 'Iniciar Partida'" : "Clique mais 1x para iniciar!";
 
-            turnInfoText.text = $"Turno: {currentPlayer.playerName}\nCartas: {currentPlayer.cardsBoughtThisTurn}/1\n{readyMsg}";
+            turnInfoText.text = $"Turno: {currentPlayer.playerName}\nCartas: {currentPlayer.cardsBoughtThisTurn}/{PlayerData.MaxCardsPerTurn}\n{readyMsg}";
         }
 
         if (roundText != null)
@@ -301,7 +301,7 @@ public class GameUIManager : MonoBehaviour
         if (turnInfoText != null)
         {
             PlayerData currentPlayer = TurnManager.Instance.GetCurrentPlayer();
-            turnInfoText.text = $"Turno: {currentPlayer.playerName}\nCartas: {currentPlayer.cardsBoughtThisTurn}/1";
+            turnInfoText.text = $"Turno: {currentPlayer.playerName}\nCartas: {currentPlayer.cardsBoughtThisTurn}/{PlayerData.MaxCardsPerTurn}";
         }
 
         if (roundText != null)
