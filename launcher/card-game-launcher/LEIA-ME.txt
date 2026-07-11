@@ -1,0 +1,75 @@
+============================================================
+ CARD GAME - LAUNCHER  (guia rapido)
+============================================================
+
+O QUE ISSO FAZ
+--------------
+Seu amigo abre o launcher e ele mesmo baixa a versao mais
+nova do jogo que voce publicou. Voce nunca mais precisa
+mandar a build por WhatsApp/Drive. So publica no GitHub e
+pronto - o launcher dele pega sozinho.
+
+
+============================================================
+ PARTE 1 - VOCE FAZ ISSO UMA VEZ SO
+============================================================
+
+1) Crie um repositorio PUBLICO no GitHub so para as builds:
+   - Entre em https://github.com/new
+   - Nome do repositorio:  card-game-releases
+   - Marque "Public"  (importante: precisa ser publico para o
+     download funcionar sem senha)
+   - Clique em "Create repository"
+
+   OBS: se voce usar OUTRO nome ou outra conta, abra o arquivo
+   Launcher.ps1 e ajuste as 3 linhas do topo (RepoOwner,
+   RepoName, AssetName).
+
+2) Mande a pasta 'launcher' inteira para o seu amigo UMA VEZ
+   (zip pelo WhatsApp/Drive/o que preferir). Ele guarda essa
+   pasta no PC dele. Nunca mais precisa reenviar.
+
+   Ele joga clicando duas vezes em:  "Play Card Game.vbs"
+
+   (Na primeira vez o Windows pode perguntar se confia no
+   arquivo - so mandar "Executar mesmo assim". Isso acontece
+   porque o launcher nao tem assinatura paga, e normal.)
+
+
+============================================================
+ PARTE 2 - TODA VEZ QUE VOCE QUISER ATUALIZAR O JOGO
+============================================================
+
+1) No Unity: File > Build Settings > Build.
+   Escolha uma pasta e gere a build (o card-game.exe + a
+   pasta card-game_Data etc.).
+
+2) Compacte o CONTEUDO dessa pasta de build num zip chamado
+   exatamente:  card-game.zip
+   (selecione os arquivos da build -> botao direito ->
+    "Enviar para" -> "Pasta compactada" -> renomeie para
+    card-game.zip)
+
+3) Publique no GitHub:
+   - Va em https://github.com/CarlosAlberto133/card-game-releases/releases/new
+   - Em "Choose a tag" escreva uma versao nova e clique em
+     "Create new tag". Use v1, depois v2, v3... (o launcher
+     compara essa tag para saber que mudou).
+   - Arraste o card-game.zip para a area de anexos.
+   - Clique em "Publish release".
+
+4) Pronto. Da proxima vez que seu amigo abrir o launcher, ele
+   vai ver "Baixando atualizacao..." e pegar a v2 sozinho.
+
+
+============================================================
+ DICAS
+============================================================
+- Sempre use uma TAG diferente a cada release (v1, v2, v3...).
+  Se repetir a tag, o launcher acha que nada mudou.
+- O nome do zip tem que ser sempre  card-game.zip
+- O launcher em si (esta pasta) so muda se EU alterar o
+  codigo dele. O JOGO atualiza sozinho; o launcher nao. Se um
+  dia mexermos no launcher, ai voce reenvia a pasta uma vez.
+- Testar do seu lado: apague o installed.txt e a pasta 'game'
+  (se existirem) e rode o launcher - ele baixa do zero.
