@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ba925473684ce5541bf2232ed40aba18, type: 3}
   m_Name: Tank-tier-4.4
   m_EditorClassIdentifier: Assembly-CSharp::Card
-  cardName: Tank tier 4
+  cardName: Tank 4
   cardClass: 0
   tier: 4
   artwork: {fileID: 21300000, guid: 38f648b08f29f514c9dcf2118c28e033, type: 3}

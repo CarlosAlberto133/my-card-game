@@ -62,6 +62,14 @@ public class TurnManager : MonoBehaviour
     // Pede para passar a vez. Em multiplayer, valida se é seu turno e sincroniza via RPC.
     public void RequestEndTurn()
     {
+        // Não deixa passar a vez com decisão de efeito pendente: o dano/efeito
+        // daquela decisão ainda vai ser aplicado e mudaria o estado fora de ordem
+        if (GameManager.IsDecisionPending())
+        {
+            Debug.Log("[TurnManager] Aguarde a decisão de efeito ser resolvida antes de passar a vez!");
+            return;
+        }
+
         if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
         {
             if (currentPlayerNumber != PhotonGameManager.Instance.myPlayerNumber)
@@ -197,49 +205,62 @@ public class TurnManager : MonoBehaviour
         // Rastrear quem passou a vez
         int previousPlayer = currentPlayerNumber;
 
-        // Passa para o próximo jogador
-        currentPlayerNumber = currentPlayerNumber == 1 ? 2 : 1;
+        // Round completa quando J2 passa a vez e volta para J1
+        bool roundCompleted = previousPlayer == 2;
 
-        // Ativa Healer tier-4 (ATK 4, HP 3) efeito: ganhar ouro ao fim do turno do oponente
-        ActivateHealerTier4OpponentTurnEnd(previousPlayer);
+        // IMPORTANTE: os efeitos de fim de turno rodam ANTES da troca de jogador.
+        // Efeitos que congelam/stunam aqui (Mage 5, Archer 4) precisam ver o
+        // "jogador atual" ainda como quem acabou de jogar — com a troca antes,
+        // a vítima recebia duração de "congelada no próprio turno" (2) e perdia
+        // DOIS turnos em vez de um.
 
-        // Ativa Tank 4 tier-4 (ATK 5, Shield 10, HP 10) efeito: +1 armadura a aliados
-        ActivateTankTier4Effect4Periodic();
-
-        // Ativa Healer 5 tier-5 (ATK 6, HP 3) efeito: cura todos aliados a cada turno
-        ActivateHealerTier5Effect2Periodic();
-
-        // Ativa Mage 5 tier-5 (ATK 8, HP 4) efeito: congela inimigos aleatórios uma vez por round
-        ActivateMageTier5Effect1Periodic();
-
-        // Ativa Mage 5 tier-5 (ATK 7, HP 5) efeito: aumenta ATK de todos Magos ao resetar turno
-        ActivateMageTier5Effect3Periodic();
-
-        // Ativa Tank 5 tier-5 (ATK 2, Shield 6, HP 8) efeito: concede armadura a cada 2 turnos
-        ActivateTankTier5Effect2Periodic();
-
-        // Reseta efeito de árvore, popup, descongelamento, desestunamento, marca de águia e efeitos de Healer tier-2
-        BoardManager board = BoardManager.Instance;
-        if (board != null)
+        // Nenhum modo de seleção de alvo pode sobreviver à passagem de turno —
+        // um modo preso sequestrava TODOS os cliques do tabuleiro (o jogador
+        // não conseguia mais mover nenhuma carta)
+        if (GameManager.Instance != null)
         {
-            foreach (var card in board.GetAllCards())
-            {
-                if (card != null)
-                {
-                    card.treeDefenseActive = false;
-                    card.treeDefensePopupShown = false;
-                    card.CheckAndUnfreeze(); // Descongelamento (Mage 3)
-                    card.CheckAndUnstun(); // Desestunamento (Archer tier-2)
-                    card.CheckAndUneagleMark(); // Remove marca de águia (Archer 3 tier-3)
-                    card.healerShieldUseCount = 0; // Reset usos de +armadura (Healer 2 ATK 1, HP 3)
-                }
-            }
+            GameManager.Instance.CancelAllTargetSelections();
         }
+
+        // Efeitos de fim de turno — CADA UM blindado: uma exceção aqui num
+        // cliente só abortava o EndTurn daquele lado e dessincronizava o turno
+        // (o outro sintoma de "não consigo mover nada"). Turno/round/ouro/loja
+        // precisam avançar SEMPRE, nos dois clientes.
+
+        // Healer tier-4 (ATK 4, HP 3): ganhar ouro quando o turno do OPONENTE acaba
+        try { ActivateHealerTier4OpponentTurnEnd(previousPlayer); }
+        catch (System.Exception e) { Debug.LogError($"[EndTurn] HealerTier4: {e}"); }
+
+        // Tank 4 tier-4 (ATK 5, Shield 10, HP 10): +1 armadura a aliados por turno
+        try { ActivateTankTier4Effect4Periodic(); }
+        catch (System.Exception e) { Debug.LogError($"[EndTurn] TankTier4E4: {e}"); }
+
+        // Healer 5 tier-5 (ATK 6, HP 3): cura todos aliados a cada turno
+        try { ActivateHealerTier5Effect2Periodic(); }
+        catch (System.Exception e) { Debug.LogError($"[EndTurn] HealerTier5E2: {e}"); }
+
+        // Mage 5 tier-5 (ATK 8, HP 4): congela inimigo aleatório uma vez por round
+        try { ActivateMageTier5Effect1Periodic(); }
+        catch (System.Exception e) { Debug.LogError($"[EndTurn] MageTier5E1: {e}"); }
+
+        // Mage 5 tier-5 (ATK 7, HP 5): aumenta ATK de todos Magos ao resetar turno
+        try { ActivateMageTier5Effect3Periodic(); }
+        catch (System.Exception e) { Debug.LogError($"[EndTurn] MageTier5E3: {e}"); }
+
+        // (Tank 5 ATK 2/Sh 6/HP 8 agora é dirigido pelo contador da carta — sem hook)
+
+        // Tique central: durações de status (congelada/stun/águia/invulnerável),
+        // contadores de efeito periódico e resets por turno
+        try { TickBoardOnTurnEnd(previousPlayer, roundCompleted); }
+        catch (System.Exception e) { Debug.LogError($"[EndTurn] TickBoard: {e}"); }
+
+        // Troca o jogador SÓ DEPOIS dos efeitos de fim de turno (ver nota acima)
+        currentPlayerNumber = previousPlayer == 1 ? 2 : 1;
 
         Debug.Log($"Turno passou para {GetCurrentPlayer().playerName}");
 
         // Verificar se completa o round (quando J2 passa vez e volta para J1)
-        if (previousPlayer == 2 && currentPlayerNumber == 1)
+        if (roundCompleted)
         {
             currentRound++;
             Debug.Log($"Round {currentRound} iniciado!");
@@ -280,10 +301,14 @@ public class TurnManager : MonoBehaviour
             return false;
         }
 
-        // Reset bem-sucedido, atualizar loja
+        // Reset bem-sucedido, atualizar loja. Em multiplayer cada jogador tem a
+        // própria loja: rerola SÓ a de quem pagou (executa nos dois clientes via RPC)
         if (CardManager.Instance != null)
         {
-            CardManager.Instance.RefreshShop();
+            if (PhotonNetwork.inRoom)
+                CardManager.Instance.RefreshShopForPlayer(currentPlayer.playerNumber);
+            else
+                CardManager.Instance.RefreshShop();
             Debug.Log($"Loja resetada! Custo: {cost} ouro");
         }
         else
@@ -339,18 +364,67 @@ public class TurnManager : MonoBehaviour
         Debug.Log("========== JOGO REINICIADO - AGUARDANDO NO LOBBY ==========");
     }
 
-    void ActivateHealerTier4OpponentTurnEnd(int opponentPlayerNumber)
+    // Sinaliza a fase 2 do tique (efeitos de contador disparando). Stuns/freezes
+    // criados nessa fase recebem duração 1 — nada os desconta na mesma passada
+    public static bool TickingCounterEffects = false;
+
+    // Tique central de fim de turno: durações de status, contadores de efeito
+    // periódico e resets por turno. Roda dentro do RPC_EndTurn = idêntico nos
+    // dois clientes (a ordem de GetAllCards é fixa por linha/coluna)
+    void TickBoardOnTurnEnd(int endedTurnPlayer, bool roundCompleted)
     {
         BoardManager board = BoardManager.Instance;
         if (board == null) return;
 
-        var opponentAllies = board.GetCardsByOwner(opponentPlayerNumber);
-        if (opponentAllies.Count == 0) return;
+        var cards = board.GetAllCards();
 
-        // Procura por Healer 4 (ATK 4, HP 3) no campo do oponente
-        foreach (var card in opponentAllies)
+        // FASE 1: resets por turno + durações de status (para TODAS as cartas,
+        // ANTES de qualquer efeito de contador disparar)
+        foreach (var card in cards)
         {
-            if (card != null && card.card.cardClass == CardClass.Healer &&
+            if (card == null || card.card == null) continue;
+
+            card.treeDefenseActive = false; // Dodge de árvore do Archer (por turno)
+            card.treeDefensePopupShown = false;
+            card.healerShieldUseCount = 0; // Usos de +armadura (Healer 2 ATK 1, HP 3)
+            card.tankTier4Effect2LastUsedRound = -1; // Intercepto do Tank 4: 1x por TURNO (era 1x por round)
+
+            card.TickStatusDurations(endedTurnPlayer, roundCompleted);
+        }
+
+        // FASE 2: contadores de efeito periódico/cooldown (podem stunar/congelar
+        // novos alvos — esses novos status duram exatamente 1 turno da vítima)
+        TickingCounterEffects = true;
+        try
+        {
+            foreach (var card in cards)
+            {
+                if (card == null || card.card == null) continue;
+                card.TickEffectCounter(roundCompleted);
+            }
+        }
+        finally
+        {
+            TickingCounterEffects = false;
+        }
+    }
+
+    // Healer 4 (ATK 4, HP 3): "Receba 1 ouro sempre que o turno do OPONENTE acabar".
+    // O beneficiário é o jogador que NÃO passou a vez (antes estava invertido:
+    // dava ouro a quem acabou o próprio turno)
+    void ActivateHealerTier4OpponentTurnEnd(int endedTurnPlayer)
+    {
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        int beneficiary = endedTurnPlayer == 1 ? 2 : 1;
+        var beneficiaryCards = board.GetCardsByOwner(beneficiary);
+        if (beneficiaryCards.Count == 0) return;
+
+        // Procura por Healer 4 (ATK 4, HP 3) no campo de quem NÃO jogou
+        foreach (var card in beneficiaryCards)
+        {
+            if (card != null && card.card != null && card.card.cardClass == CardClass.Healer &&
                 card.card.attack == 4 && card.card.health == 3 && card.card.tier == CardTier.Tier4)
             {
                 CardEffectSimple effect = card.GetComponent<CardEffectSimple>();
@@ -375,7 +449,7 @@ public class TurnManager : MonoBehaviour
 
             foreach (var card in playerAllies)
             {
-                if (card != null && card.card.cardClass == CardClass.Tank &&
+                if (card != null && card.card != null && card.card.cardClass == CardClass.Tank &&
                     card.card.attack == 5 && card.card.shield == 10 && card.card.health == 10 &&
                     card.card.tier == CardTier.Tier4)
                 {
@@ -402,7 +476,7 @@ public class TurnManager : MonoBehaviour
 
             foreach (var card in playerAllies)
             {
-                if (card != null && card.card.cardClass == CardClass.Healer &&
+                if (card != null && card.card != null && card.card.cardClass == CardClass.Healer &&
                     card.card.attack == 6 && card.card.health == 3 &&
                     card.card.tier == CardTier.Tier5)
                 {
@@ -429,7 +503,7 @@ public class TurnManager : MonoBehaviour
 
             foreach (var card in playerAllies)
             {
-                if (card != null && card.card.cardClass == CardClass.Mago &&
+                if (card != null && card.card != null && card.card.cardClass == CardClass.Mago &&
                     card.card.attack == 8 && card.card.health == 4 &&
                     card.card.tier == CardTier.Tier5)
                 {
@@ -461,7 +535,7 @@ public class TurnManager : MonoBehaviour
 
             foreach (var card in playerAllies)
             {
-                if (card != null && card.card.cardClass == CardClass.Mago &&
+                if (card != null && card.card != null && card.card.cardClass == CardClass.Mago &&
                     card.card.attack == 7 && card.card.health == 5 &&
                     card.card.tier == CardTier.Tier5)
                 {
@@ -475,35 +549,4 @@ public class TurnManager : MonoBehaviour
         }
     }
 
-    void ActivateTankTier5Effect2Periodic()
-    {
-        BoardManager board = BoardManager.Instance;
-        if (board == null) return;
-
-        // Procura por Tank 5 tier-5 (ATK 2, Shield 6, HP 8) em ambos os jogadores
-        for (int playerNum = 1; playerNum <= 2; playerNum++)
-        {
-            var playerAllies = board.GetCardsByOwner(playerNum);
-            if (playerAllies.Count == 0) continue;
-
-            foreach (var card in playerAllies)
-            {
-                if (card != null && card.card.cardClass == CardClass.Tank &&
-                    card.card.attack == 2 && card.card.shield == 6 && card.card.health == 8 &&
-                    card.card.tier == CardTier.Tier5)
-                {
-                    // Verifica se já foi usado há 2 turnos atrás
-                    if (currentRound - card.tankTier5Effect2LastArmorRound >= 2)
-                    {
-                        CardEffectSimple effect = card.GetComponent<CardEffectSimple>();
-                        if (effect != null)
-                        {
-                            effect.ActivatePeriodicShieldTier5Effect2();
-                            card.tankTier5Effect2LastArmorRound = currentRound;
-                        }
-                    }
-                }
-            }
-        }
-    }
 }

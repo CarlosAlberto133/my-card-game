@@ -13,14 +13,21 @@ public class CardManager : MonoBehaviour
     [Header("Configurações de Spawn")]
     public int numberOfCards = 5;
     public Vector3 centerPosition = new Vector3(0, 1.5f, 0);
-    public Vector3 shopPosition = new Vector3(10, 1.5f, 0); // Posição à direita do tabuleiro
+    public Vector3 shopPosition = new Vector3(-35.4f, 1.5f, 0); // Posição ao lado do tabuleiro
     public float cardSpacing = 4f;
     public float cardScale = 1.5f;
 
-    private List<GameObject> spawnedCards = new List<GameObject>();
+    // Lojas: em multiplayer cada jogador tem a SUA (índices 1 e 2); no modo offline
+    // todos usam a loja compartilhada (índice 0). Os DOIS clientes geram as DUAS
+    // lojas (determinístico via seed), mas cada um só mostra a própria — a do
+    // oponente existe desativada, para a compra dele executar aqui também.
+    private List<GameObject>[] shops = new List<GameObject>[]
+    {
+        new List<GameObject>(), new List<GameObject>(), new List<GameObject>()
+    };
+    private int[] shopSpawnCounts = new int[3]; // Spawns por loja (deriva seed única por spawn)
     private Vector3 currentSpawnPosition;
     private bool verticalLayout = false; // Se true, cartas ficam uma abaixo da outra
-    private int shopSpawnCount = 0; // Quantas vezes a loja já foi gerada (para derivar seed única por spawn)
 
     void Awake()
     {
@@ -41,7 +48,9 @@ public class CardManager : MonoBehaviour
         // Altura correta para a nova escala (a base da carta não pode afundar no chão)
         float shopY = CardDisplay.GroundY(cardScale);
         centerPosition = new Vector3(centerPosition.x, shopY, centerPosition.z);
-        shopPosition = new Vector3(shopPosition.x, shopY, shopPosition.z);
+        // X forçado por código (a cena tem -42 serializado, do tabuleiro 12x12):
+        // tabuleiro 10x10 tem borda em -32.7, loja fica com a mesma folga de antes
+        shopPosition = new Vector3(-35.4f, shopY, 0f);
 
         // Inicialmente no centro (lobby)
         currentSpawnPosition = centerPosition;
@@ -72,14 +81,52 @@ public class CardManager : MonoBehaviour
         // Pressione R para spawnar novas cartas aleatórias (para teste)
         if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
         {
+            // Em multiplayer NÃO: um refresh local sem RPC dessincronizaria as lojas
+            if (PhotonNetwork.inRoom) return;
             RefreshCards();
         }
+    }
+
+    // Em multiplayer cada jogador tem loja própria; offline todos usam a loja 0
+    bool UsePerPlayerShops()
+    {
+        return PhotonNetwork.inRoom;
+    }
+
+    // Número da loja que ESTE cliente vê (0 = compartilhada no offline)
+    int LocalShopNumber()
+    {
+        if (UsePerPlayerShops() && PhotonGameManager.Instance != null)
+            return PhotonGameManager.Instance.myPlayerNumber;
+        return 0;
+    }
+
+    List<GameObject> GetShopList(int shopNumber)
+    {
+        if (shopNumber < 0 || shopNumber > 2) return shops[0];
+        return shops[shopNumber];
     }
 
     public void SpawnRandomCards()
     {
         Debug.Log("[CardManager] SpawnRandomCards() chamado");
 
+        if (UsePerPlayerShops())
+        {
+            // Ordem FIXA (P1 depois P2): os dois clientes consomem o pool de cartas
+            // na mesma sequência, então as duas lojas saem idênticas nos dois lados
+            SpawnShopForPlayer(1);
+            SpawnShopForPlayer(2);
+        }
+        else
+        {
+            SpawnShopForPlayer(0);
+        }
+    }
+
+    // Gera a loja de um jogador (0 = loja compartilhada do modo offline)
+    public void SpawnShopForPlayer(int shopNumber)
+    {
         // Sincroniza seed com PhotonGameManager para gerar mesmas cartas em ambos
         if (PhotonGameManager.Instance != null)
         {
@@ -87,12 +134,13 @@ public class CardManager : MonoBehaviour
 
             if (baseSeed > 0)
             {
-                // Deriva uma seed diferente a cada spawn (senão o refresh repetiria a mesma loja),
-                // mas determinística: ambos os clientes fazem o mesmo número de spawns
-                int derivedSeed = baseSeed + shopSpawnCount * 7919;
+                // Seed única por spawn E por loja. O 104729 (primo, não múltiplo de
+                // 7919) separa a sequência do P2 da do P1 sem risco de colisão.
+                int derivedSeed = baseSeed + shopSpawnCounts[shopNumber] * 7919
+                                + (shopNumber == 2 ? 104729 : 0);
                 UnityEngine.Random.InitState(derivedSeed);
-                shopSpawnCount++;
-                Debug.Log($"[CardManager] Aplicado Random.InitState({derivedSeed}) (spawn #{shopSpawnCount})");
+                shopSpawnCounts[shopNumber]++;
+                Debug.Log($"[CardManager] Random.InitState({derivedSeed}) (loja {shopNumber}, spawn #{shopSpawnCounts[shopNumber]})");
             }
             else
             {
@@ -100,8 +148,10 @@ public class CardManager : MonoBehaviour
             }
         }
 
-        // Limpa cartas anteriores
-        ClearSpawnedCards();
+        List<GameObject> shop = GetShopList(shopNumber);
+
+        // Limpa cartas anteriores desta loja
+        ClearShopCards(shop);
 
         if (cardPool == null)
         {
@@ -113,6 +163,10 @@ public class CardManager : MonoBehaviour
             Debug.LogError("CardPool não encontrado!");
             return;
         }
+
+        // Este cliente só MOSTRA a própria loja; a do oponente fica desativada
+        // (invisível e inclicável), mas pronta para a compra dele executar aqui
+        bool hiddenShop = UsePerPlayerShops() && shopNumber != LocalShopNumber();
 
         // Spawna cartas aleatórias
         for (int i = 0; i < numberOfCards; i++)
@@ -139,9 +193,11 @@ public class CardManager : MonoBehaviour
                 }
 
                 GameObject cardObject = SpawnCard(randomCard.cardData, position);
-                spawnedCards.Add(cardObject);
+                if (cardObject == null) continue;
+                if (hiddenShop) cardObject.SetActive(false);
+                shop.Add(cardObject);
 
-                Debug.Log($"Spawnou: {randomCard.cardData.cardName} (ID: {randomCard.instanceId})");
+                Debug.Log($"Spawnou (loja {shopNumber}): {randomCard.cardData.cardName} (ID: {randomCard.instanceId})");
             }
         }
     }
@@ -160,33 +216,48 @@ public class CardManager : MonoBehaviour
         Debug.Log("========== CardManager: OnGameStart Completo ==========");
     }
 
-    // Retorna o índice de uma carta na loja (-1 se não está na loja)
+    // Retorna o índice de uma carta na loja LOCAL (-1 se não está na loja).
+    // Só cartas da própria loja são clicáveis, então buscar na local basta.
     public int GetShopCardIndex(GameObject cardObject)
     {
-        return spawnedCards.IndexOf(cardObject);
+        return GetShopList(LocalShopNumber()).IndexOf(cardObject);
     }
 
-    // Retorna a carta da loja em um índice específico
+    // Retorna a carta da loja LOCAL em um índice específico (overlay, cliques)
     public GameObject GetShopCard(int index)
     {
-        if (index < 0 || index >= spawnedCards.Count) return null;
-        return spawnedCards[index];
+        return GetShopCard(index, LocalShopNumber());
     }
 
+    // Retorna a carta da loja de um jogador específico (o RPC de compra usa a
+    // loja do COMPRADOR, que neste cliente pode ser a loja oculta do oponente)
+    public GameObject GetShopCard(int index, int shopNumber)
+    {
+        if (!UsePerPlayerShops()) shopNumber = 0;
+        List<GameObject> shop = GetShopList(shopNumber);
+        if (index < 0 || index >= shop.Count) return null;
+        return shop[index];
+    }
+
+    // Refresh de TODAS as lojas (virada de round)
     public void RefreshShop()
     {
-        Debug.Log("CardManager: Refresh da loja com 5 novas cartas!");
-        Debug.Log($"Cartas antes do refresh: {spawnedCards.Count}");
+        Debug.Log("CardManager: Refresh das lojas com novas cartas!");
         SpawnRandomCards();
-        Debug.Log($"Cartas após refresh: {spawnedCards.Count}");
     }
 
-    void ClearSpawnedCards()
+    // Reset pago: rerola SÓ a loja de quem pagou (chega aos dois clientes via RPC)
+    public void RefreshShopForPlayer(int playerNumber)
+    {
+        SpawnShopForPlayer(UsePerPlayerShops() ? playerNumber : 0);
+    }
+
+    void ClearShopCards(List<GameObject> shop)
     {
         int destroyed = 0;
         int preserved = 0;
 
-        foreach (GameObject card in spawnedCards)
+        foreach (GameObject card in shop)
         {
             if (card != null)
             {
@@ -200,6 +271,13 @@ public class CardManager : MonoBehaviour
                     continue;
                 }
 
+                // Devolve a cópia não comprada ao pool — com duas lojas, o consumo
+                // dobrou e sem isso o pool esvaziava no fim da partida
+                if (cardPool != null && cardDisplay != null && cardDisplay.card != null)
+                {
+                    cardPool.ReturnCardCopyToDeck(cardDisplay.card);
+                }
+
                 // Só destrói cartas que ainda estão na loja
                 Destroy(card);
                 destroyed++;
@@ -211,22 +289,23 @@ public class CardManager : MonoBehaviour
         // Esvazia a lista COMPLETA: as destruídas ainda não são "null" neste frame
         // (Destroy é adiado), e as preservadas já saíram da loja (mão/tabuleiro).
         // Sem isso, a lista acumulava entradas mortas e os índices da loja ficavam errados.
-        spawnedCards.Clear();
+        shop.Clear();
     }
 
     public void DestroyAllCards()
     {
-        Debug.Log($"Destruindo TODAS as cartas ({spawnedCards.Count} cartas)...");
-
-        foreach (GameObject card in spawnedCards)
+        foreach (List<GameObject> shop in shops)
         {
-            if (card != null)
+            foreach (GameObject card in shop)
             {
-                Destroy(card);
+                if (card != null)
+                {
+                    Destroy(card);
+                }
             }
+            shop.Clear();
         }
 
-        spawnedCards.Clear();
         Debug.Log("Todas as cartas foram destruídas!");
     }
 

@@ -19,4 +19,4 @@ MonoBehaviour:
   attack: 3
   shield: 0
   health: 3
-  effectDescription: "Conceda +1 de ataque a todas as cartas na m\xE3o"
+  effectDescription: Conceda +1 de ataque a todas as cartas no campo

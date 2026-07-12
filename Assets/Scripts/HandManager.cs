@@ -22,11 +22,14 @@ public class HandManager : MonoBehaviour
         // Força por código (valor da cena estava desatualizado): cartas na mão
         // agora têm escala 2 (3.6 de largura), espaçamento 4 evita sobreposição
         cardSpacing = 4f;
+        // Limite da mão: 8 cartas (o valor serializado na cena era 10)
+        maxCardsInHand = 8;
         // Altura correta para a nova escala (a base da carta não afunda no chão)
         handYPosition = CardDisplay.GroundY(CardDisplay.HandScale);
         // Mão mais afastada do tabuleiro (cartas 2x maiores invadiam a visão do campo).
-        // Cada jogador tem a mão do seu lado: P1 embaixo (-Z), P2 em cima (+Z)
-        handZPosition = playerNumber == 2 ? 46f : -46f;
+        // Cada jogador tem a mão do seu lado: P1 embaixo (-Z), P2 em cima (+Z).
+        // Tabuleiro 10x10: borda em 32.7 + folga 6.7 = 39.4 (no 12x12 era 39.3 + 6.7 = 46)
+        handZPosition = playerNumber == 2 ? 39.4f : -39.4f;
     }
 
     // Adiciona uma carta à mão

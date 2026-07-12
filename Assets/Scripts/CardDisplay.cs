@@ -20,9 +20,7 @@ public class CardDisplay : MonoBehaviour
     public bool treeDefensePopupShown = false; // Rastreia se o popup já foi mostrado neste turno
     public bool healOnEnterUsed = false; // Healer 2: rastreia se já usou o efeito ao entrar em campo
     public bool isFrozen = false; // Mage 3: carta está congelada, não pode se mover/atacar/ativar efeito
-    public int frozenAtRound = -1; // Mage 3: round em que foi congelada
     public bool isStunned = false; // Archer tier-2: carta está stunada, não pode se mover/atacar
-    public int stunnedAtRound = -1; // Archer tier-2: round em que foi stunada
     public bool archerShieldArrowUsed = false; // Archer 2 (ATK 3, HP 2): efeito de parar ataque já foi usado
     public bool archerStunOnHitUsed = false; // Archer 2 (ATK 3, HP 1): efeito de stun ao receber ataque já foi usado
     public bool archerComboActivated = false; // Archer tier-2 combo: +5 ATK já foi ativado
@@ -30,7 +28,6 @@ public class CardDisplay : MonoBehaviour
     public int healerShieldUseCount = 0; // Healer 2 (ATK 1, HP 3): vezes usado +armadura neste turno
     public bool healerComboActivated = false; // Healer tier-2 combo: restauração de ouro/vida já foi ativada
     public bool eagleMarked = false; // Archer 3 (ATK 4, HP 2): marcado pela águia, não pode atacar
-    public int eagleMarkedRound = -1; // Archer 3 (ATK 4, HP 2): round em que foi marcado pela águia
     public int moveCountThisRound = 0; // Archer 3 (ATK 3, HP 2): contador de movimentações neste turno (máx 2 se tem Mago)
     public int lastMoveCountRound = -1; // Archer 3 (ATK 3, HP 2): último round em que moveu (para resetar contador)
     public bool archerTier3Effect1Used = false; // Archer 3 (ATK 4, HP 2): águia já foi invocada nesta partida
@@ -42,7 +39,6 @@ public class CardDisplay : MonoBehaviour
     public bool healerTier3Effect4Used = false; // Healer 3 (ATK 1, HP 2): ouro por Mago já foi ganho nesta partida
     public bool mageTier3Effect1Used = false; // Mage 3 (ATK 0, HP 1): roubo de status já foi feito nesta partida
     public bool mageTier3Effect2Used = false; // Mage 3 (ATK 4, HP 4): +1 ATK para todos já foi feito nesta partida
-    public bool mageTier3Effect3Used = false; // Mage 3 (ATK 3, HP 2): congelamento/dano já foi feito nesta partida
     public bool mageTier3Effect4Used = false; // Mage 3 (ATK 3, HP 3): +1 ATK na mão já foi feito nesta partida
     public bool tankTier3Effect1Used = false; // Tank 3 (ATK 2, Shield 3, HP 4): +2 armadura Healers já foi feito nesta partida
     public bool tankTier3Effect3Used = false; // Tank 3 (ATK 2, Shield 2, HP 5): +2 armadura por Tank já foi feito nesta partida
@@ -92,6 +88,25 @@ public class CardDisplay : MonoBehaviour
     private bool hoverLifted = false;
     private bool isMouseOver = false; // Flag para saber se o mouse está sobre a carta
 
+    // Verso da carta: na mão do OPONENTE você não vê a frente, só o verso
+    public bool isFaceDown = false;
+    private GameObject backCover; // Encarte opaco criado sob demanda sobre a frente
+
+    // ===== Durações de status e contadores de efeito (só mudam dentro de RPCs) =====
+    // Congelamento/atordoamento contam fins de turno DO DONO da carta (a carta
+    // perde exatamente 1 turno dela); águia conta fins de turno globais.
+    public int freezeTurnsLeft = 0;
+    public int stunTurnsLeft = 0;
+    public int eagleTurnsLeft = 0;
+    public int invulnerableRoundsLeft = 0; // Healer 4 (ATK 5, HP 3): invulnerável por 3 ROUNDS
+
+    // Contador visível acima da carta (amarelo = turnos, rosa = rounds).
+    // effectPeriod > 0: ao chegar em 0 o efeito dispara e o contador renova.
+    // effectPeriod == 0: é um cooldown — ao chegar em 0 só esconde (pronto para usar).
+    public int effectCounter = -1; // -1 = sem contador visível
+    public int effectPeriod = 0;
+    public bool effectCounterIsRound = false;
+
     [Header("UI Elements (Assign in Inspector)")]
     public TextMeshPro cardNameText;
     public TextMeshPro attackText;
@@ -125,8 +140,13 @@ public class CardDisplay : MonoBehaviour
             UpdateCardDisplay();
         }
 
-        // Encontra o HandManager
-        handManager = FindObjectOfType<HandManager>();
+        // Encontra o HandManager. NÃO sobrescreve se já foi definido: cartas da
+        // loja oculta do oponente são compradas ANTES do Start rodar (o objeto
+        // nasce desativado), e ExecuteBuy já apontou para a mão correta.
+        if (handManager == null)
+        {
+            handManager = FindObjectOfType<HandManager>();
+        }
     }
 
     void Update()
@@ -146,6 +166,13 @@ public class CardDisplay : MonoBehaviour
                     // Botão direito do mouse ou tecla A para atacar
                     if (mouse.rightButton.wasPressedThisFrame || keyboard.aKey.wasPressedThisFrame)
                     {
+                        // Decisão de efeito pendente: nenhuma ação nova até resolver
+                        if (GameManager.IsDecisionPending())
+                        {
+                            Debug.Log("[CardDisplay] Aguarde a decisão de efeito ser resolvida!");
+                            return;
+                        }
+
                         // Em multiplayer, só ataca no SEU turno e via RPC (executa nos dois clientes)
                         if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
                         {
@@ -357,6 +384,13 @@ public class CardDisplay : MonoBehaviour
         else if (card.cardClass == CardClass.Tank)
             effect.TankEffect();
 
+        // Liga o contador visível dos efeitos periódicos desta carta
+        // (amarelo = turnos, rosa = rounds; ticado pelo TurnManager)
+        if (isOnBoard)
+        {
+            effect.SetupPeriodicCounter();
+        }
+
         // Hook: Mage 4 (ATK 6, HP 6) ganha +1 ATK quando Healer entra em campo
         if (card.cardClass == CardClass.Healer && ownerPlayerNumber != 0)
         {
@@ -510,6 +544,19 @@ public class CardDisplay : MonoBehaviour
         visuals.SetStunned(isStunned);
         visuals.SetEagleMark(eagleMarked);
 
+        // Número acima da carta: duração de status tem prioridade sobre o
+        // contador de efeito periódico. Amarelo = turnos, rosa = rounds.
+        int counterShown = -1;
+        bool counterIsRound = false;
+        if (isFrozen && freezeTurnsLeft > 0) { counterShown = freezeTurnsLeft; }
+        else if (isStunned && stunTurnsLeft > 0) { counterShown = stunTurnsLeft; }
+        else if (eagleMarked && eagleTurnsLeft > 0) { counterShown = eagleTurnsLeft; }
+        else if (invulnerableRoundsLeft > 0) { counterShown = invulnerableRoundsLeft; counterIsRound = true; }
+        else if (isOnBoard && effectCounter > 0) { counterShown = effectCounter; counterIsRound = effectCounterIsRound; }
+
+        if (counterShown > 0) visuals.SetEffectCounter(counterShown, counterIsRound);
+        else visuals.HideEffectCounter();
+
         if (statsTracked)
         {
             bool increased = currentAttack > lastShownAttack ||
@@ -603,6 +650,87 @@ public class CardDisplay : MonoBehaviour
         r.material = new Material(shader);
     }
 
+    // ============ VERSO DA CARTA (mão do oponente) ============
+
+    // Mostra/esconde o verso: um encarte opaco por cima da frente da carta.
+    // O dono vê a carta normal no cliente dele; o oponente vê só o verso.
+    public void SetFaceDown(bool faceDown)
+    {
+        isFaceDown = faceDown;
+
+        if (faceDown && backCover == null)
+        {
+            BuildBackCover();
+        }
+
+        if (backCover != null)
+        {
+            backCover.SetActive(faceDown);
+        }
+    }
+
+    // Monta o verso em runtime (o prefab não tem verso salvo — mesma regra dos
+    // materiais: nada de depender de material serializado do prefab)
+    void BuildBackCover()
+    {
+        backCover = new GameObject("BackCover");
+        backCover.transform.SetParent(transform, false);
+
+        // Camadas locais ACIMA de toda a frente da carta (borda 0.000 → textos 0.012)
+        MakeCoverQuad("CoverBase", 1.94f, 2.64f, 0.020f, new Color(0.05f, 0.06f, 0.12f));
+        MakeCoverQuad("CoverPanel", 1.70f, 2.40f, 0.023f, new Color(0.10f, 0.12f, 0.22f));
+
+        // Logo dourado no centro (filho do BackCover, então o filtro de TMPs
+        // desconhecidos do ApplyCardTheme não o atinge)
+        GameObject logoObj = new GameObject("CoverLogo");
+        logoObj.transform.SetParent(backCover.transform, false);
+        logoObj.transform.localPosition = new Vector3(0f, 0.026f, 0f);
+        logoObj.transform.localRotation = Quaternion.Euler(90f, 180f, 0f);
+
+        TextMeshPro logo = logoObj.AddComponent<TextMeshPro>();
+        logo.text = "CARD\nGAME";
+        logo.fontSize = 3.2f;
+        logo.fontStyle = FontStyles.Bold;
+        logo.alignment = TextAlignmentOptions.Center;
+        logo.color = new Color(0.96f, 0.77f, 0.32f);
+        logo.richText = false;
+        logo.rectTransform.sizeDelta = new Vector2(1.7f, 2.4f);
+    }
+
+    void MakeCoverQuad(string quadName, float width, float height, float yLayer, Color color)
+    {
+        GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        quad.name = quadName;
+        quad.transform.SetParent(backCover.transform, false);
+        quad.transform.localPosition = new Vector3(0f, yLayer, 0f);
+        quad.transform.localRotation = Quaternion.Euler(90f, 0f, 0f); // Mesma orientação da frente
+        quad.transform.localScale = new Vector3(width, height, 1f);
+
+        // Sem collider: o verso não pode roubar cliques
+        Collider quadCollider = quad.GetComponent<Collider>();
+        if (quadCollider != null) Destroy(quadCollider);
+
+        Renderer r = quad.GetComponent<Renderer>();
+        if (r != null)
+        {
+            // NÃO usar o material padrão do CreatePrimitive: ele usa o shader
+            // Standard, que o build URP remove — no editor aparece, no build o
+            // quad fica INVISÍVEL (e a carta continua legível por baixo).
+            // Sprites/Default está em Always Included Shaders (mesmo truque do
+            // CardStatusVisuals, comprovado no build).
+            Shader shader = Shader.Find("Sprites/Default")
+                         ?? Shader.Find("Universal Render Pipeline/Unlit")
+                         ?? Shader.Find("Unlit/Color");
+            if (shader != null)
+            {
+                Material mat = new Material(shader);
+                mat.color = color;
+                mat.SetColor("_BaseColor", color);
+                r.material = mat;
+            }
+        }
+    }
+
     Color GetTierColor(CardTier tier)
     {
         switch (tier)
@@ -684,6 +812,17 @@ public class CardDisplay : MonoBehaviour
         if (card == null)
         {
             Debug.LogWarning("Carta não foi inicializada ainda!");
+            return;
+        }
+
+        // Carta virada para baixo (mão do oponente): não interage
+        if (isFaceDown) return;
+
+        // Decisão de efeito pendente (popup seu ou o oponente decidindo):
+        // nenhuma ação nova até resolver
+        if (GameManager.IsDecisionPending())
+        {
+            Debug.Log("[CardDisplay] Aguarde a decisão de efeito ser resolvida!");
             return;
         }
 
@@ -827,8 +966,11 @@ public class CardDisplay : MonoBehaviour
             }
         }
 
+        // Compra grátis pendente (Healer 5): ignora limite de compras e ouro
+        bool freeBuy = currentPlayer.freePurchases > 0;
+
         // Verifica se o jogador já comprou sua carta neste turno
-        if (!currentPlayer.CanBuyCard())
+        if (!freeBuy && !currentPlayer.CanBuyCard())
         {
             return;
         }
@@ -836,8 +978,16 @@ public class CardDisplay : MonoBehaviour
         int cost = card.GetGoldCost();
 
         // Verifica se o jogador tem ouro suficiente
-        if (!currentPlayer.HasEnoughGold(cost))
+        if (!freeBuy && !currentPlayer.HasEnoughGold(cost))
         {
+            return;
+        }
+
+        // Mão cheia: bloqueia ANTES de enviar o RPC (não gasta ouro à toa)
+        HandManager buyerHand = GetHandManagerForPlayer(currentPlayer.playerNumber);
+        if (buyerHand != null && buyerHand.IsHandFull())
+        {
+            Debug.Log($"[CardDisplay] Mão cheia (máximo {buyerHand.maxCardsInHand} cartas)! Jogue cartas antes de comprar.");
             return;
         }
 
@@ -863,33 +1013,61 @@ public class CardDisplay : MonoBehaviour
     {
         PlayerData buyer = TurnManager.Instance.GetPlayer(buyerPlayerNumber);
 
-        // Deduz o ouro e marca a compra do turno
+        // Checa a mão ANTES de gastar ouro: se estiver cheia, a compra é abortada
+        // nos DOIS clientes (mãos são espelhadas, então a decisão é a mesma)
+        HandManager correctHandManager = GetHandManagerForPlayer(buyerPlayerNumber);
+        if (correctHandManager == null)
+        {
+            Debug.LogError($"HandManager para {buyer.playerName} não encontrado!");
+            return;
+        }
+        if (correctHandManager.IsHandFull())
+        {
+            Debug.Log($"[CardDisplay] Mão de {buyer.playerName} cheia — compra cancelada.");
+            return;
+        }
+
+        // Neste cliente a carta pode estar na loja OCULTA do oponente: reativa
+        // (na mão ela volta a existir para os dois, como verso para quem não é dono)
+        if (!gameObject.activeSelf)
+        {
+            gameObject.SetActive(true);
+        }
+
+        // Deduz o ouro e marca a compra do turno. Compra grátis (Healer 5): não
+        // gasta ouro nem consome o limite de compras — decisão idêntica nos dois
+        // clientes, pois freePurchases só muda dentro de RPCs
         int cost = card.GetGoldCost();
-        buyer.BuyCard(cost);
+        if (buyer.freePurchases > 0)
+        {
+            buyer.freePurchases--;
+            Debug.Log($"[CardDisplay] {buyer.playerName} usou a COMPRA GRÁTIS em {card.cardName}! (restam {buyer.freePurchases})");
+        }
+        else
+        {
+            buyer.BuyCard(cost);
+            Debug.Log($"[CardDisplay] {buyer.playerName} comprou {card.cardName} por {cost} ouro. Ouro restante: {buyer.gold}");
+        }
         SoundManager.Play(SoundManager.Sound.Buy);
-        Debug.Log($"[CardDisplay] {buyer.playerName} comprou {card.cardName} por {cost} ouro. Ouro restante: {buyer.gold}");
 
         // Remove da loja e adiciona à mão DO JOGADOR CORRETO
         isInShop = false;
         ownerPlayerNumber = buyerPlayerNumber; // Define o dono da carta
         UpdateCardDisplay(); // Atualiza a borda com a cor do dono
 
-        // Busca o HandManager do jogador correto
-        HandManager correctHandManager = GetHandManagerForPlayer(buyerPlayerNumber);
+        bool added = correctHandManager.AddCardToHand(gameObject);
+        if (added)
+        {
+            isInHand = true;
+            handManager = correctHandManager; // Atualiza a referência
+            transform.localScale = Vector3.one * HandScale; // Tamanho da mão
 
-        if (correctHandManager != null)
-        {
-            bool added = correctHandManager.AddCardToHand(gameObject);
-            if (added)
+            // Carta do OPONENTE: este cliente vê apenas o verso dela na mão
+            if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null &&
+                buyerPlayerNumber != PhotonGameManager.Instance.myPlayerNumber)
             {
-                isInHand = true;
-                handManager = correctHandManager; // Atualiza a referência
-                transform.localScale = Vector3.one * HandScale; // Tamanho da mão
+                SetFaceDown(true);
             }
-        }
-        else
-        {
-            Debug.LogError($"HandManager para {buyer.playerName} não encontrado!");
         }
     }
 
@@ -976,14 +1154,29 @@ public class CardDisplay : MonoBehaviour
         }
 
 
-        // Verifica os 4 tiles adjacentes (cima, baixo, esquerda, direita)
-        int[][] directions = new int[][]
+        // Alcance: todas as cartas atacam a 1 casa nas 4 direções; MAGOS e
+        // ARQUEIROS alcançam também 2 casas em linha reta (cruz estendida),
+        // atirando por cima de qualquer carta que esteja na casa do meio.
+        // A ordem é FIXA e as casas próximas vêm primeiro: determinístico nos
+        // dois clientes e o ataque automático prefere o inimigo mais perto.
+        bool longRange = card != null &&
+            (card.cardClass == CardClass.Arqueiro || card.cardClass == CardClass.Mago);
+
+        var directions = new System.Collections.Generic.List<int[]>
         {
             new int[] { -1, 0 },  // Cima
             new int[] { 1, 0 },   // Baixo
             new int[] { 0, -1 },  // Esquerda
             new int[] { 0, 1 }    // Direita
         };
+
+        if (longRange)
+        {
+            directions.Add(new int[] { -2, 0 });  // Cima x2
+            directions.Add(new int[] { 2, 0 });   // Baixo x2
+            directions.Add(new int[] { 0, -2 });  // Esquerda x2
+            directions.Add(new int[] { 0, 2 });   // Direita x2
+        }
 
         foreach (int[] dir in directions)
         {
@@ -1097,9 +1290,8 @@ public class CardDisplay : MonoBehaviour
                 if (card.attack == 5 && card.health == 3)
                     effect.ActivateDoubleAttackHealer(target);
 
-                // Efeito 2: Stun Every 2 Turns (ATK 6, HP 3)
-                if (card.attack == 6 && card.health == 3)
-                    effect.ActivateStunEvery2Turns(target);
+                // (Efeito 2 do ATK 6/HP 3 — stun — agora dispara ao ENTRAR em campo
+                // e a cada 2 turnos via contador, não mais no ataque)
 
                 // Efeito 4: Extra Move on Side Attack (ATK 6, HP 2)
                 if (card.attack == 6 && card.health == 2)
@@ -1231,6 +1423,13 @@ public class CardDisplay : MonoBehaviour
     // Recebe dano (primeiro absorve no escudo, depois na vida)
     public void TakeDamage(int damage)
     {
+        // Invulnerabilidade (Healer 4, dura 3 ROUNDS): nega qualquer dano
+        if (invulnerableRoundsLeft > 0)
+        {
+            Debug.Log($"[Invulnerável] {card.cardName} está invulnerável e negou o dano!");
+            return;
+        }
+
         // Se o efeito de árvore está ativo, nega o dano
         if (treeDefenseActive)
         {
@@ -1768,54 +1967,39 @@ public class CardDisplay : MonoBehaviour
         return copiedCard;
     }
 
-    // Congela a carta por 1 turno (Mage 3)
+    // Congela a carta por 1 turno DELA (Mage 3). Se congelada durante o próprio
+    // turno, ainda perde o turno seguinte inteiro (contador 2, tica no fim do
+    // turno do dono); congelada no turno do adversário, perde o próximo (1).
     public void Freeze()
     {
         if (TurnManager.Instance == null) return;
 
         isFrozen = true;
-        frozenAtRound = TurnManager.Instance.currentRound;
+        freezeTurnsLeft = StatusDurationForVictim();
         UpdateCardDisplay(); // Tinge a carta de azul-gelo
-        Debug.Log($"[Freeze] {card.cardName} foi congelada! Descongelará no próximo turno");
+        Debug.Log($"[Freeze] {card.cardName} foi congelada por {freezeTurnsLeft} turno(s) dela!");
     }
 
-    // Descongelamento automático ao passar o turno
-    public void CheckAndUnfreeze()
-    {
-        if (!isFrozen || TurnManager.Instance == null) return;
-
-        if (TurnManager.Instance.currentRound > frozenAtRound)
-        {
-            isFrozen = false;
-            frozenAtRound = -1;
-            UpdateCardDisplay(); // Restaura a cor normal da carta
-            Debug.Log($"[Unfreeze] {card.cardName} foi descongelada!");
-        }
-    }
-
-    // Stuna a carta por 1 turno (Archer tier-2)
+    // Stuna a carta por 1 turno DELA (Archer tier-2) — mesma regra do congelamento
     public void Stun()
     {
         if (TurnManager.Instance == null) return;
 
         isStunned = true;
-        stunnedAtRound = TurnManager.Instance.currentRound;
+        stunTurnsLeft = StatusDurationForVictim();
         UpdateCardDisplay(); // Mostra o overlay "ATORDOADA"
-        Debug.Log($"[Stun] {card.cardName} foi stunada! Desestunará no próximo turno");
+        Debug.Log($"[Stun] {card.cardName} foi stunada por {stunTurnsLeft} turno(s) dela!");
     }
 
-    // Desestunamento automático ao passar o turno
-    public void CheckAndUnstun()
+    // Duração para a vítima perder EXATAMENTE 1 turno dela:
+    // - Congelada durante o próprio turno: 2 (o fim do turno atual dela desconta 1)
+    // - Congelada no turno do adversário: 1
+    // - Congelada por efeito de CONTADOR na passagem de turno (fase 2 do tique,
+    //   que roda depois da fase de descontos): 1 — nada desconta nesta passada
+    int StatusDurationForVictim()
     {
-        if (!isStunned || TurnManager.Instance == null) return;
-
-        if (TurnManager.Instance.currentRound > stunnedAtRound)
-        {
-            isStunned = false;
-            stunnedAtRound = -1;
-            UpdateCardDisplay(); // Remove o overlay "ATORDOADA"
-            Debug.Log($"[Unstun] {card.cardName} foi desestunada!");
-        }
+        if (TurnManager.TickingCounterEffects) return 1;
+        return TurnManager.Instance.currentPlayerNumber == ownerPlayerNumber ? 2 : 1;
     }
 
     // Marca a carta com a águia por 2 turnos (Archer 3, ATK 4, HP 2)
@@ -1824,22 +2008,99 @@ public class CardDisplay : MonoBehaviour
         if (TurnManager.Instance == null) return;
 
         eagleMarked = true;
-        eagleMarkedRound = TurnManager.Instance.currentRound;
+        eagleTurnsLeft = 2; // 2 passagens de turno (de qualquer jogador)
         UpdateCardDisplay(); // Mostra o overlay "MARCADA"
         Debug.Log($"[Eagle] {card.cardName} foi marcada pela águia! Não pode atacar por 2 turnos");
     }
 
-    // Verifica e remove a marca de águia após 2 turnos
-    public void CheckAndUneagleMark()
+    // Inicia/renova o contador visível do efeito (amarelo = turnos, rosa = rounds).
+    // renews=true: efeito periódico (dispara e renova em 0); false: cooldown.
+    public void StartEffectCounter(int value, bool isRound, bool renews)
     {
-        if (!eagleMarked || TurnManager.Instance == null) return;
+        effectCounter = value;
+        effectPeriod = renews ? value : 0;
+        effectCounterIsRound = isRound;
+        UpdateCardDisplay();
+    }
 
-        if (TurnManager.Instance.currentRound > eagleMarkedRound + 1)
+    // FASE 1 do tique de fim de turno (TurnManager): durações de status.
+    // Roda para TODAS as cartas ANTES dos contadores de efeito — assim um stun
+    // novo disparado por contador nunca é decrementado na mesma passada
+    // (a duração não pode depender da posição das cartas no tabuleiro).
+    public void TickStatusDurations(int endedTurnPlayerNumber, bool roundCompleted)
+    {
+        bool changed = false;
+
+        // Congelamento/atordoamento: só contam no fim do turno DO DONO
+        if (isFrozen && ownerPlayerNumber == endedTurnPlayerNumber)
         {
-            eagleMarked = false;
-            eagleMarkedRound = -1;
-            UpdateCardDisplay(); // Remove o overlay "MARCADA"
-            Debug.Log($"[Eagle] A marca de águia foi removida de {card.cardName}!");
+            freezeTurnsLeft--;
+            if (freezeTurnsLeft <= 0)
+            {
+                isFrozen = false;
+                changed = true;
+                Debug.Log($"[Unfreeze] {card.cardName} foi descongelada!");
+            }
         }
+
+        if (isStunned && ownerPlayerNumber == endedTurnPlayerNumber)
+        {
+            stunTurnsLeft--;
+            if (stunTurnsLeft <= 0)
+            {
+                isStunned = false;
+                changed = true;
+                Debug.Log($"[Unstun] {card.cardName} foi desestunada!");
+            }
+        }
+
+        // Marca de águia: conta toda passagem de turno
+        if (eagleMarked)
+        {
+            eagleTurnsLeft--;
+            changed = true;
+            if (eagleTurnsLeft <= 0)
+            {
+                eagleMarked = false;
+                Debug.Log($"[Eagle] A marca de águia foi removida de {card.cardName}!");
+            }
+        }
+
+        // Invulnerabilidade (Healer 4): conta ROUNDS
+        if (invulnerableRoundsLeft > 0 && roundCompleted)
+        {
+            invulnerableRoundsLeft--;
+            changed = true;
+            if (invulnerableRoundsLeft <= 0)
+                Debug.Log($"[Invulnerável] {card.cardName} perdeu a invulnerabilidade!");
+        }
+
+        if (changed) UpdateCardDisplay();
+    }
+
+    // FASE 2 do tique de fim de turno: contador de efeito periódico / cooldown
+    public void TickEffectCounter(bool roundCompleted)
+    {
+        if (effectCounter <= 0) return;
+        if (effectCounterIsRound && !roundCompleted) return;
+
+        effectCounter--;
+
+        if (effectCounter <= 0)
+        {
+            if (effectPeriod > 0)
+            {
+                // Efeito periódico: dispara (se as condições permitirem) e renova
+                CardEffectSimple fx = GetComponent<CardEffectSimple>();
+                if (fx != null) fx.OnPeriodicCounterExpired();
+                effectCounter = effectPeriod;
+            }
+            else
+            {
+                effectCounter = -1; // Cooldown pronto: esconde o número
+            }
+        }
+
+        UpdateCardDisplay();
     }
 }

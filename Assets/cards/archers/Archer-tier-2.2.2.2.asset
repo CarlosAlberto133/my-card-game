@@ -19,5 +19,5 @@ MonoBehaviour:
   attack: 4
   shield: 0
   health: 2
-  effectDescription: "Empurre um alvo aleat\xF3rio ao entrar em campo. Caso os outros
-    arqueiros estejam em campo, conceda +5 de ataque a todos"
+  effectDescription: Caso os outros arqueiros estejam em campo, conceda +5 de ataque
+    a todos

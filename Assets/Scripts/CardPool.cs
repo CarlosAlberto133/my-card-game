@@ -143,6 +143,15 @@ public class CardPool : MonoBehaviour
         card.isOnBoard = false;
     }
 
+    // Devolve UMA cópia desta carta ao deck (loja rerolada com carta não comprada).
+    // As cópias são intercambiáveis: reativa a primeira instância fora do deck.
+    // Determinístico: a ordem do pool é a mesma nos dois clientes.
+    public void ReturnCardCopyToDeck(Card data)
+    {
+        CardInstance inst = cardPool.Find(c => c.cardData == data && !c.isInDeck && !c.isOnBoard);
+        if (inst != null) inst.isInDeck = true;
+    }
+
     // Coloca uma carta no tabuleiro
     public void PlaceCardOnBoard(CardInstance card)
     {

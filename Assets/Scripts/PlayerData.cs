@@ -9,6 +9,7 @@ public class PlayerData
     public int health; // Vida do jogador (torre)
     public int cardsBoughtThisTurn;
     public int storeResetsThisTurn; // Quantas vezes resetou a loja neste turno
+    public int freePurchases = 0; // Compras grátis pendentes (Healer 5) — não gastam ouro nem limite; persistem até usar
 
     public PlayerData(int playerNum)
     {

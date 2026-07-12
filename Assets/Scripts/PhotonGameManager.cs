@@ -215,10 +215,12 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
             return;
         }
 
-        GameObject cardObject = CardManager.Instance.GetShopCard(shopIndex);
+        // Cada jogador tem a própria loja: busca no shop do COMPRADOR (neste
+        // cliente pode ser a loja oculta do oponente)
+        GameObject cardObject = CardManager.Instance.GetShopCard(shopIndex, buyerPlayerNumber);
         if (cardObject == null)
         {
-            Debug.LogError($"[PhotonGame] Carta no slot {shopIndex} não encontrada!");
+            Debug.LogError($"[PhotonGame] Carta no slot {shopIndex} da loja do P{buyerPlayerNumber} não encontrada!");
             return;
         }
 
@@ -253,6 +255,12 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
     private System.Collections.Generic.Dictionary<int, System.Action<bool>> pendingDecisions =
         new System.Collections.Generic.Dictionary<int, System.Action<bool>>();
     private int nextDecisionId = 0;
+
+    // Há decisão de efeito ainda não resolvida (deste lado ou do oponente)?
+    public bool HasPendingDecisions()
+    {
+        return pendingDecisions.Count > 0;
+    }
 
     // Pergunta uma decisão de efeito. Em multiplayer: registra o callback nos dois clientes,
     // mostra o popup SÓ para o dono (deciderPlayerNumber), e a escolha viaja por RPC.
@@ -294,6 +302,12 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
         }
         else
         {
+            // Avisa quem está ESPERANDO: sem isso o jogador "saía batendo" sem
+            // saber que o oponente ainda estava lendo o popup do primeiro ataque
+            if (GameUIManager.Instance != null)
+            {
+                GameUIManager.Instance.ShowWaitingBanner("O oponente está decidindo se ativa um efeito de carta...");
+            }
             Debug.Log($"[PhotonGame] Aguardando decisão do oponente (id {id}): {message}");
         }
     }
@@ -324,6 +338,12 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
         else
         {
             Debug.LogError($"[PhotonGame] Decisão {decisionId} não encontrada neste cliente!");
+        }
+
+        // Última decisão resolvida: tira a faixa de espera da tela
+        if (pendingDecisions.Count == 0 && GameUIManager.Instance != null)
+        {
+            GameUIManager.Instance.HideWaitingBanner();
         }
     }
 

@@ -19,6 +19,5 @@ MonoBehaviour:
   attack: 3
   shield: 0
   health: 2
-  effectDescription: "Solte bola de fogo causando 2 de dano no inimigo que atacar
-    um tanque. Caso os outros magos estejam em campo, invoque um mago lend\xE1rio
+  effectDescription: "Caso os outros magos estejam em campo, invoque um mago lend\xE1rio
     aleat\xF3rio"

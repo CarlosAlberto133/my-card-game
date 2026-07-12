@@ -13,6 +13,42 @@ public class CardStatusVisuals : MonoBehaviour
     private GameObject frozenOverlay;
     private GameObject stunnedOverlay;
     private GameObject eagleOverlay;
+    private GameObject counterObj;
+    private TextMeshPro counterText;
+
+    // Contador de efeito acima da carta: AMARELO = conta turnos, ROSA = conta rounds
+    static readonly Color TurnCounterColor = new Color(1.00f, 0.85f, 0.25f);
+    static readonly Color RoundCounterColor = new Color(1.00f, 0.45f, 0.75f);
+
+    public void SetEffectCounter(int value, bool isRoundBased)
+    {
+        if (counterObj == null)
+        {
+            counterObj = new GameObject("EffectCounter");
+            counterObj.transform.SetParent(transform, false);
+            // Logo acima da borda superior da carta (altura 2.5 → topo em -1.25)
+            counterObj.transform.localPosition = new Vector3(0f, 0.06f, -1.55f);
+            counterObj.transform.localRotation = Quaternion.Euler(90f, 180f, 0f);
+
+            counterText = counterObj.AddComponent<TextMeshPro>();
+            counterText.fontSize = 4f;
+            counterText.fontStyle = FontStyles.Bold;
+            counterText.alignment = TextAlignmentOptions.Center;
+            counterText.richText = false;
+            counterText.rectTransform.sizeDelta = new Vector2(1.4f, 0.7f);
+            counterText.outlineWidth = 0.25f; // Contorno para ler sobre qualquer fundo
+            counterText.outlineColor = new Color32(10, 10, 20, 255);
+        }
+
+        counterObj.SetActive(true);
+        counterText.text = value.ToString();
+        counterText.color = isRoundBased ? RoundCounterColor : TurnCounterColor;
+    }
+
+    public void HideEffectCounter()
+    {
+        if (counterObj != null) counterObj.SetActive(false);
+    }
 
     public void SetFrozen(bool active)
     {

@@ -5,8 +5,8 @@ public class BoardManager : MonoBehaviour
     public static BoardManager Instance { get; private set; }
 
     [Header("Configurações do Tabuleiro")]
-    public int rows = 12;
-    public int columns = 12;
+    public int rows = 10;
+    public int columns = 10;
     public float tileSize = 6.0f;
     public float tileSpacing = 0.6f;
 
@@ -26,6 +26,11 @@ public class BoardManager : MonoBehaviour
         {
             Destroy(gameObject);
         }
+
+        // Força por código (a cena ainda tem 12x12 serializado): tabuleiro 10x10.
+        // Total: 10*6 + 9*0.6 = 65.4 de lado (meia-largura 32.7)
+        rows = 10;
+        columns = 10;
     }
 
     void Start()

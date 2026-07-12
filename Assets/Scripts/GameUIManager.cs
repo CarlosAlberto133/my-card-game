@@ -402,6 +402,81 @@ public class GameUIManager : MonoBehaviour
         }
     }
 
+    // Fila de decisões: o popup é um painel ÚNICO. Antes, uma segunda decisão
+    // chegando antes da primeira ser respondida SOBRESCREVIA as callbacks — a
+    // decisão antiga nunca resolvia e o dano/efeito daquele ataque se perdia
+    // para sempre ("ataquei o tank e não aconteceu nada"). Agora cada decisão
+    // espera a vez na fila.
+    class PendingDecision
+    {
+        public string message;
+        public string yesText;
+        public string noText;
+        public System.Action onYes;
+        public System.Action onNo;
+    }
+
+    private readonly System.Collections.Generic.Queue<PendingDecision> decisionQueue =
+        new System.Collections.Generic.Queue<PendingDecision>();
+    private bool decisionShowing = false;
+
+    // Há um popup de decisão aberto (ou na fila) NESTE cliente?
+    public bool HasOpenDecision
+    {
+        get { return decisionShowing || decisionQueue.Count > 0; }
+    }
+
+    // ===== Faixa "oponente decidindo" (aviso para quem está esperando) =====
+    private GameObject waitingBanner;
+    private TMPro.TextMeshProUGUI waitingBannerText;
+
+    public void ShowWaitingBanner(string message)
+    {
+        if (waitingBanner == null)
+        {
+            Canvas canvas = GetComponentInChildren<Canvas>();
+            if (canvas == null) canvas = FindObjectOfType<Canvas>();
+            if (canvas == null) return;
+
+            waitingBanner = new GameObject("WaitingBanner");
+            waitingBanner.transform.SetParent(canvas.transform, false);
+            RectTransform rt = waitingBanner.AddComponent<RectTransform>();
+            rt.anchorMin = new Vector2(0.5f, 1f);
+            rt.anchorMax = new Vector2(0.5f, 1f);
+            rt.pivot = new Vector2(0.5f, 1f);
+            rt.anchoredPosition = new Vector2(0f, -72f);
+            rt.sizeDelta = new Vector2(640f, 48f);
+
+            UnityEngine.UI.Image bg = waitingBanner.AddComponent<UnityEngine.UI.Image>();
+            bg.color = new Color(0.08f, 0.09f, 0.16f, 0.92f);
+            bg.raycastTarget = false; // Só aviso: não pode roubar cliques da UI
+
+            GameObject txtObj = new GameObject("Text");
+            txtObj.transform.SetParent(waitingBanner.transform, false);
+            RectTransform trt = txtObj.AddComponent<RectTransform>();
+            trt.anchorMin = Vector2.zero;
+            trt.anchorMax = Vector2.one;
+            trt.offsetMin = new Vector2(12f, 4f);
+            trt.offsetMax = new Vector2(-12f, -4f);
+
+            waitingBannerText = txtObj.AddComponent<TMPro.TextMeshProUGUI>();
+            waitingBannerText.fontSize = 22f;
+            waitingBannerText.fontStyle = TMPro.FontStyles.Bold;
+            waitingBannerText.alignment = TMPro.TextAlignmentOptions.Center;
+            waitingBannerText.color = new Color(0.96f, 0.77f, 0.32f);
+            waitingBannerText.raycastTarget = false;
+        }
+
+        waitingBannerText.text = message;
+        waitingBanner.SetActive(true);
+        waitingBanner.transform.SetAsLastSibling();
+    }
+
+    public void HideWaitingBanner()
+    {
+        if (waitingBanner != null) waitingBanner.SetActive(false);
+    }
+
     public void ShowDecisionPopup(string message, string yesButtonText, System.Action onYes, string noButtonText, System.Action onNo)
     {
         if (decisionPopupPanel == null)
@@ -411,24 +486,54 @@ public class GameUIManager : MonoBehaviour
             return;
         }
 
+        decisionQueue.Enqueue(new PendingDecision
+        {
+            message = message,
+            yesText = yesButtonText,
+            noText = noButtonText,
+            onYes = onYes,
+            onNo = onNo
+        });
+
+        if (!decisionShowing)
+        {
+            ShowNextDecision();
+        }
+        else
+        {
+            Debug.Log($"[DecisionPopup] Em fila (aguardando resposta do atual): {message}");
+        }
+    }
+
+    void ShowNextDecision()
+    {
+        if (decisionQueue.Count == 0)
+        {
+            decisionShowing = false;
+            return;
+        }
+
+        decisionShowing = true;
+        PendingDecision decision = decisionQueue.Dequeue();
+
         // Armazena as callbacks
-        onDecisionYes = onYes;
-        onDecisionNo = onNo;
+        onDecisionYes = decision.onYes;
+        onDecisionNo = decision.onNo;
 
         // Atualiza mensagem
         if (decisionMessageText != null)
         {
-            decisionMessageText.text = message;
+            decisionMessageText.text = decision.message;
         }
 
         // Atualiza textos dos botões
         if (decisionYesButtonText != null)
         {
-            decisionYesButtonText.text = yesButtonText;
+            decisionYesButtonText.text = decision.yesText;
         }
         if (decisionNoButtonText != null)
         {
-            decisionNoButtonText.text = noButtonText;
+            decisionNoButtonText.text = decision.noText;
         }
 
         // Setup listeners
@@ -445,18 +550,28 @@ public class GameUIManager : MonoBehaviour
 
         // Mostra o popup
         decisionPopupPanel.SetActive(true);
-        Debug.Log($"[DecisionPopup] Mostrando: {message}");
+        Debug.Log($"[DecisionPopup] Mostrando: {decision.message}");
     }
 
     void OnDecisionYesClicked()
     {
         decisionPopupPanel.SetActive(false);
-        onDecisionYes?.Invoke();
+        decisionShowing = false;
+        System.Action callback = onDecisionYes;
+        onDecisionYes = null;
+        onDecisionNo = null;
+        callback?.Invoke();
+        ShowNextDecision(); // A callback pode ter enfileirado novas decisões
     }
 
     void OnDecisionNoClicked()
     {
         decisionPopupPanel.SetActive(false);
-        onDecisionNo?.Invoke();
+        decisionShowing = false;
+        System.Action callback = onDecisionNo;
+        onDecisionYes = null;
+        onDecisionNo = null;
+        callback?.Invoke();
+        ShowNextDecision();
     }
 }

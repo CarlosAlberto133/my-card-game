@@ -50,6 +50,9 @@ public class GameManager : MonoBehaviour
             if (IsWaitingForEffectTarget()) CancelEffectTargetSelection();
         }
 
+        // Com decisão de efeito pendente, nenhuma ação nova (a resolução vem antes)
+        if (IsDecisionPending()) return;
+
         // Verifica tecla T para atacar a torre
         if (UnityEngine.InputSystem.Keyboard.current != null &&
             UnityEngine.InputSystem.Keyboard.current.tKey.wasPressedThisFrame)
@@ -74,9 +77,11 @@ public class GameManager : MonoBehaviour
         int totalRows = boardManager.rows;
         int playerNum = selectedCardDisplay.ownerPlayerNumber;
 
-        // Só age se a carta estiver na última linha do lado adversário
-        bool isAtLastRow = (playerNum == 1 && currentTile.row == totalRows - 1) ||
-                           (playerNum == 2 && currentTile.row == 0);
+        // Só age se a carta estiver ao alcance da torre adversária
+        // (última fileira; Magos e Arqueiros também da penúltima)
+        int towerReach = TowerReach(selectedCardDisplay);
+        bool isAtLastRow = (playerNum == 1 && currentTile.row >= totalRows - towerReach) ||
+                           (playerNum == 2 && currentTile.row <= towerReach - 1);
         if (!isAtLastRow) return;
 
         // Obtém a posição do clique no mundo (plano Y = 0)
@@ -97,6 +102,19 @@ public class GameManager : MonoBehaviour
         {
             TryAttackTower();
         }
+    }
+
+    // Alcance da carta até a torre: 1 fileira para todos; 2 para Magos e
+    // Arqueiros (mesma regra do alcance de ataque em cruz estendida)
+    int TowerReach(CardDisplay cardDisplay)
+    {
+        if (cardDisplay != null && cardDisplay.card != null &&
+            (cardDisplay.card.cardClass == CardClass.Arqueiro ||
+             cardDisplay.card.cardClass == CardClass.Mago))
+        {
+            return 2;
+        }
+        return 1;
     }
 
     // Converte a posição do mouse para coordenadas de mundo no plano do chão (Y = 0)
@@ -161,6 +179,13 @@ public class GameManager : MonoBehaviour
             }
         }
 
+        // Clicar de novo na carta JÁ selecionada desseleciona (apaga as cores)
+        if (selectedCard == card)
+        {
+            CancelSelection();
+            return;
+        }
+
         CancelSelection(); // Cancela qualquer seleção anterior
 
         selectedCard = card;
@@ -221,12 +246,16 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        // Verifica se a carta pode se mover neste round
-        if (!cardDisplay.CanMoveThisRound())
+        // Clicar de novo na carta JÁ selecionada desseleciona (apaga as cores)
+        if (selectedCard == card)
         {
-            Debug.Log($"Esta carta já se moveu neste round! Ela só pode se mover novamente no próximo round.");
+            CancelSelection();
             return;
         }
+
+        // NÃO bloqueia a seleção se a carta já se moveu: ela ainda pode ATACAR.
+        // Mover e atacar são independentes (1 de cada por round, em qualquer
+        // ordem); a validação do movimento acontece em TryMoveCard.
 
         CancelSelection(); // Cancela qualquer seleção anterior
 
@@ -235,24 +264,12 @@ public class GameManager : MonoBehaviour
         currentTile = tile;
         isMovingCard = true;
 
-        HighlightValidTiles(); // Destaca tiles válidos/inválidos
-
-        // Verifica se a carta está na última linha e pode atacar a torre
-        int totalRows = boardManager != null ? boardManager.rows : 12;
-        bool canAttackTower = false;
-
-        if (cardDisplay.ownerPlayerNumber == 1 && tile.row == totalRows - 1)
+        // Destaca tiles de movimento só se a carta ainda pode andar neste round
+        if (cardDisplay.CanMoveThisRound())
         {
-            canAttackTower = true;
-        }
-        else if (cardDisplay.ownerPlayerNumber == 2 && tile.row == 0)
-        {
-            canAttackTower = true;
+            HighlightValidTiles(); // Destaca tiles válidos/inválidos
         }
 
-        if (!canAttackTower)
-        {
-        }
     }
 
     // Tenta colocar a carta selecionada em um tile
@@ -272,7 +289,7 @@ public class GameManager : MonoBehaviour
         // Se está colocando uma carta da mão
         // Verifica se o tile está nas fileiras válidas PARA O JOGADOR
         int playerNumber = selectedCardDisplay.ownerPlayerNumber;
-        int totalRows = boardManager != null ? boardManager.rows : 12;
+        int totalRows = boardManager != null ? boardManager.rows : 10;
         bool isValidRow = false;
 
         if (playerNumber == 1)
@@ -286,8 +303,8 @@ public class GameManager : MonoBehaviour
         }
         else if (playerNumber == 2)
         {
-            // Jogador 2: últimas 2 fileiras (10 e 11 em um tabuleiro 12x12)
-            int minRow = totalRows - maxPlacementRows; // 12 - 2 = 10
+            // Jogador 2: últimas 2 fileiras (8 e 9 em um tabuleiro 10x10)
+            int minRow = totalRows - maxPlacementRows; // 10 - 2 = 8
             isValidRow = tile.row >= minRow;
             if (!isValidRow)
             {
@@ -389,6 +406,9 @@ public class GameManager : MonoBehaviour
         cardDisplay.isOnBoard = true;
         cardDisplay.currentTile = tile;
 
+        // Em campo a carta é pública: remove o verso (mão do oponente)
+        cardDisplay.SetFaceDown(false);
+
         // Aplica o efeito da carta ao entrar no tabuleiro
         cardDisplay.ApplyCardEffect("onEnter");
 
@@ -401,6 +421,14 @@ public class GameManager : MonoBehaviour
         if (currentTile == null)
         {
             Debug.Log("Erro: tile atual não encontrado!");
+            return false;
+        }
+
+        // A carta anda 1 vez por round (a seleção não bloqueia mais isso, para
+        // permitir mover -> atacar; a checagem real do movimento é aqui)
+        if (selectedCardDisplay != null && !selectedCardDisplay.CanMoveThisRound())
+        {
+            Debug.Log("Esta carta já se moveu neste round!");
             return false;
         }
 
@@ -579,6 +607,16 @@ public class GameManager : MonoBehaviour
         Debug.Log("Seleção cancelada.");
     }
 
+    // Enquanto uma decisão de efeito está pendente (popup aberto AQUI ou o
+    // oponente decidindo do lado dele), nenhuma ação nova pode começar —
+    // "sair batendo" com decisões abertas embaralhava a ordem dos danos
+    public static bool IsDecisionPending()
+    {
+        if (GameUIManager.Instance != null && GameUIManager.Instance.HasOpenDecision) return true;
+        if (PhotonGameManager.Instance != null && PhotonGameManager.Instance.HasPendingDecisions()) return true;
+        return false;
+    }
+
     public bool HasSelectedCard()
     {
         return selectedCard != null;
@@ -604,7 +642,7 @@ public class GameManager : MonoBehaviour
 
             // Verifica fileiras válidas por jogador
             int playerNumber = selectedCardDisplay.ownerPlayerNumber;
-            int totalRows = boardManager != null ? boardManager.rows : 12;
+            int totalRows = boardManager != null ? boardManager.rows : 10;
 
             if (playerNumber == 1)
             {
@@ -613,7 +651,7 @@ public class GameManager : MonoBehaviour
             }
             else if (playerNumber == 2)
             {
-                // Jogador 2: últimas 2 fileiras (10 e 11)
+                // Jogador 2: últimas 2 fileiras (8 e 9)
                 int minRow = totalRows - maxPlacementRows;
                 return tile.row >= minRow;
             }
@@ -793,21 +831,23 @@ public class GameManager : MonoBehaviour
             return false;
         }
 
-        // Verifica se a carta está na posição correta para atacar a torre
-        int totalRows = boardManager != null ? boardManager.rows : 12;
+        // Verifica se a carta está na posição correta para atacar a torre.
+        // Magos e Arqueiros têm alcance 2: atacam a torre também da penúltima fileira
+        int totalRows = boardManager != null ? boardManager.rows : 10;
         int playerNumber = selectedCardDisplay.ownerPlayerNumber;
         bool canAttackTower = false;
         int targetPlayerNumber = 0;
+        int towerReach = TowerReach(selectedCardDisplay);
 
-        if (playerNumber == 1 && currentTile.row == totalRows - 1)
+        if (playerNumber == 1 && currentTile.row >= totalRows - towerReach)
         {
-            // Jogador 1 na última linha (11) pode atacar torre do Jogador 2
+            // Jogador 1 nas últimas linhas pode atacar torre do Jogador 2
             canAttackTower = true;
             targetPlayerNumber = 2;
         }
-        else if (playerNumber == 2 && currentTile.row == 0)
+        else if (playerNumber == 2 && currentTile.row <= towerReach - 1)
         {
-            // Jogador 2 na primeira linha (0) pode atacar torre do Jogador 1
+            // Jogador 2 nas primeiras linhas pode atacar torre do Jogador 1
             canAttackTower = true;
             targetPlayerNumber = 1;
         }
@@ -1072,6 +1112,16 @@ public class GameManager : MonoBehaviour
         effectTargetType = 0;
         effectTargetCandidates = null;
         Debug.Log("[EffectTarget] Seleção de alvo encerrada");
+    }
+
+    // Limpa TODOS os modos de seleção de alvo (chamado na passagem de turno).
+    // Um modo preso sequestrava todos os cliques do tabuleiro e o jogador não
+    // conseguia mais mover nenhuma carta — este é o cinto de segurança.
+    public void CancelAllTargetSelections()
+    {
+        if (IsWaitingForFreezeTarget()) CancelFreezeSelection();
+        if (IsWaitingForShieldBreakTargets()) CancelShieldBreakSelection();
+        if (IsWaitingForEffectTarget()) CancelEffectTargetSelection();
     }
 
     void ApplyEffectTargetChoice(CardDisplay source, int effectType, CardDisplay target)

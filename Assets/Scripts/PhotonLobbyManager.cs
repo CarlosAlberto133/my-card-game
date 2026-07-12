@@ -32,8 +32,9 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
 
         if (!PhotonNetwork.connected)
         {
-            // "2.0" separa este fluxo novo de lobby dos builds antigos (v1) no matchmaking
-            PhotonNetwork.ConnectUsingSettings("2.0");
+            // gameVersion separa builds incompatíveis no matchmaking. "3.2" = lojas
+            // por jogador + mão oculta + tabuleiro 10x10 + alcance 2 (lockstep mudou)
+            PhotonNetwork.ConnectUsingSettings("3.2");
             Debug.Log("[Lobby] Conectando ao Photon...");
         }
         else if (PhotonNetwork.inRoom)

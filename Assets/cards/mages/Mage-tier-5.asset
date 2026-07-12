@@ -19,6 +19,5 @@ MonoBehaviour:
   attack: 8
   shield: 0
   health: 4
-  effectDescription: "Uma vez por round pode congelar um inimigo que est\xE1 a tr\xEAs
-    casas de dist\xE2ncia. O efeito \xE9 duplicado quando tiver um tanque aliado
-    na mesma dist\xE2ncia"
+  effectDescription: "Uma vez por round congelar um inimigo aleat\xF3rio. Efeito
+    duplicado se tem Tank aliado"
