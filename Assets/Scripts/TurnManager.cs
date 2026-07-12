@@ -431,7 +431,6 @@ public class TurnManager : MonoBehaviour
 
             card.treeDefenseActive = false; // Dodge de árvore do Archer (por turno)
             card.treeDefensePopupShown = false;
-            card.healerShieldUseCount = 0; // Usos de +armadura (Healer 2 ATK 1, HP 3)
             card.tankTier4Effect2LastUsedRound = -1; // Intercepto do Tank 4: 1x por TURNO (era 1x por round)
 
             card.TickStatusDurations(endedTurnPlayer, roundCompleted);

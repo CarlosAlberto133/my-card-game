@@ -12,12 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ba925473684ce5541bf2232ed40aba18, type: 3}
   m_Name: Tank-tier-2.2.2
   m_EditorClassIdentifier: Assembly-CSharp::Card
-  cardName: Tank 2
+  cardName: Tank 2 ->
   cardClass: 0
   tier: 2
   artwork: {fileID: 21300000, guid: cf485f7c50103e341befbb7b6227d380, type: 3}
   attack: 0
   shield: 4
   health: 1
-  effectDescription: Receba o ataque no caso de algum mago seja atacado, caso os
-    outros guerreiros estejam em campo, conceda +10 de armadura a todos
+  effectDescription: Carta triade. Caso os outros guerreiros estejam em campo, conceda
+    +10 de armadura a todos

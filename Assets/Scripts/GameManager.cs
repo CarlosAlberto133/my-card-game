@@ -229,11 +229,9 @@ public class GameManager : MonoBehaviour
             return;
         }
 
-        // Se está selecionando um Tank para receber +2 armadura do Healer 2 (ATK 1, HP 3)
-        if (TryApplyHealerShield(cardDisplay))
-        {
-            return;
-        }
+        // (O antigo "+2 armadura do Healer 2 em Tank" foi REMOVIDO: a carta
+        // virou tríade pura, e o efeito solo sequestraava qualquer clique em
+        // Tank — dava armadura até para o tank inimigo e comia a seleção)
 
         // Verifica se a carta pertence ao jogador atual
         if (TurnManager.Instance != null)
@@ -408,6 +406,9 @@ public class GameManager : MonoBehaviour
 
         // Em campo a carta é pública: remove o verso (mão do oponente)
         cardDisplay.SetFaceDown(false);
+
+        // Atualiza o visual (borda do dono + figura 3D da classe sobre a carta)
+        cardDisplay.UpdateDisplay();
 
         // Aplica o efeito da carta ao entrar no tabuleiro
         cardDisplay.ApplyCardEffect("onEnter");
@@ -584,6 +585,8 @@ public class GameManager : MonoBehaviour
         selectedCardDisplay.isOnBoard = true;
         selectedCardDisplay.currentTile = tile; // Armazena referência do tile
 
+        // Atualiza o visual (borda do dono + figura 3D da classe sobre a carta)
+        selectedCardDisplay.UpdateDisplay();
 
         // Aplica o efeito da carta ao entrar no tabuleiro
         selectedCardDisplay.ApplyCardEffect("onEnter");
@@ -1019,13 +1022,8 @@ public class GameManager : MonoBehaviour
                 }
                 break;
 
-            case 3: // +2 armadura do Healer 2 em um Tank
-                if (source != null)
-                {
-                    CardEffectSimple healerEffect = source.GetComponent<CardEffectSimple>();
-                    if (healerEffect != null) healerEffect.HealerTier2Effect2_BoostTankShield(target);
-                }
-                break;
+            // (case 3 — +2 armadura do Healer 2 em Tank — removido: a carta
+            // Healer 2 (1/3) é tríade pura e não tem mais efeito solo)
 
             default:
                 // Tipos 4+ são efeitos com alvo escolhido por clique
@@ -1175,47 +1173,6 @@ public class GameManager : MonoBehaviour
     public bool IsWaitingForFreezeTarget()
     {
         return isWaitingForFreezeTarget;
-    }
-
-    // Tenta aplicar +2 armadura do Healer 2 (ATK 1, HP 3) a um Tank
-    private bool TryApplyHealerShield(CardDisplay targetCard)
-    {
-        if (targetCard == null || targetCard.card.cardClass != CardClass.Tank) return false;
-
-        BoardManager board = BoardManager.Instance;
-        if (board == null) return false;
-
-        int currentPlayerNumber = TurnManager.Instance?.currentPlayerNumber ?? 0;
-        var allies = board.GetCardsByOwner(currentPlayerNumber);
-
-        // Procura por Healer 2 (ATK 1, HP 3) que pode dar armadura
-        foreach (var ally in allies)
-        {
-            if (ally != null && ally.card.cardClass == CardClass.Healer &&
-                ally.card.attack == 1 && ally.card.health == 3 &&
-                ally.healerShieldUseCount < 2)
-            {
-                CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
-                if (effect != null)
-                {
-                    // Em multiplayer, a escolha viaja por RPC (executa nos dois clientes)
-                    if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null &&
-                        ally.currentTile != null && targetCard.currentTile != null)
-                    {
-                        PhotonGameManager.Instance.SendEffectTargetRPC(3,
-                            ally.currentTile.row, ally.currentTile.column,
-                            targetCard.currentTile.row, targetCard.currentTile.column);
-                    }
-                    else
-                    {
-                        effect.HealerTier2Effect2_BoostTankShield(targetCard);
-                    }
-                    return true;
-                }
-            }
-        }
-
-        return false;
     }
 
     // Sistema para seleção de 2 inimigos para quebra de armadura (Mage 2 ATK 4, HP 3)

@@ -314,6 +314,226 @@ public class GameUIManager : MonoBehaviour
         }
     }
 
+    // ===== Inspeção de carta (botão direito): efeito, foto e stats ampliados =====
+
+    private GameObject cardPreviewPanel;
+    private TMPro.TextMeshProUGUI previewName;
+    private TMPro.TextMeshProUGUI previewClassTier;
+    private TMPro.TextMeshProUGUI previewEffect;
+    private TMPro.TextMeshProUGUI previewAtk;
+    private TMPro.TextMeshProUGUI previewDef;
+    private TMPro.TextMeshProUGUI previewHp;
+    private Image previewArt;
+    private Image previewHeader;
+    private int previewOpenedFrame = -1;
+
+    public void ShowCardPreview(CardDisplay cd)
+    {
+        if (cd == null || cd.card == null) return;
+        if (cardPreviewPanel == null) BuildCardPreviewPanel();
+        if (cardPreviewPanel == null) return;
+
+        Card c = cd.card;
+        previewName.text = c.cardName;
+        previewClassTier.text = $"{c.cardClass}  •  Tier {(int)c.tier}";
+        previewClassTier.color = PreviewClassColor(c.cardClass);
+        previewHeader.color = Color.Lerp(new Color(0.10f, 0.10f, 0.16f),
+                                         PreviewClassColor(c.cardClass), 0.45f);
+        previewEffect.text = string.IsNullOrEmpty(c.effectDescription)
+            ? "Sem efeito" : c.effectDescription;
+        previewAtk.text = cd.currentAttack.ToString();
+        previewDef.text = cd.currentShield.ToString();
+        previewHp.text = cd.currentHealth.ToString();
+
+        if (c.artwork != null)
+        {
+            previewArt.sprite = c.artwork;
+            previewArt.color = Color.white;
+            previewArt.preserveAspect = true;
+        }
+        else
+        {
+            previewArt.sprite = null;
+            previewArt.color = new Color(0.25f, 0.25f, 0.30f);
+        }
+
+        previewOpenedFrame = Time.frameCount;
+        cardPreviewPanel.SetActive(true);
+        cardPreviewPanel.transform.SetAsLastSibling();
+    }
+
+    public void HideCardPreview()
+    {
+        if (cardPreviewPanel != null) cardPreviewPanel.SetActive(false);
+    }
+
+    Color PreviewClassColor(CardClass cardClass)
+    {
+        switch (cardClass)
+        {
+            case CardClass.Tank: return new Color(0.70f, 0.70f, 0.70f);
+            case CardClass.Mago: return new Color(0.60f, 0.42f, 0.95f);
+            case CardClass.Healer: return new Color(0.35f, 0.90f, 0.55f);
+            case CardClass.Arqueiro: return new Color(0.95f, 0.65f, 0.35f);
+            default: return Color.white;
+        }
+    }
+
+    void BuildCardPreviewPanel()
+    {
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null) canvas = FindObjectOfType<Canvas>();
+        if (canvas == null) return;
+
+        // Painel encostado no lado direito da tela
+        cardPreviewPanel = new GameObject("CardPreviewPanel", typeof(RectTransform), typeof(Image));
+        cardPreviewPanel.transform.SetParent(canvas.transform, false);
+        RectTransform panelRt = cardPreviewPanel.GetComponent<RectTransform>();
+        panelRt.anchorMin = new Vector2(1f, 0.5f);
+        panelRt.anchorMax = new Vector2(1f, 0.5f);
+        panelRt.pivot = new Vector2(1f, 0.5f);
+        panelRt.anchoredPosition = new Vector2(-16f, 0f);
+        panelRt.sizeDelta = new Vector2(400f, 660f);
+        cardPreviewPanel.GetComponent<Image>().color = new Color(0.06f, 0.07f, 0.13f, 0.97f);
+
+        // Faixa do cabeçalho (tingida pela classe no ShowCardPreview)
+        GameObject headerObj = new GameObject("Header", typeof(RectTransform), typeof(Image));
+        headerObj.transform.SetParent(cardPreviewPanel.transform, false);
+        RectTransform headerRt = headerObj.GetComponent<RectTransform>();
+        headerRt.anchorMin = new Vector2(0f, 1f);
+        headerRt.anchorMax = new Vector2(1f, 1f);
+        headerRt.pivot = new Vector2(0.5f, 1f);
+        headerRt.anchoredPosition = Vector2.zero;
+        headerRt.sizeDelta = new Vector2(0f, 78f);
+        previewHeader = headerObj.GetComponent<Image>();
+
+        previewName = MakePreviewText(cardPreviewPanel.transform, "Name",
+            new Vector2(0f, -8f), new Vector2(-70f, 34f), 26f, true, TMPro.TextAlignmentOptions.Center);
+        previewName.color = Color.white;
+
+        previewClassTier = MakePreviewText(cardPreviewPanel.transform, "ClassTier",
+            new Vector2(0f, -44f), new Vector2(-20f, 26f), 18f, true, TMPro.TextAlignmentOptions.Center);
+
+        // Botão fechar (X)
+        GameObject closeObj = new GameObject("CloseButton",
+            typeof(RectTransform), typeof(Image), typeof(Button));
+        closeObj.transform.SetParent(cardPreviewPanel.transform, false);
+        RectTransform closeRt = closeObj.GetComponent<RectTransform>();
+        closeRt.anchorMin = new Vector2(1f, 1f);
+        closeRt.anchorMax = new Vector2(1f, 1f);
+        closeRt.pivot = new Vector2(1f, 1f);
+        closeRt.anchoredPosition = new Vector2(-8f, -8f);
+        closeRt.sizeDelta = new Vector2(34f, 34f);
+        closeObj.GetComponent<Image>().color = new Color(0.75f, 0.22f, 0.20f, 0.95f);
+        closeObj.GetComponent<Button>().onClick.AddListener(HideCardPreview);
+
+        GameObject closeTxtObj = new GameObject("Text", typeof(RectTransform));
+        closeTxtObj.transform.SetParent(closeObj.transform, false);
+        RectTransform closeTxtRt = closeTxtObj.GetComponent<RectTransform>();
+        closeTxtRt.anchorMin = Vector2.zero;
+        closeTxtRt.anchorMax = Vector2.one;
+        closeTxtRt.offsetMin = Vector2.zero;
+        closeTxtRt.offsetMax = Vector2.zero;
+        TMPro.TextMeshProUGUI closeTxt = closeTxtObj.AddComponent<TMPro.TextMeshProUGUI>();
+        closeTxt.text = "X";
+        closeTxt.fontSize = 20f;
+        closeTxt.fontStyle = TMPro.FontStyles.Bold;
+        closeTxt.alignment = TMPro.TextAlignmentOptions.Center;
+        closeTxt.color = Color.white;
+
+        // Foto da carta
+        GameObject artObj = new GameObject("Artwork", typeof(RectTransform), typeof(Image));
+        artObj.transform.SetParent(cardPreviewPanel.transform, false);
+        RectTransform artRt = artObj.GetComponent<RectTransform>();
+        artRt.anchorMin = new Vector2(0.5f, 1f);
+        artRt.anchorMax = new Vector2(0.5f, 1f);
+        artRt.pivot = new Vector2(0.5f, 1f);
+        artRt.anchoredPosition = new Vector2(0f, -90f);
+        artRt.sizeDelta = new Vector2(360f, 240f);
+        previewArt = artObj.GetComponent<Image>();
+
+        // Rótulo e texto do efeito
+        TMPro.TextMeshProUGUI effectLabel = MakePreviewText(cardPreviewPanel.transform, "EffectLabel",
+            new Vector2(0f, -340f), new Vector2(-40f, 24f), 16f, true, TMPro.TextAlignmentOptions.Left);
+        effectLabel.text = "EFEITO";
+        effectLabel.color = new Color(0.96f, 0.77f, 0.32f);
+
+        previewEffect = MakePreviewText(cardPreviewPanel.transform, "EffectText",
+            new Vector2(0f, -366f), new Vector2(-40f, 180f), 19f, false, TMPro.TextAlignmentOptions.TopLeft);
+        previewEffect.color = new Color(0.92f, 0.92f, 0.88f);
+        previewEffect.textWrappingMode = TMPro.TextWrappingModes.Normal;
+        previewEffect.enableAutoSizing = true;
+        previewEffect.fontSizeMin = 13f;
+        previewEffect.fontSizeMax = 20f;
+
+        // Stats: três blocos coloridos na base
+        previewAtk = MakePreviewStatBlock("ATAQUE", new Color(0.58f, 0.20f, 0.12f), 0);
+        previewDef = MakePreviewStatBlock("DEFESA", new Color(0.13f, 0.30f, 0.55f), 1);
+        previewHp = MakePreviewStatBlock("VIDA", new Color(0.12f, 0.40f, 0.19f), 2);
+
+        cardPreviewPanel.SetActive(false);
+    }
+
+    TMPro.TextMeshProUGUI MakePreviewText(Transform parent, string name, Vector2 pos,
+        Vector2 size, float fontSize, bool bold, TMPro.TextAlignmentOptions align)
+    {
+        GameObject obj = new GameObject(name, typeof(RectTransform));
+        obj.transform.SetParent(parent, false);
+        RectTransform rt = obj.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0f, 1f);
+        rt.anchorMax = new Vector2(1f, 1f);
+        rt.pivot = new Vector2(0.5f, 1f);
+        rt.anchoredPosition = pos;
+        rt.sizeDelta = size;
+        TMPro.TextMeshProUGUI tmp = obj.AddComponent<TMPro.TextMeshProUGUI>();
+        tmp.fontSize = fontSize;
+        tmp.fontStyle = bold ? TMPro.FontStyles.Bold : TMPro.FontStyles.Normal;
+        tmp.alignment = align;
+        return tmp;
+    }
+
+    TMPro.TextMeshProUGUI MakePreviewStatBlock(string label, Color color, int column)
+    {
+        GameObject block = new GameObject("Stat_" + label, typeof(RectTransform), typeof(Image));
+        block.transform.SetParent(cardPreviewPanel.transform, false);
+        RectTransform rt = block.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.5f, 0f);
+        rt.anchorMax = new Vector2(0.5f, 0f);
+        rt.pivot = new Vector2(0.5f, 0f);
+        rt.anchoredPosition = new Vector2((column - 1) * 124f, 16f);
+        rt.sizeDelta = new Vector2(112f, 74f);
+        block.GetComponent<Image>().color = color;
+
+        GameObject labelObj = new GameObject("Label", typeof(RectTransform));
+        labelObj.transform.SetParent(block.transform, false);
+        RectTransform labelRt = labelObj.GetComponent<RectTransform>();
+        labelRt.anchorMin = new Vector2(0f, 1f);
+        labelRt.anchorMax = new Vector2(1f, 1f);
+        labelRt.pivot = new Vector2(0.5f, 1f);
+        labelRt.anchoredPosition = new Vector2(0f, -6f);
+        labelRt.sizeDelta = new Vector2(0f, 18f);
+        TMPro.TextMeshProUGUI labelTmp = labelObj.AddComponent<TMPro.TextMeshProUGUI>();
+        labelTmp.text = label;
+        labelTmp.fontSize = 13f;
+        labelTmp.fontStyle = TMPro.FontStyles.Bold;
+        labelTmp.alignment = TMPro.TextAlignmentOptions.Center;
+        labelTmp.color = new Color(1f, 1f, 1f, 0.85f);
+
+        GameObject valueObj = new GameObject("Value", typeof(RectTransform));
+        valueObj.transform.SetParent(block.transform, false);
+        RectTransform valueRt = valueObj.GetComponent<RectTransform>();
+        valueRt.anchorMin = Vector2.zero;
+        valueRt.anchorMax = Vector2.one;
+        valueRt.offsetMin = new Vector2(0f, 0f);
+        valueRt.offsetMax = new Vector2(0f, -18f);
+        TMPro.TextMeshProUGUI valueTmp = valueObj.AddComponent<TMPro.TextMeshProUGUI>();
+        valueTmp.fontSize = 34f;
+        valueTmp.fontStyle = TMPro.FontStyles.Bold;
+        valueTmp.alignment = TMPro.TextAlignmentOptions.Center;
+        valueTmp.color = Color.white;
+        return valueTmp;
+    }
+
     // ===== GERADOR DO RELATÓRIO =====
     const string H = "#F5C451";   // dourado (títulos)
     const string OK = "#55E07A";  // verde (pode agir)
@@ -657,6 +877,29 @@ public class GameUIManager : MonoBehaviour
             Time.unscaledTime - lastLogsRefresh > 1f)
         {
             RefreshLogsPanel();
+        }
+
+        // Inspeção de carta aberta: qualquer clique fora do painel fecha
+        // (ignora o mesmo frame em que abriu — o clique que abre não fecha)
+        if (cardPreviewPanel != null && cardPreviewPanel.activeSelf &&
+            Time.frameCount != previewOpenedFrame &&
+            UnityEngine.InputSystem.Mouse.current != null)
+        {
+            var previewMouse = UnityEngine.InputSystem.Mouse.current;
+            if (previewMouse.leftButton.wasPressedThisFrame ||
+                previewMouse.rightButton.wasPressedThisFrame)
+            {
+                RectTransform previewRt = cardPreviewPanel.GetComponent<RectTransform>();
+                Canvas previewCanvas = cardPreviewPanel.GetComponentInParent<Canvas>();
+                Camera previewCam = (previewCanvas != null &&
+                    previewCanvas.renderMode != RenderMode.ScreenSpaceOverlay)
+                    ? previewCanvas.worldCamera : null;
+                if (!RectTransformUtility.RectangleContainsScreenPoint(
+                        previewRt, previewMouse.position.ReadValue(), previewCam))
+                {
+                    HideCardPreview();
+                }
+            }
         }
 
         // Atualiza UI do Jogador 1

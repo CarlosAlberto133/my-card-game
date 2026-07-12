@@ -25,7 +25,6 @@ public class CardDisplay : MonoBehaviour
     public bool archerStunOnHitUsed = false; // Archer 2 (ATK 3, HP 1): efeito de stun ao receber ataque já foi usado
     public bool archerComboActivated = false; // Archer tier-2 combo: +5 ATK já foi ativado
     public int maxHealthBonus = 0; // Healer 2 (ATK 2, HP 1): bônus de vida máxima
-    public int healerShieldUseCount = 0; // Healer 2 (ATK 1, HP 3): vezes usado +armadura neste turno
     public bool healerComboActivated = false; // Healer tier-2 combo: restauração de ouro/vida já foi ativada
     public bool eagleMarked = false; // Archer 3 (ATK 4, HP 2): marcado pela águia, não pode atacar
     public int moveCountThisRound = 0; // Archer 3 (ATK 3, HP 2): contador de movimentações neste turno (máx 2 se tem Mago)
@@ -151,45 +150,50 @@ public class CardDisplay : MonoBehaviour
 
     void Update()
     {
-        // Se a carta está no tabuleiro e pertence ao jogador atual, permite atacar com botão direito ou tecla A
-        if (isOnBoard && isMouseOver && TurnManager.Instance != null)
+        if (!isMouseOver) return;
+
+        Mouse mouse = Mouse.current;
+        Keyboard keyboard = Keyboard.current;
+
+        // Botão direito em qualquer carta legível: abre a inspeção ampliada
+        // (efeito, foto e stats). O antigo atalho de ataque do botão direito
+        // agora vive só na tecla A — o ataque normal (selecionar e clicar no
+        // inimigo) continua igual.
+        if (mouse != null && mouse.rightButton.wasPressedThisFrame &&
+            !isFaceDown && card != null && GameUIManager.Instance != null)
+        {
+            GameUIManager.Instance.ShowCardPreview(this);
+        }
+
+        // Tecla A: ataque rápido no inimigo adjacente (carta sua, no tabuleiro)
+        if (isOnBoard && TurnManager.Instance != null &&
+            keyboard != null && keyboard.aKey.wasPressedThisFrame)
         {
             int currentPlayerNumber = TurnManager.Instance.currentPlayerNumber;
             if (ownerPlayerNumber == currentPlayerNumber)
             {
-                // Verifica inputs com o novo Input System
-                Mouse mouse = Mouse.current;
-                Keyboard keyboard = Keyboard.current;
-
-                if (mouse != null && keyboard != null)
+                // Decisão de efeito pendente: nenhuma ação nova até resolver
+                if (GameManager.IsDecisionPending())
                 {
-                    // Botão direito do mouse ou tecla A para atacar
-                    if (mouse.rightButton.wasPressedThisFrame || keyboard.aKey.wasPressedThisFrame)
-                    {
-                        // Decisão de efeito pendente: nenhuma ação nova até resolver
-                        if (GameManager.IsDecisionPending())
-                        {
-                            Debug.Log("[CardDisplay] Aguarde a decisão de efeito ser resolvida!");
-                            return;
-                        }
+                    Debug.Log("[CardDisplay] Aguarde a decisão de efeito ser resolvida!");
+                    return;
+                }
 
-                        // Em multiplayer, só ataca no SEU turno e via RPC (executa nos dois clientes)
-                        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
-                        {
-                            if (currentPlayerNumber != PhotonGameManager.Instance.myPlayerNumber)
-                            {
-                                Debug.Log("[CardDisplay] Não é seu turno, não pode atacar!");
-                            }
-                            else if (currentTile != null)
-                            {
-                                PhotonGameManager.Instance.SendAttackRPC(currentTile.row, currentTile.column);
-                            }
-                        }
-                        else
-                        {
-                            AttackAdjacentEnemy();
-                        }
+                // Em multiplayer, só ataca no SEU turno e via RPC (executa nos dois clientes)
+                if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
+                {
+                    if (currentPlayerNumber != PhotonGameManager.Instance.myPlayerNumber)
+                    {
+                        Debug.Log("[CardDisplay] Não é seu turno, não pode atacar!");
                     }
+                    else if (currentTile != null)
+                    {
+                        PhotonGameManager.Instance.SendAttackRPC(currentTile.row, currentTile.column);
+                    }
+                }
+                else
+                {
+                    AttackAdjacentEnemy();
                 }
             }
         }
@@ -442,6 +446,10 @@ public class CardDisplay : MonoBehaviour
     {
         if (card == null) return;
 
+        // Redesenha o layout (cantos arredondados, chips de stats, medalhão de
+        // tier, respiro entre as zonas) — roda uma única vez por instância
+        EnsureModernLayout();
+
         // Atualiza textos usando stats atuais (não os base)
         if (cardNameText != null) cardNameText.text = card.cardName;
         // Sem zero à esquerda e sem quebra de linha: a caixa é estreita e o formato
@@ -488,15 +496,16 @@ public class CardDisplay : MonoBehaviour
             }
         }
 
-        // Atualiza cor de fundo baseado na classe (azul-gelo se congelada)
+        // Fundo: gradiente escuro tingido pela cor da classe (azul-gelo se congelada)
         if (backgroundRenderer != null)
         {
             EnsureQuadMaterial(backgroundRenderer);
-            Color classColor = isFrozen
-                ? new Color(0.45f, 0.75f, 1.00f)
-                : GetClassColor(card.cardClass);
-            backgroundRenderer.material.color = classColor;
-            backgroundRenderer.material.SetColor("_BaseColor", classColor);
+            Texture2D gradient = GetClassGradient(card.cardClass);
+            backgroundRenderer.material.mainTexture = gradient;
+            backgroundRenderer.material.SetTexture("_BaseMap", gradient);
+            Color tint = isFrozen ? new Color(0.55f, 0.75f, 1.00f) : Color.white;
+            backgroundRenderer.material.color = tint;
+            backgroundRenderer.material.SetColor("_BaseColor", tint);
         }
 
         // Atualiza texto de efeito
@@ -520,11 +529,21 @@ public class CardDisplay : MonoBehaviour
             tierBarRenderer.material.SetColor("_BaseColor", tierColor);
         }
 
+        // Painéis tingidos pela cor da classe (identidade visual da carta)
+        Color classTint = GetClassColor(card.cardClass);
+        Color deepBase = new Color(0.10f, 0.10f, 0.16f);
+        SetQuadColor("NameHeader", Color.Lerp(deepBase, classTint, 0.32f));
+        SetQuadColor("ArtworkFrame", Color.Lerp(deepBase, classTint, 0.55f));
+        SetQuadColor("ClassChip", Color.Lerp(deepBase, classTint, 0.45f));
+
         // Aplica as cores dos quads estáticos (corrige shaders URP em runtime)
         ApplyCardTheme();
 
         // Overlays de status (congelada/atordoada/marcada) e flash de buff/dano
         UpdateStatusVisuals();
+
+        // Figura 3D da classe em pé sobre a carta (só no tabuleiro)
+        UpdateBoardFigure();
     }
 
     // Rastreia os últimos stats exibidos para detectar mudanças automaticamente:
@@ -590,17 +609,19 @@ public class CardDisplay : MonoBehaviour
     // Define a cor dos quads estáticos que não mudam por carta
     void ApplyCardTheme()
     {
-        // Borda colorida pelo dono: azul = Jogador 1, vermelho = Jogador 2, escuro = loja
+        // Borda colorida pelo dono: azul = Jogador 1, vermelho = Jogador 2, ardósia = loja
+        // (o quase-preto antigo sumia contra o fundo espacial escuro)
         Color borderColor;
         if (ownerPlayerNumber == 1) borderColor = new Color(0.15f, 0.40f, 1.00f);
         else if (ownerPlayerNumber == 2) borderColor = new Color(0.95f, 0.25f, 0.20f);
-        else borderColor = new Color(0.06f, 0.06f, 0.10f);
+        else borderColor = new Color(0.30f, 0.29f, 0.42f);
         SetQuadColor("Border", borderColor);
-        SetQuadColor("NameHeader", new Color(0.18f, 0.18f, 0.28f));
-        SetQuadColor("EffectBackground", new Color(0.22f, 0.22f, 0.32f));
-        SetQuadColor("StatsBackground", new Color(0.16f, 0.16f, 0.24f));
-        SetQuadColor("StatsDivider1", new Color(0.35f, 0.35f, 0.55f));
-        SetQuadColor("StatsDivider2", new Color(0.35f, 0.35f, 0.55f));
+        // Caixa de efeito neutra escura; stats viraram chips coloridos
+        // (NameHeader/ArtworkFrame/ClassChip são tingidos pela classe no UpdateCardDisplay)
+        SetQuadColor("EffectBackground", new Color(0.13f, 0.13f, 0.20f));
+        SetQuadColor("AtkChip", new Color(0.58f, 0.20f, 0.12f));
+        SetQuadColor("ShieldChip", new Color(0.13f, 0.30f, 0.55f));
+        SetQuadColor("HpChip", new Color(0.12f, 0.40f, 0.19f));
         // Artwork cinza enquanto não há imagem
         if (artworkRenderer == null || card.artwork == null)
             SetQuadColor("Artwork", new Color(0.28f, 0.28f, 0.28f));
@@ -648,6 +669,395 @@ public class CardDisplay : MonoBehaviour
                      ?? Shader.Find("Standard");
         if (shader == null) return;
         r.material = new Material(shader);
+    }
+
+    // ============ REDESIGN PROCEDURAL DA CARTA (layout v2) ============
+    // O prefab antigo é uma pilha de quads retos com as zonas coladas.
+    // Aqui, em runtime, os quads são substituídos por meshes de cantos
+    // arredondados OPACAS (nada de transparência = nenhum problema de
+    // ordenação no build) e os textos são reposicionados com respiro.
+    // Camadas Y: 0.000 borda → 0.003 fundo → 0.006 painéis → 0.009 arte/chips
+    // → 0.012-0.016 textos. Tudo abaixo do verso (0.020+).
+
+    private bool layoutStyled = false;
+
+    void EnsureModernLayout()
+    {
+        if (layoutStyled) return;
+        layoutStyled = true;
+
+        AutoAssignElements();
+
+        // ── Painéis (carta 1.8 × 2.5; topo = z -1.25) ─────────────────────
+        StyleRoundedPanel("Border", 1.94f, 2.64f, 0.18f, 0f, 0f, 0.000f);
+        StyleRoundedPanel("Background", 1.80f, 2.50f, 0.14f, 0f, 0f, 0.003f);
+        StyleRoundedPanel("NameHeader", 1.64f, 0.30f, 0.09f, 0f, -1.02f, 0.006f);
+        StyleRoundedPanel("ArtworkFrame", 1.64f, 0.94f, 0.08f, 0f, -0.35f, 0.006f);
+        StyleRoundedPanel("EffectBackground", 1.64f, 0.58f, 0.08f, 0f, 0.51f, 0.006f);
+        StyleRoundedPanel("ClassChip", 0.70f, 0.20f, 0.10f, 0f, 0.10f, 0.012f);
+        // A barra de tier vira um medalhão redondo no canto do cabeçalho
+        // (o CardDisplay já pinta "TierBar" com a cor do tier)
+        StyleRoundedPanel("TierBar", 0.32f, 0.32f, 0.16f, -0.68f, -1.02f, 0.009f);
+        // Stats: três chips coloridos (ATK / DEF / HP)
+        StyleRoundedPanel("AtkChip", 0.50f, 0.32f, 0.10f, -0.56f, 1.01f, 0.009f);
+        StyleRoundedPanel("ShieldChip", 0.50f, 0.32f, 0.10f, 0f, 1.01f, 0.009f);
+        StyleRoundedPanel("HpChip", 0.50f, 0.32f, 0.10f, 0.56f, 1.01f, 0.009f);
+
+        // Elementos do layout antigo que não existem mais
+        HideChild("StatsBackground");
+        HideChild("StatsDivider1");
+        HideChild("StatsDivider2");
+
+        // Artwork emoldurado (o quad da arte fica ACIMA da moldura)
+        Transform art = transform.Find("Artwork");
+        if (art != null)
+        {
+            art.localPosition = new Vector3(0f, 0.009f, -0.35f);
+            art.localScale = new Vector3(1.56f, 0.86f, 1f);
+        }
+
+        // ── Textos ────────────────────────────────────────────────────────
+        StyleText(cardNameText, new Vector3(0.10f, 0.012f, -1.02f),
+            new Vector2(1.24f, 0.26f), 1.3f, 2.4f, Color.white, false);
+        StyleText(tierText, new Vector3(-0.68f, 0.013f, -1.02f),
+            new Vector2(0.32f, 0.30f), 1.6f, 2.5f, Color.white, false);
+        StyleText(classText, new Vector3(0f, 0.016f, 0.10f),
+            new Vector2(0.66f, 0.18f), 0.9f, 1.45f, new Color(0.93f, 0.93f, 0.96f), false);
+        StyleText(attackText, new Vector3(-0.56f, 0.013f, 1.01f),
+            new Vector2(0.46f, 0.28f), 2.0f, 3.1f, Color.white, false);
+        StyleText(shieldText, new Vector3(0f, 0.013f, 1.01f),
+            new Vector2(0.46f, 0.28f), 2.0f, 3.1f, Color.white, false);
+        StyleText(healthText, new Vector3(0.56f, 0.013f, 1.01f),
+            new Vector2(0.46f, 0.28f), 2.0f, 3.1f, Color.white, false);
+        StyleText(effectText, new Vector3(0f, 0.012f, 0.51f),
+            new Vector2(1.46f, 0.48f), 0.9f, 1.9f, new Color(0.90f, 0.90f, 0.86f), true);
+        if (effectText != null) effectText.fontStyle = FontStyles.Normal;
+    }
+
+    // Substitui o quad do filho por uma mesh de cantos arredondados (ou cria
+    // o filho se não existir no prefab). O material continua vindo do
+    // EnsureQuadMaterial/SetQuadColor — nada serializado no prefab.
+    void StyleRoundedPanel(string childName, float width, float height,
+                           float radius, float x, float z, float yLayer)
+    {
+        Transform t = transform.Find(childName);
+        GameObject obj;
+        if (t == null)
+        {
+            obj = new GameObject(childName);
+            obj.transform.SetParent(transform, false);
+            obj.AddComponent<MeshFilter>();
+            obj.AddComponent<MeshRenderer>();
+        }
+        else
+        {
+            obj = t.gameObject;
+            Collider c = obj.GetComponent<Collider>();
+            if (c != null) Destroy(c); // filhos nunca roubam cliques do BoxCollider da raiz
+        }
+
+        MeshFilter mf = obj.GetComponent<MeshFilter>();
+        if (mf == null) mf = obj.AddComponent<MeshFilter>();
+        mf.sharedMesh = GetRoundedRectMesh(width, height, radius);
+
+        // A mesh já é gerada no tamanho final, no plano XZ virada para +Y
+        // (mesma face dos quads antigos rotacionados)
+        obj.transform.localPosition = new Vector3(x, yLayer, z);
+        obj.transform.localRotation = Quaternion.identity;
+        obj.transform.localScale = Vector3.one;
+    }
+
+    void StyleText(TextMeshPro tmp, Vector3 localPos, Vector2 rectSize,
+                   float minSize, float maxSize, Color color, bool wrap)
+    {
+        if (tmp == null) return;
+        tmp.transform.localPosition = localPos;
+        tmp.transform.localRotation = Quaternion.Euler(90f, 180f, 0f);
+        tmp.rectTransform.sizeDelta = rectSize;
+        tmp.enableAutoSizing = true;
+        tmp.fontSizeMin = minSize;
+        tmp.fontSizeMax = maxSize;
+        tmp.color = color;
+        tmp.fontStyle = FontStyles.Bold;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.textWrappingMode = wrap ? TextWrappingModes.Normal : TextWrappingModes.NoWrap;
+        tmp.overflowMode = TextOverflowModes.Overflow;
+    }
+
+    // Cache global: as cartas compartilham as mesmas meshes por dimensão
+    static readonly System.Collections.Generic.Dictionary<string, Mesh> roundedMeshCache =
+        new System.Collections.Generic.Dictionary<string, Mesh>();
+
+    static Mesh GetRoundedRectMesh(float width, float height, float radius)
+    {
+        string key = width.ToString("F3") + "x" + height.ToString("F3") + "x" + radius.ToString("F3");
+        Mesh cached;
+        if (roundedMeshCache.TryGetValue(key, out cached) && cached != null) return cached;
+
+        const int segmentsPerCorner = 6;
+        radius = Mathf.Min(radius, width * 0.5f, height * 0.5f);
+        float cx = width * 0.5f - radius;
+        float cz = height * 0.5f - radius;
+
+        var verts = new System.Collections.Generic.List<Vector3>();
+        var uvs = new System.Collections.Generic.List<Vector2>();
+        var normals = new System.Collections.Generic.List<Vector3>();
+
+        verts.Add(Vector3.zero);
+        uvs.Add(new Vector2(0.5f, 0.5f));
+        normals.Add(Vector3.up);
+
+        // Perímetro: 4 arcos de canto percorridos em sequência (loop fechado)
+        Vector2[] corners = {
+            new Vector2( cx,  cz),   // ângulos   0°– 90°
+            new Vector2(-cx,  cz),   //          90°–180°
+            new Vector2(-cx, -cz),   //         180°–270°
+            new Vector2( cx, -cz)    //         270°–360°
+        };
+        for (int c = 0; c < 4; c++)
+        {
+            for (int s = 0; s <= segmentsPerCorner; s++)
+            {
+                float ang = (c * 90f + s * (90f / segmentsPerCorner)) * Mathf.Deg2Rad;
+                float px = corners[c].x + Mathf.Cos(ang) * radius;
+                float pz = corners[c].y + Mathf.Sin(ang) * radius;
+                verts.Add(new Vector3(px, 0f, pz));
+                // v = 1 no topo da carta (z negativo) — casa com o gradiente
+                uvs.Add(new Vector2(0.5f + px / width, 0.5f - pz / height));
+                normals.Add(Vector3.up);
+            }
+        }
+
+        // Leque a partir do centro; ordem invertida para a face frontal
+        // apontar para +Y (winding horário visto de cima)
+        int n = verts.Count - 1;
+        var tris = new System.Collections.Generic.List<int>();
+        for (int i = 0; i < n; i++)
+        {
+            tris.Add(0);
+            tris.Add(1 + ((i + 1) % n));
+            tris.Add(1 + i);
+        }
+
+        Mesh mesh = new Mesh();
+        mesh.name = "RoundedRect_" + key;
+        mesh.SetVertices(verts);
+        mesh.SetUVs(0, uvs);
+        mesh.SetNormals(normals);
+        mesh.SetTriangles(tris, 0);
+        mesh.RecalculateBounds();
+
+        roundedMeshCache[key] = mesh;
+        return mesh;
+    }
+
+    // Gradiente vertical do fundo (topo tingido pela classe → base escura),
+    // gerado por código e cacheado por classe
+    static readonly System.Collections.Generic.Dictionary<CardClass, Texture2D> classGradientCache =
+        new System.Collections.Generic.Dictionary<CardClass, Texture2D>();
+
+    Texture2D GetClassGradient(CardClass cardClass)
+    {
+        Texture2D cached;
+        if (classGradientCache.TryGetValue(cardClass, out cached) && cached != null) return cached;
+
+        Color top = Color.Lerp(new Color(0.10f, 0.10f, 0.16f), GetClassColor(cardClass), 0.38f);
+        Color bottom = new Color(0.06f, 0.06f, 0.10f);
+
+        Texture2D tex = new Texture2D(2, 64, TextureFormat.RGBA32, false);
+        tex.wrapMode = TextureWrapMode.Clamp;
+        for (int y = 0; y < 64; y++)
+        {
+            Color c = Color.Lerp(bottom, top, y / 63f); // y=63 → v=1 → topo da carta
+            tex.SetPixel(0, y, c);
+            tex.SetPixel(1, y, c);
+        }
+        tex.Apply();
+
+        classGradientCache[cardClass] = tex;
+        return tex;
+    }
+
+    // ============ FIGURA 3D SOBRE A CARTA (tabuleiro) ============
+    // Modelos em Assets/Resources/Models/personagem_<classe>.obj aparecem em
+    // pé sobre a carta quando ela entra em campo. Hoje só o Tank tem modelo;
+    // para adicionar outra classe basta exportar o .obj com o nome certo.
+
+    private GameObject boardFigure;
+
+    // Cache do Resources.Load — guarda inclusive o "não existe" (null) para
+    // não procurar o arquivo de novo a cada UpdateDisplay
+    static readonly System.Collections.Generic.Dictionary<CardClass, GameObject> figurePrefabCache =
+        new System.Collections.Generic.Dictionary<CardClass, GameObject>();
+
+    static GameObject GetFigurePrefab(CardClass cardClass)
+    {
+        GameObject cached;
+        if (figurePrefabCache.TryGetValue(cardClass, out cached)) return cached;
+
+        string resourceName = null;
+        switch (cardClass)
+        {
+            case CardClass.Tank: resourceName = "Models/personagem_tank"; break;
+            case CardClass.Mago: resourceName = "Models/personagem_mago"; break;
+            case CardClass.Healer: resourceName = "Models/personagem_healer"; break;
+            case CardClass.Arqueiro: resourceName = "Models/personagem_arqueiro"; break;
+        }
+
+        GameObject prefab = resourceName != null ? Resources.Load<GameObject>(resourceName) : null;
+        figurePrefabCache[cardClass] = prefab;
+        return prefab;
+    }
+
+    void UpdateBoardFigure()
+    {
+        GameObject prefab = isOnBoard && card != null ? GetFigurePrefab(card.cardClass) : null;
+
+        // Saiu do tabuleiro (ou classe sem modelo): remove a figura
+        if (prefab == null)
+        {
+            if (boardFigure != null)
+            {
+                Destroy(boardFigure);
+                boardFigure = null;
+                figureGhosted = false;
+                if (figureSolidMats != null) figureSolidMats.Clear();
+            }
+            return;
+        }
+
+        if (boardFigure == null)
+        {
+            boardFigure = Instantiate(prefab, transform);
+            boardFigure.name = "BoardFigure";
+
+            // A figura não pode roubar os cliques da carta
+            foreach (Collider c in boardFigure.GetComponentsInChildren<Collider>())
+                Destroy(c);
+
+            FitFigureOnCard();
+
+            // Vida na figura: entrada caindo, respiração no idle, pulinhos ao
+            // mover e golpe ao atacar (ver FigureAnimator)
+            FigureAnimator figAnim = boardFigure.AddComponent<FigureAnimator>();
+            figAnim.Initialize();
+            figAnim.PlayEntrance();
+        }
+
+        // Tinge com a cor do dono (azul = P1, vermelho = P2) — o modelo vem
+        // sem textura, e assim dá para ler de longe de quem é o guerreiro
+        Color ownerTint = ownerPlayerNumber == 1 ? new Color(0.62f, 0.72f, 1.00f)
+                       : ownerPlayerNumber == 2 ? new Color(1.00f, 0.62f, 0.58f)
+                       : new Color(0.85f, 0.85f, 0.85f);
+        if (isFrozen) ownerTint = new Color(0.55f, 0.80f, 1.00f);
+        figureTint = ownerTint;
+        if (!figureGhosted)
+        {
+            foreach (Renderer r in boardFigure.GetComponentsInChildren<Renderer>(true))
+            {
+                if (r.sharedMaterial == null || r.sharedMaterial.shader == null) continue;
+                r.material.color = ownerTint;
+                r.material.SetColor("_BaseColor", ownerTint);
+            }
+        }
+
+        // Com o mouse em cima a figura fica FANTASMA (translúcida): o efeito
+        // da carta continua legível e as animações seguem visíveis
+        SetFigureGhost(isMouseOver);
+    }
+
+    // ── Modo fantasma da figura durante o hover ──────────────────────────
+    // Troca todos os materiais por um translúcido (Sprites/Default, único
+    // shader com transparência comprovado no build URP) e restaura os
+    // originais ao sair. A figura continua ativa: FigureAnimator segue rodando.
+    private bool figureGhosted = false;
+    private Material figureGhostMat;
+    private Color figureTint = Color.white;
+    private System.Collections.Generic.Dictionary<Renderer, Material[]> figureSolidMats;
+
+    void SetFigureGhost(bool ghost)
+    {
+        if (boardFigure == null || figureGhosted == ghost) return;
+        figureGhosted = ghost;
+
+        if (ghost)
+        {
+            if (figureGhostMat == null)
+            {
+                Shader s = Shader.Find("Sprites/Default")
+                        ?? Shader.Find("Universal Render Pipeline/Unlit");
+                if (s == null)
+                {
+                    // Sem shader transparente disponível: volta ao comportamento
+                    // antigo (esconder) em vez de deixar a figura opaca na frente
+                    boardFigure.SetActive(false);
+                    return;
+                }
+                figureGhostMat = new Material(s);
+            }
+            Color ghostColor = figureTint;
+            ghostColor.a = 0.25f;
+            figureGhostMat.color = ghostColor;
+            figureGhostMat.SetColor("_BaseColor", ghostColor);
+
+            if (figureSolidMats == null)
+                figureSolidMats = new System.Collections.Generic.Dictionary<Renderer, Material[]>();
+            foreach (Renderer r in boardFigure.GetComponentsInChildren<Renderer>(true))
+            {
+                if (!figureSolidMats.ContainsKey(r)) figureSolidMats[r] = r.sharedMaterials;
+                Material[] ghosts = new Material[r.sharedMaterials.Length];
+                for (int i = 0; i < ghosts.Length; i++) ghosts[i] = figureGhostMat;
+                r.sharedMaterials = ghosts;
+            }
+        }
+        else
+        {
+            if (figureSolidMats != null)
+            {
+                foreach (var kv in figureSolidMats)
+                {
+                    if (kv.Key != null) kv.Key.sharedMaterials = kv.Value;
+                }
+                figureSolidMats.Clear();
+            }
+            if (!boardFigure.activeSelf) boardFigure.SetActive(true);
+        }
+    }
+
+    // Normaliza escala/posição: o modelo pode vir do Blender em qualquer
+    // tamanho — aqui ele é medido pelos bounds reais e ajustado para a
+    // altura alvo no mundo, pés apoiados na superfície da carta
+    void FitFigureOnCard()
+    {
+        Renderer[] renderers = boardFigure.GetComponentsInChildren<Renderer>();
+        if (renderers.Length == 0) return;
+
+        // De frente para o lado inimigo (P1 e P2 se encaram)
+        boardFigure.transform.rotation =
+            Quaternion.Euler(0f, ownerPlayerNumber == 2 ? 180f : 0f, 0f);
+
+        Bounds b = renderers[0].bounds;
+        for (int i = 1; i < renderers.Length; i++) b.Encapsulate(renderers[i].bounds);
+
+        // Tiles têm 6 unidades — a figura precisa ter presença no tabuleiro
+        const float TargetWorldHeight = 4.5f;
+        if (b.size.y > 0.0001f)
+        {
+            float k = TargetWorldHeight / b.size.y;
+            boardFigure.transform.localScale = boardFigure.transform.localScale * k;
+        }
+
+        // Re-mede depois da escala e posiciona a figura EM CIMA DA ARTE da
+        // carta (zona local z -0.35, metade de cima) — assim a caixa de efeito
+        // e os stats na metade de baixo continuam legíveis com ela em campo
+        b = renderers[0].bounds;
+        for (int i = 1; i < renderers.Length; i++) b.Encapsulate(renderers[i].bounds);
+        Vector3 anchor = transform.TransformPoint(new Vector3(0f, 0f, -0.35f));
+        Vector3 shift = new Vector3(
+            anchor.x - b.center.x,
+            transform.position.y + 0.06f - b.min.y,
+            anchor.z - b.center.z);
+        boardFigure.transform.position += shift;
     }
 
     // ============ VERSO DA CARTA (mão do oponente) ============
@@ -789,14 +1199,20 @@ public class CardDisplay : MonoBehaviour
         }
         else
         {
-            // Destaque leve no tabuleiro
+            // Destaque leve no tabuleiro; a figura 3D fica translúcida para o
+            // efeito da carta ficar legível enquanto o mouse estiver em cima
             transform.localScale = preHoverScale * 1.15f;
+            SetFigureGhost(true);
         }
     }
 
     void OnMouseExit()
     {
         isMouseOver = false;
+
+        // Mouse saiu: a figura 3D volta a ficar sólida
+        SetFigureGhost(false);
+
         // Se a carta foi comprada durante o hover, a mão já definiu escala/posição
         if (isInHand) return;
 
@@ -1235,6 +1651,14 @@ public class CardDisplay : MonoBehaviour
     {
         if (target == null) return;
         CardAnimator.Get(gameObject).Lunge(target.transform.position);
+
+        // A figura 3D dá o golpe junto com a investida da carta
+        if (boardFigure != null)
+        {
+            FigureAnimator figAnim = boardFigure.GetComponent<FigureAnimator>();
+            if (figAnim != null) figAnim.Strike();
+        }
+
         SoundManager.Play(SoundManager.Sound.Attack);
     }
 

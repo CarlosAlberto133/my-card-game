@@ -1050,8 +1050,7 @@ public class CardEffectSimple : MonoBehaviour
 
         if (baseAtk == 2 && baseHp == 1)
             HealerTier2Effect1_MaxHealthOnHeal();
-        else if (baseAtk == 1 && baseHp == 3)
-            HealerTier2Effect2_ShieldTank();
+        // (1/3): tríade pura — efeito solo de +2 armadura em Tank foi removido
         else if (baseAtk == 0 && baseHp == 3)
             HealerTier2Effect3_ArcherDamageBoost();
         else if (baseAtk == 2 && baseHp == 3)
@@ -1079,29 +1078,9 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[HealerTier2Effect1] {cardDisplay.card.cardName}: Pronta para aumentar vida máxima ao curar");
     }
 
-    // Efeito 2: Healer 2 (ATK 1, HP 3) - Conceda +2 armadura a um Tank (2 vezes por turno)
-    public void HealerTier2Effect2_BoostTankShield(CardDisplay targetTank)
-    {
-        if (cardDisplay == null || targetTank == null) return;
-
-        if (cardDisplay.healerShieldUseCount >= 2)
-        {
-            Debug.Log($"[HealerTier2Effect2] {cardDisplay.card.cardName}: Já usou +2 vezes neste turno!");
-            return;
-        }
-
-        targetTank.currentShield += 2;
-        targetTank.UpdateDisplay();
-        cardDisplay.healerShieldUseCount++;
-
-        Debug.Log($"[HealerTier2Effect2] {cardDisplay.card.cardName}: Deu +2 armadura a {targetTank.card.cardName}! Usos: {cardDisplay.healerShieldUseCount}/2");
-    }
-
-    void HealerTier2Effect2_ShieldTank()
-    {
-        // Este efeito é ativado manualmente pelo jogador
-        Debug.Log($"[HealerTier2Effect2] {cardDisplay.card.cardName}: Pronta para dar +2 armadura a Tanks");
-    }
+    // (Efeito solo do Healer 2 (ATK 1, HP 3) — +2 armadura em Tank — foi
+    // REMOVIDO: a carta é tríade pura. O gancho antigo em SelectCardFromBoard
+    // dava armadura em QUALQUER clique em Tank, até no tank inimigo.)
 
     // Efeito 3: Healer 2 (ATK 0, HP 3) - +2 dano a todos os Arqueiros
     void HealerTier2Effect3_ArcherDamageBoost()

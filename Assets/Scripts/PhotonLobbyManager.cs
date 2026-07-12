@@ -32,9 +32,10 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
 
         if (!PhotonNetwork.connected)
         {
-            // gameVersion separa builds incompatíveis no matchmaking. "3.3" = fase
-            // inicial de compras simultânea (10 cartas / 5 compras / ouro 20)
-            PhotonNetwork.ConnectUsingSettings("3.3");
+            // gameVersion separa builds incompatíveis no matchmaking. "3.4" =
+            // removido efeito solo do Healer 2 (1/3) que dava armadura em
+            // qualquer clique em Tank (build antigo aplicaria, novo não → desync)
+            PhotonNetwork.ConnectUsingSettings("3.4");
             Debug.Log("[Lobby] Conectando ao Photon...");
         }
         else if (PhotonNetwork.inRoom)
