@@ -12,6 +12,7 @@ public class CardManager : MonoBehaviour
 
     [Header("Configurações de Spawn")]
     public int numberOfCards = 5;
+    public const int LobbyShopSize = 10; // Fase inicial de compras: 10 cartas
     public Vector3 centerPosition = new Vector3(0, 1.5f, 0);
     public Vector3 shopPosition = new Vector3(-35.4f, 1.5f, 0); // Posição ao lado do tabuleiro
     public float cardSpacing = 4f;
@@ -168,10 +169,26 @@ public class CardManager : MonoBehaviour
         // (invisível e inclicável), mas pronta para a compra dele executar aqui
         bool hiddenShop = UsePerPlayerShops() && shopNumber != LocalShopNumber();
 
-        // Spawna cartas aleatórias
-        for (int i = 0; i < numberOfCards; i++)
+        // Fase inicial de compras: 10 cartas, sorteadas de uma FILA por jogador.
+        // As compras/resets do início são simultâneos — sortear do pool
+        // compartilhado dessincronizaria (a ordem dos RPCs muda o resultado)
+        bool lobbyPhase = TurnManager.Instance != null &&
+                          TurnManager.Instance.gameState == GameState.Lobby;
+        bool useLobbyQueues = lobbyPhase && UsePerPlayerShops();
+        int cardsToSpawn = lobbyPhase ? LobbyShopSize : numberOfCards;
+
+        if (useLobbyQueues && PhotonGameManager.Instance != null &&
+            PhotonGameManager.Instance.currentGameSeed > 0)
         {
-            CardInstance randomCard = cardPool.DrawRandomCard();
+            cardPool.EnsureLobbyQueues(PhotonGameManager.Instance.currentGameSeed * 31 + 17);
+        }
+
+        // Spawna cartas aleatórias
+        for (int i = 0; i < cardsToSpawn; i++)
+        {
+            CardInstance randomCard = useLobbyQueues
+                ? cardPool.DrawFromLobbyQueue(shopNumber)
+                : cardPool.DrawRandomCard();
 
             if (randomCard != null)
             {
@@ -180,14 +197,28 @@ public class CardManager : MonoBehaviour
                 if (verticalLayout)
                 {
                     // Layout vertical: cartas uma abaixo da outra (eixo Z)
-                    float totalDepth = (numberOfCards - 1) * cardSpacing;
+                    float totalDepth = (cardsToSpawn - 1) * cardSpacing;
                     Vector3 startPosition = currentSpawnPosition - new Vector3(0, 0, totalDepth / 2f);
                     position = startPosition + new Vector3(0, 0, i * cardSpacing);
+                }
+                else if (lobbyPhase)
+                {
+                    // Fase inicial: 2 fileiras de 5 (10 numa fileira só ficava gigante).
+                    // Primeiras 5 na fileira da frente, últimas 5 na de trás
+                    int perRow = Mathf.CeilToInt(cardsToSpawn / 2f);
+                    int rowIndex = i / perRow;
+                    int colIndex = i % perRow;
+                    float rowGap = 10f; // Separação em Z entre as fileiras
+
+                    float totalWidth = (perRow - 1) * cardSpacing;
+                    Vector3 startPosition = currentSpawnPosition - new Vector3(totalWidth / 2f, 0, 0);
+                    float rowZ = rowIndex == 0 ? -rowGap / 2f : rowGap / 2f;
+                    position = startPosition + new Vector3(colIndex * cardSpacing, 0, rowZ);
                 }
                 else
                 {
                     // Layout horizontal: cartas lado a lado (eixo X)
-                    float totalWidth = (numberOfCards - 1) * cardSpacing;
+                    float totalWidth = (cardsToSpawn - 1) * cardSpacing;
                     Vector3 startPosition = currentSpawnPosition - new Vector3(totalWidth / 2f, 0, 0);
                     position = startPosition + new Vector3(i * cardSpacing, 0, 0);
                 }
@@ -200,6 +231,12 @@ public class CardManager : MonoBehaviour
                 Debug.Log($"Spawnou (loja {shopNumber}): {randomCard.cardData.cardName} (ID: {randomCard.instanceId})");
             }
         }
+    }
+
+    // Quantidade de cartas na loja LOCAL (a fase inicial tem 10; a partida, 5)
+    public int GetLocalShopCount()
+    {
+        return GetShopList(LocalShopNumber()).Count;
     }
 
     public void OnGameStart()

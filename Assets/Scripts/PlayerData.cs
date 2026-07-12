@@ -11,11 +11,15 @@ public class PlayerData
     public int storeResetsThisTurn; // Quantas vezes resetou a loja neste turno
     public int freePurchases = 0; // Compras grátis pendentes (Healer 5) — não gastam ouro nem limite; persistem até usar
 
+    // Fase inicial de compras: começa com 20 de ouro (teto 20); quando a partida
+    // começa, sobras acima de 10 voltam para 10 (TurnManager.StartGame)
+    public const int LobbyStartingGold = 20;
+
     public PlayerData(int playerNum)
     {
         playerNumber = playerNum;
         playerName = $"Jogador {playerNum}";
-        gold = 10;
+        gold = LobbyStartingGold;
         health = 10;
         cardsBoughtThisTurn = 0;
         storeResetsThisTurn = 0;
@@ -32,17 +36,25 @@ public class PlayerData
         else
             playerNumber = 1;
 
-        gold = 10;
+        gold = LobbyStartingGold;
         health = 10;
         cardsBoughtThisTurn = 0;
         storeResetsThisTurn = 0;
     }
 
     public const int MaxCardsPerTurn = 2;
+    public const int MaxCardsInLobby = 5; // Fase inicial: até 5 das 10 cartas
 
     public bool CanBuyCard()
     {
         return cardsBoughtThisTurn < MaxCardsPerTurn; // Até 2 cartas por turno
+    }
+
+    // Fase inicial de compras (sem turnos): o contador não é resetado, então
+    // vale como total de compras da fase
+    public bool CanBuyCardInLobby()
+    {
+        return cardsBoughtThisTurn < MaxCardsInLobby;
     }
 
     public bool HasEnoughGold(int cost)
@@ -72,12 +84,12 @@ public class PlayerData
         Debug.Log($"{playerName} ganhou {amount} de ouro. Total: {gold}");
     }
 
-    public bool CanResetStore()
+    public bool CanResetStore(int maxResets = 1)
     {
-        return storeResetsThisTurn < 1; // Apenas 1 reset por turno
+        return storeResetsThisTurn < maxResets; // Padrão: 1 reset por turno
     }
 
-    public bool PayForStoreReset(int cost)
+    public bool PayForStoreReset(int cost, int maxResets = 1)
     {
         if (!HasEnoughGold(cost))
         {
@@ -85,9 +97,9 @@ public class PlayerData
             return false;
         }
 
-        if (!CanResetStore())
+        if (!CanResetStore(maxResets))
         {
-            Debug.Log($"{playerName} já resetou a loja neste turno!");
+            Debug.Log($"{playerName} atingiu o limite de resets ({maxResets})!");
             return false;
         }
 

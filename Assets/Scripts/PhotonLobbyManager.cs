@@ -32,9 +32,9 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
 
         if (!PhotonNetwork.connected)
         {
-            // gameVersion separa builds incompatíveis no matchmaking. "3.2" = lojas
-            // por jogador + mão oculta + tabuleiro 10x10 + alcance 2 (lockstep mudou)
-            PhotonNetwork.ConnectUsingSettings("3.2");
+            // gameVersion separa builds incompatíveis no matchmaking. "3.3" = fase
+            // inicial de compras simultânea (10 cartas / 5 compras / ouro 20)
+            PhotonNetwork.ConnectUsingSettings("3.3");
             Debug.Log("[Lobby] Conectando ao Photon...");
         }
         else if (PhotonNetwork.inRoom)

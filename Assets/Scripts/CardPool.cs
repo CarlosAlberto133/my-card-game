@@ -152,6 +152,56 @@ public class CardPool : MonoBehaviour
         if (inst != null) inst.isInDeck = true;
     }
 
+    // ===== FILAS DA FASE INICIAL DE COMPRAS =====
+    // As compras/resets do início são SIMULTÂNEOS: se os dois jogadores
+    // sorteassem do pool compartilhado, a ordem de chegada dos RPCs mudaria o
+    // resultado em cada cliente (desync). Solução: no começo da fase, o pool é
+    // embaralhado com a seed e dividido em DUAS filas disjuntas — cada jogador
+    // saca apenas da sua, imune à ordem das ações do outro.
+    private List<CardInstance> lobbyQueueP1;
+    private List<CardInstance> lobbyQueueP2;
+
+    public void EnsureLobbyQueues(int seed)
+    {
+        if (lobbyQueueP1 != null) return; // Já montadas nesta fase
+
+        List<CardInstance> available = GetAvailableCards();
+
+        // Fisher-Yates com System.Random próprio (não mexe no UnityEngine.Random,
+        // que o lockstep re-semeia para os efeitos)
+        System.Random rng = new System.Random(seed);
+        for (int i = available.Count - 1; i > 0; i--)
+        {
+            int j = rng.Next(i + 1);
+            CardInstance tmp = available[i];
+            available[i] = available[j];
+            available[j] = tmp;
+        }
+
+        int half = available.Count / 2;
+        lobbyQueueP1 = available.GetRange(0, half);
+        lobbyQueueP2 = available.GetRange(half, available.Count - half);
+        Debug.Log($"[CardPool] Filas da fase inicial: P1={lobbyQueueP1.Count}, P2={lobbyQueueP2.Count} cartas");
+    }
+
+    public CardInstance DrawFromLobbyQueue(int playerNumber)
+    {
+        List<CardInstance> queue = playerNumber == 2 ? lobbyQueueP2 : lobbyQueueP1;
+        if (queue == null || queue.Count == 0) return null;
+
+        CardInstance drawn = queue[0];
+        queue.RemoveAt(0);
+        drawn.isInDeck = false;
+        return drawn;
+    }
+
+    // Descarta as filas quando a partida começa (volta a sortear do pool normal)
+    public void ClearLobbyQueues()
+    {
+        lobbyQueueP1 = null;
+        lobbyQueueP2 = null;
+    }
+
     // Coloca uma carta no tabuleiro
     public void PlaceCardOnBoard(CardInstance card)
     {

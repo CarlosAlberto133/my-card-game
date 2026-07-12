@@ -81,6 +81,15 @@ public class CameraController : MonoBehaviour
 
         // ── Zoom suave ─────────────────────────────────────────────────────
         float scroll = Mouse.current.scroll.ReadValue().y;
+
+        // Mouse sobre a UI (ex: painel de Logs): o scroll é da UI, não do zoom
+        if (scroll != 0 &&
+            UnityEngine.EventSystems.EventSystem.current != null &&
+            UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
+        {
+            scroll = 0;
+        }
+
         if (scroll != 0)
         {
             // Usa só a direção: em algumas plataformas o scroll vem em passos de ±120

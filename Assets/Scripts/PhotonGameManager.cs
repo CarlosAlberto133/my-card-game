@@ -483,24 +483,26 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
 
     // ========== SINCRONIZAÇÃO DE RESET DA LOJA ==========
 
-    public void SendResetStoreRPC()
+    // Carrega o número do jogador: na fase inicial (compras simultâneas) o
+    // "jogador do turno" não existe, então o reset é de quem clicou
+    public void SendResetStoreRPC(int playerNumber)
     {
         if (!PhotonNetwork.connected) return;
 
         PhotonView photonView = GetComponent<PhotonView>();
         if (photonView != null)
         {
-            photonView.RPC("RPC_ResetStore", PhotonTargets.All);
+            photonView.RPC("RPC_ResetStore", PhotonTargets.All, playerNumber);
         }
     }
 
     [PunRPC]
-    public void RPC_ResetStore()
+    public void RPC_ResetStore(int playerNumber)
     {
-        Debug.Log("[PhotonGame] RPC_ResetStore recebido");
+        Debug.Log($"[PhotonGame] RPC_ResetStore recebido (P{playerNumber})");
         if (TurnManager.Instance != null)
         {
-            TurnManager.Instance.TryResetStore();
+            TurnManager.Instance.TryResetStore(playerNumber);
         }
     }
 

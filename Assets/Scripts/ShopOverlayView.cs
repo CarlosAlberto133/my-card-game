@@ -41,7 +41,7 @@ public class ShopOverlayView : MonoBehaviour
         // (ignora cartas já compradas: elas ficam na lista até o próximo refresh)
         Vector3 sum = Vector3.zero;
         int count = 0;
-        for (int i = 0; i < cardManager.numberOfCards; i++)
+        for (int i = 0; i < cardManager.GetLocalShopCount(); i++)
         {
             GameObject shopCard = cardManager.GetShopCard(i);
             if (shopCard == null) continue;
@@ -85,7 +85,7 @@ public class ShopOverlayView : MonoBehaviour
         // Ajusta o zoom para caber todas as cartas da loja (com margem)
         float halfW = 0f;
         float halfH = 0f;
-        for (int i = 0; i < cardManager.numberOfCards; i++)
+        for (int i = 0; i < cardManager.GetLocalShopCount(); i++)
         {
             GameObject shopCard = cardManager.GetShopCard(i);
             if (shopCard == null) continue;

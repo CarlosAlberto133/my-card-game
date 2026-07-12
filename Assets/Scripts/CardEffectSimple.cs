@@ -577,12 +577,15 @@ public class CardEffectSimple : MonoBehaviour
         var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
         int archersInPlay = 0;
 
-        // Conta quantos Archers tier-2 estão em campo
+        // Conta quantos Archers tier-2 da tríade estão em campo.
+        // Tríade correta (pelas descrições): (3/1), (3/3) e (4/2 — só tríade).
+        // O (3/2) da flecha protetora NÃO participa (o código antigo contava
+        // ele e esquecia o 4/2 — a tríade nunca fechava com as cartas certas)
         foreach (var ally in allies)
         {
             if (ally != null && ally.card.cardClass == CardClass.Arqueiro && ally.card.tier == CardTier.Tier2)
             {
-                if ((ally.card.attack == 3 && ally.card.health == 2) ||
+                if ((ally.card.attack == 4 && ally.card.health == 2) ||
                     (ally.card.attack == 3 && ally.card.health == 3) ||
                     (ally.card.attack == 3 && ally.card.health == 1))
                 {
@@ -591,25 +594,30 @@ public class CardEffectSimple : MonoBehaviour
             }
         }
 
-        // Se os 3 Archers tier-2 estão em campo, ativa combo
+        // Se os 3 Archers tier-2 estão em campo, ativa combo:
+        // "+5 de ataque a todos" = TODOS os aliados no tabuleiro
         if (archersInPlay >= 3)
         {
             foreach (var ally in allies)
             {
-                if (ally != null && ally.card.cardClass == CardClass.Arqueiro && ally.card.tier == CardTier.Tier2)
+                if (ally == null || ally.card == null) continue;
+
+                ally.currentAttack += 5;
+                ally.UpdateDisplay();
+
+                // A trava de "1x por partida" fica SÓ nos membros da tríade:
+                // a flag é reutilizada pelas tríades de Mago/Tank — marcá-la
+                // em outras cartas bloquearia as outras tríades
+                if (ally.card.cardClass == CardClass.Arqueiro && ally.card.tier == CardTier.Tier2 &&
+                    ((ally.card.attack == 4 && ally.card.health == 2) ||
+                     (ally.card.attack == 3 && ally.card.health == 3) ||
+                     (ally.card.attack == 3 && ally.card.health == 1)))
                 {
-                    if ((ally.card.attack == 3 && ally.card.health == 2) ||
-                        (ally.card.attack == 3 && ally.card.health == 3) ||
-                        (ally.card.attack == 3 && ally.card.health == 1))
-                    {
-                        ally.currentAttack += 5;
-                        ally.archerComboActivated = true;
-                        ally.UpdateDisplay();
-                    }
+                    ally.archerComboActivated = true;
                 }
             }
 
-            Debug.Log($"[ArcherCombo] Os 3 Archers tier-2 estão em campo! +5 ATK para todos!");
+            Debug.Log($"[ArcherCombo] Os 3 Archers tier-2 estão em campo! +5 ATK para TODOS os aliados!");
         }
     }
 
@@ -1132,13 +1140,15 @@ public class CardEffectSimple : MonoBehaviour
         var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
         int healersInPlay = 0;
 
-        // Conta quantas Healers tier-2 estão em campo
+        // Conta quantas Healers tier-2 da tríade estão em campo.
+        // Tríade correta (pelas descrições): (1/3), (0/3) e (2/3 — só tríade).
+        // A (2/1) de vida máxima NÃO participa (o código antigo contava 4
+        // cartas, então quaisquer 3 delas fechavam a tríade errada)
         foreach (var ally in allies)
         {
             if (ally != null && ally.card.cardClass == CardClass.Healer && ally.card.tier == CardTier.Tier2)
             {
-                if ((ally.card.attack == 2 && ally.card.health == 1) ||
-                    (ally.card.attack == 1 && ally.card.health == 3) ||
+                if ((ally.card.attack == 1 && ally.card.health == 3) ||
                     (ally.card.attack == 0 && ally.card.health == 3) ||
                     (ally.card.attack == 2 && ally.card.health == 3))
                 {
@@ -1163,8 +1173,7 @@ public class CardEffectSimple : MonoBehaviour
                 {
                     if (ally != null && ally.card.cardClass == CardClass.Healer && ally.card.tier == CardTier.Tier2)
                     {
-                        if ((ally.card.attack == 2 && ally.card.health == 1) ||
-                            (ally.card.attack == 1 && ally.card.health == 3) ||
+                        if ((ally.card.attack == 1 && ally.card.health == 3) ||
                             (ally.card.attack == 0 && ally.card.health == 3) ||
                             (ally.card.attack == 2 && ally.card.health == 3))
                         {
@@ -1741,8 +1750,8 @@ public class CardEffectSimple : MonoBehaviour
 
         if (baseAtk == 2 && baseHp == 3)
             MageTier2Effect1_AttackOnHealerHit();
-        else if (baseAtk == 3 && baseHp == 2)
-            MageTier2Effect2_FireballOnTankHit();
+        // Mage 2 (ATK 3, HP 2): SÓ tríade — o solo da bola de fogo foi removido
+        // da carta (descrição atualizada), então não há mais efeito próprio aqui
         else if (baseAtk == 4 && baseHp == 3)
             MageTier2Effect3_ShieldBreak();
         else if (baseAtk == 3 && baseHp == 1)
@@ -1769,21 +1778,8 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[MageTier2Effect1] {cardDisplay.card.cardName}: Ganhou +1 ATK! ATK agora: {cardDisplay.currentAttack}");
     }
 
-    // Efeito 2: Mage 2 (ATK 3, HP 2) - 2 de dano quando inimigo ataca Tank
-    void MageTier2Effect2_FireballOnTankHit()
-    {
-        // Este efeito é ativado via hook quando um Tank é atacado
-        Debug.Log($"[MageTier2Effect2] {cardDisplay.card.cardName}: Pronta para soltar bola de fogo no atacante");
-    }
-
-    public void MageTier2Effect2_CastFireball(CardDisplay attacker)
-    {
-        if (cardDisplay == null || attacker == null) return;
-
-        attacker.TakeDamage(2);
-
-        Debug.Log($"[MageTier2Effect2] {cardDisplay.card.cardName}: Lançou bola de fogo em {attacker.card.cardName}! 2 de dano");
-    }
+    // (Efeito 2 do Mage 2 ATK 3/HP 2 — bola de fogo ao Tank ser atacado — foi
+    // REMOVIDO: a carta agora tem apenas o efeito de tríade)
 
     // Efeito 3: Mage 2 (ATK 4, HP 3) - 1 de dano na armadura de 2 inimigos (ao entrar em campo)
     void MageTier2Effect3_ShieldBreak()
@@ -1835,7 +1831,8 @@ public class CardEffectSimple : MonoBehaviour
     {
         if (cardDisplay == null || attacker == null) return;
 
-        attacker.Stun();
+        // A descrição diz CONGELE (o código antigo stunava por engano)
+        attacker.Freeze();
 
         Debug.Log($"[MageTier2Effect4] {cardDisplay.card.cardName}: Congelou {attacker.card.cardName}!");
     }
@@ -2674,20 +2671,29 @@ public class CardEffectSimple : MonoBehaviour
             }
         }
 
-        // Se os 3 Tanks tier-2 defensores estão em campo, ativa combo
+        // Se os 3 Tanks tier-2 defensores estão em campo, ativa combo:
+        // "+10 de armadura a todos" = TODOS os aliados no tabuleiro
         if (tanksInPlay >= 3)
         {
             foreach (var ally in allies)
             {
-                if (ally != null && ally.card.cardClass == CardClass.Tank)
+                if (ally == null || ally.card == null) continue;
+
+                ally.currentShield += 10;
+                ally.UpdateDisplay();
+
+                // Trava de "1x por partida" SÓ nos 3 defensores da tríade
+                // (a flag é compartilhada com as tríades de Arqueiro/Mago)
+                if (ally.card.cardClass == CardClass.Tank && ally.card.tier == CardTier.Tier2 &&
+                    ((ally.card.attack == 2 && ally.card.shield == 1 && ally.card.health == 3) ||
+                     (ally.card.attack == 2 && ally.card.shield == 2 && ally.card.health == 2) ||
+                     (ally.card.attack == 0 && ally.card.shield == 4 && ally.card.health == 1)))
                 {
-                    ally.currentShield += 10;
                     ally.archerComboActivated = true; // Reusa flag
-                    ally.UpdateDisplay();
                 }
             }
 
-            Debug.Log($"[TankCombo] Os 3 Tanks tier-2 defensores estão em campo! +10 armadura para todos os Tanks!");
+            Debug.Log($"[TankCombo] Os 3 Tanks tier-2 defensores estão em campo! +10 armadura para TODOS os aliados!");
         }
     }
 

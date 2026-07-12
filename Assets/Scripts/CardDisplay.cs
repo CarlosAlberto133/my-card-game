@@ -695,6 +695,8 @@ public class CardDisplay : MonoBehaviour
         logo.color = new Color(0.96f, 0.77f, 0.32f);
         logo.richText = false;
         logo.rectTransform.sizeDelta = new Vector2(1.7f, 2.4f);
+        // Acima dos quads do verso (3500), que por sua vez cobrem os textos da carta
+        logo.fontMaterial.renderQueue = 3600;
     }
 
     void MakeCoverQuad(string quadName, float width, float height, float yLayer, Color color)
@@ -726,6 +728,10 @@ public class CardDisplay : MonoBehaviour
                 Material mat = new Material(shader);
                 mat.color = color;
                 mat.SetColor("_BaseColor", color);
+                // Renderiza DEPOIS de todos os textos da carta: os TMPs ordenam
+                // por distância e o nome (topo da carta, mais perto da câmera)
+                // era desenhado por cima do verso, vazando o nome da carta
+                mat.renderQueue = 3500;
                 r.material = mat;
             }
         }
@@ -942,10 +948,24 @@ public class CardDisplay : MonoBehaviour
             return;
         }
 
-        PlayerData currentPlayer = TurnManager.Instance.GetCurrentPlayer();
+        bool lobbyPhase = TurnManager.Instance.gameState == GameState.Lobby;
 
-        // Em multiplayer, só pode comprar no SEU turno
-        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null &&
+        // Comprador: na fase inicial as compras são SIMULTÂNEAS (sem turnos),
+        // então o comprador é sempre o jogador LOCAL; durante a partida é o
+        // jogador do turno atual
+        PlayerData currentPlayer;
+        if (lobbyPhase && PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
+        {
+            currentPlayer = TurnManager.Instance.GetPlayer(PhotonGameManager.Instance.myPlayerNumber);
+        }
+        else
+        {
+            currentPlayer = TurnManager.Instance.GetCurrentPlayer();
+        }
+
+        // Em multiplayer, DURANTE a partida só pode comprar no SEU turno
+        // (na fase inicial não há turnos)
+        if (!lobbyPhase && PhotonNetwork.inRoom && PhotonGameManager.Instance != null &&
             currentPlayer.playerNumber != PhotonGameManager.Instance.myPlayerNumber)
         {
             Debug.Log("[CardDisplay] Não é seu turno, não pode comprar!");
@@ -954,14 +974,14 @@ public class CardDisplay : MonoBehaviour
 
         // Na fase de compra (Lobby): quem já clicou "Iniciar Partida" não compra mais
         // até a partida realmente começar
-        if (TurnManager.Instance.gameState == GameState.Lobby)
+        if (lobbyPhase)
         {
             bool alreadyReady =
                 (currentPlayer.playerNumber == 1 && TurnManager.Instance.player1Ready) ||
                 (currentPlayer.playerNumber == 2 && TurnManager.Instance.player2Ready);
             if (alreadyReady)
             {
-                Debug.Log("[CardDisplay] Você já clicou em Iniciar Partida — aguarde a partida começar para comprar!");
+                Debug.Log("[CardDisplay] Você já clicou em Iniciar Partida — aguarde o oponente!");
                 return;
             }
         }
@@ -969,10 +989,17 @@ public class CardDisplay : MonoBehaviour
         // Compra grátis pendente (Healer 5): ignora limite de compras e ouro
         bool freeBuy = currentPlayer.freePurchases > 0;
 
-        // Verifica se o jogador já comprou sua carta neste turno
-        if (!freeBuy && !currentPlayer.CanBuyCard())
+        // Limite de compras: fase inicial = 5 no total; partida = 2 por turno
+        if (!freeBuy)
         {
-            return;
+            bool canBuy = lobbyPhase ? currentPlayer.CanBuyCardInLobby() : currentPlayer.CanBuyCard();
+            if (!canBuy)
+            {
+                Debug.Log(lobbyPhase
+                    ? $"[CardDisplay] Limite de {PlayerData.MaxCardsInLobby} compras da fase inicial atingido!"
+                    : "[CardDisplay] Limite de compras deste turno atingido!");
+                return;
+            }
         }
 
         int cost = card.GetGoldCost();
@@ -1574,17 +1601,8 @@ public class CardDisplay : MonoBehaviour
             {
                 var allies = board.GetCardsByOwner(ownerPlayerNumber);
 
-                // Mago 2 (ATK 3, HP 2) causa 2 de dano no atacante
-                foreach (var ally in allies)
-                {
-                    if (ally != null && ally.card.cardClass == CardClass.Mago &&
-                        ally.card.attack == 3 && ally.card.health == 2)
-                    {
-                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
-                        if (effect != null)
-                            effect.MageTier2Effect2_CastFireball(this);
-                    }
-                }
+                // (O Mago 2 ATK 3/HP 2 perdeu o solo da bola de fogo — a carta
+                // agora é só tríade, então o gancho foi removido)
 
                 // Tank tier 2 (ATK 2, Shield 2, HP 2) recebe o ataque
                 foreach (var ally in allies)

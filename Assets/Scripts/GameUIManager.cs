@@ -90,6 +90,7 @@ public class GameUIManager : MonoBehaviour
 
         CreateQuitButton();
         CreateShopButton();
+        CreateLogsButton();
     }
 
     private TextMeshProUGUI shopButtonText;
@@ -151,6 +152,442 @@ public class GameUIManager : MonoBehaviour
     }
 
     // Cria o botão "Sair do Jogo" via código (canto superior direito)
+    // ===== BOTÃO E PAINEL DE LOGS =====
+    // Raio-X para o jogador: o que pode agir, status ativos, contadores de
+    // efeito e o que falta para tríades/combos ativarem. 100% local (só leitura
+    // de estado), nenhum impacto na sincronização.
+    private GameObject logsPanel;
+    private TMPro.TextMeshProUGUI logsText;
+    private float lastLogsRefresh;
+
+    // Clona o botão Reset Store para manter o mesmo visual, ao lado dele
+    void CreateLogsButton()
+    {
+        if (resetStoreButton == null) return;
+
+        GameObject clone = Instantiate(resetStoreButton.gameObject, resetStoreButton.transform.parent);
+        clone.name = "LogsButton";
+
+        RectTransform sourceRt = resetStoreButton.GetComponent<RectTransform>();
+        RectTransform cloneRt = clone.GetComponent<RectTransform>();
+        cloneRt.anchoredPosition = sourceRt.anchoredPosition +
+            new Vector2(sourceRt.sizeDelta.x + 10f, 0f); // Ao lado (à direita — à esquerda ficava sobre o Passar a Vez)
+
+        TextMeshProUGUI tmpLabel = clone.GetComponentInChildren<TextMeshProUGUI>();
+        if (tmpLabel != null) tmpLabel.text = "Logs";
+        else
+        {
+            Text legacyLabel = clone.GetComponentInChildren<Text>();
+            if (legacyLabel != null) legacyLabel.text = "Logs";
+        }
+
+        Button logsButton = clone.GetComponent<Button>();
+        logsButton.interactable = true;
+        logsButton.onClick.RemoveAllListeners();
+        logsButton.onClick.AddListener(ToggleLogsPanel);
+    }
+
+    void ToggleLogsPanel()
+    {
+        if (logsPanel != null && logsPanel.activeSelf)
+        {
+            logsPanel.SetActive(false);
+            return;
+        }
+
+        if (logsPanel == null) BuildLogsPanel();
+        if (logsPanel == null) return;
+
+        RefreshLogsPanel();
+        logsPanel.SetActive(true);
+        logsPanel.transform.SetAsLastSibling();
+    }
+
+    void BuildLogsPanel()
+    {
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null) canvas = FindObjectOfType<Canvas>();
+        if (canvas == null) return;
+
+        logsPanel = new GameObject("LogsPanel", typeof(RectTransform), typeof(Image));
+        logsPanel.transform.SetParent(canvas.transform, false);
+        RectTransform panelRt = logsPanel.GetComponent<RectTransform>();
+        panelRt.anchorMin = new Vector2(0.5f, 0.5f);
+        panelRt.anchorMax = new Vector2(0.5f, 0.5f);
+        panelRt.pivot = new Vector2(0.5f, 0.5f);
+        panelRt.anchoredPosition = Vector2.zero;
+        panelRt.sizeDelta = new Vector2(640f, 680f);
+        logsPanel.GetComponent<Image>().color = new Color(0.06f, 0.07f, 0.13f, 0.96f);
+
+        // Título
+        GameObject titleObj = new GameObject("Title", typeof(RectTransform));
+        titleObj.transform.SetParent(logsPanel.transform, false);
+        RectTransform titleRt = titleObj.GetComponent<RectTransform>();
+        titleRt.anchorMin = new Vector2(0f, 1f);
+        titleRt.anchorMax = new Vector2(1f, 1f);
+        titleRt.pivot = new Vector2(0.5f, 1f);
+        titleRt.anchoredPosition = new Vector2(0f, -10f);
+        titleRt.sizeDelta = new Vector2(0f, 36f);
+        TMPro.TextMeshProUGUI title = titleObj.AddComponent<TMPro.TextMeshProUGUI>();
+        title.text = "LOGS DA PARTIDA";
+        title.fontSize = 26f;
+        title.fontStyle = TMPro.FontStyles.Bold;
+        title.alignment = TMPro.TextAlignmentOptions.Center;
+        title.color = new Color(0.96f, 0.77f, 0.32f);
+
+        // Botão fechar (X)
+        GameObject closeObj = new GameObject("CloseButton",
+            typeof(RectTransform), typeof(Image), typeof(Button));
+        closeObj.transform.SetParent(logsPanel.transform, false);
+        RectTransform closeRt = closeObj.GetComponent<RectTransform>();
+        closeRt.anchorMin = new Vector2(1f, 1f);
+        closeRt.anchorMax = new Vector2(1f, 1f);
+        closeRt.pivot = new Vector2(1f, 1f);
+        closeRt.anchoredPosition = new Vector2(-8f, -8f);
+        closeRt.sizeDelta = new Vector2(34f, 34f);
+        closeObj.GetComponent<Image>().color = new Color(0.75f, 0.22f, 0.20f, 0.95f);
+        closeObj.GetComponent<Button>().onClick.AddListener(() => logsPanel.SetActive(false));
+
+        GameObject closeTxtObj = new GameObject("Text", typeof(RectTransform));
+        closeTxtObj.transform.SetParent(closeObj.transform, false);
+        RectTransform closeTxtRt = closeTxtObj.GetComponent<RectTransform>();
+        closeTxtRt.anchorMin = Vector2.zero;
+        closeTxtRt.anchorMax = Vector2.one;
+        closeTxtRt.offsetMin = Vector2.zero;
+        closeTxtRt.offsetMax = Vector2.zero;
+        TMPro.TextMeshProUGUI closeTxt = closeTxtObj.AddComponent<TMPro.TextMeshProUGUI>();
+        closeTxt.text = "X";
+        closeTxt.fontSize = 20f;
+        closeTxt.fontStyle = TMPro.FontStyles.Bold;
+        closeTxt.alignment = TMPro.TextAlignmentOptions.Center;
+        closeTxt.color = Color.white;
+
+        // Viewport com máscara (área de rolagem)
+        GameObject viewport = new GameObject("Viewport",
+            typeof(RectTransform), typeof(Image), typeof(RectMask2D));
+        viewport.transform.SetParent(logsPanel.transform, false);
+        RectTransform viewRt = viewport.GetComponent<RectTransform>();
+        viewRt.anchorMin = new Vector2(0f, 0f);
+        viewRt.anchorMax = new Vector2(1f, 1f);
+        viewRt.offsetMin = new Vector2(14f, 14f);
+        viewRt.offsetMax = new Vector2(-14f, -52f);
+        viewport.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.01f);
+
+        // Conteúdo: texto com altura automática
+        GameObject content = new GameObject("Content", typeof(RectTransform));
+        content.transform.SetParent(viewport.transform, false);
+        RectTransform contentRt = content.GetComponent<RectTransform>();
+        contentRt.anchorMin = new Vector2(0f, 1f);
+        contentRt.anchorMax = new Vector2(1f, 1f);
+        contentRt.pivot = new Vector2(0.5f, 1f);
+        contentRt.anchoredPosition = Vector2.zero;
+        contentRt.offsetMin = new Vector2(4f, contentRt.offsetMin.y);
+        contentRt.offsetMax = new Vector2(-4f, contentRt.offsetMax.y);
+
+        logsText = content.AddComponent<TMPro.TextMeshProUGUI>();
+        logsText.fontSize = 19f;
+        logsText.alignment = TMPro.TextAlignmentOptions.TopLeft;
+        logsText.richText = true;
+        logsText.textWrappingMode = TMPro.TextWrappingModes.Normal;
+
+        ContentSizeFitter fitter = content.AddComponent<ContentSizeFitter>();
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        // Rolagem com o scroll do mouse / arrasto
+        ScrollRect scroll = logsPanel.AddComponent<ScrollRect>();
+        scroll.viewport = viewRt;
+        scroll.content = contentRt;
+        scroll.horizontal = false;
+        scroll.vertical = true;
+        scroll.movementType = ScrollRect.MovementType.Clamped;
+        scroll.scrollSensitivity = 25f;
+
+        logsPanel.SetActive(false);
+    }
+
+    void RefreshLogsPanel()
+    {
+        lastLogsRefresh = Time.unscaledTime;
+        if (logsText != null)
+        {
+            logsText.text = BuildLogsReport();
+        }
+    }
+
+    // ===== GERADOR DO RELATÓRIO =====
+    const string H = "#F5C451";   // dourado (títulos)
+    const string OK = "#55E07A";  // verde (pode agir)
+    const string NO = "#FF6B5E";  // vermelho (bloqueado)
+    const string TU = "#FFD84D";  // amarelo (turnos)
+    const string RO = "#FF73C0";  // rosa (rounds)
+
+    string BuildLogsReport()
+    {
+        TurnManager tm = TurnManager.Instance;
+        if (tm == null) return "Sem partida em andamento.";
+
+        int localPlayer = (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
+            ? PhotonGameManager.Instance.myPlayerNumber
+            : tm.currentPlayerNumber;
+        if (localPlayer == 0) localPlayer = 1;
+
+        PlayerData me = tm.GetPlayer(localPlayer);
+        bool lobbyPhase = tm.gameState == GameState.Lobby;
+        var sb = new System.Text.StringBuilder(2048);
+
+        // ---- Status geral ----
+        sb.AppendLine($"<color={H}><b>== SEU STATUS ==</b></color>");
+        sb.AppendLine($"Ouro: {me.gold}{(lobbyPhase ? " (teto 20 nesta fase)" : "")}   Vida da torre: {me.health}");
+
+        if (lobbyPhase)
+        {
+            sb.AppendLine($"Fase inicial: compras {me.cardsBoughtThisTurn}/{PlayerData.MaxCardsInLobby} — " +
+                          $"resets da loja {me.storeResetsThisTurn}/{TurnManager.LobbyMaxStoreResets}");
+        }
+        else
+        {
+            bool myTurn = tm.currentPlayerNumber == localPlayer;
+            sb.AppendLine(myTurn
+                ? $"<color={OK}>É o SEU turno</color> — compras {me.cardsBoughtThisTurn}/{PlayerData.MaxCardsPerTurn}, " +
+                  $"reset da loja {(me.CanResetStore() ? "disponível (2 ouro)" : "já usado")}"
+                : $"<color={NO}>Turno do oponente</color> — aguarde para agir");
+        }
+
+        HandManager myHand = FindHandManagerFor(localPlayer);
+        if (myHand != null)
+            sb.AppendLine($"Cartas na mão: {myHand.GetCardCount()}/{myHand.maxCardsInHand}");
+        if (me.freePurchases > 0)
+            sb.AppendLine($"<color={OK}>Compra GRÁTIS pendente: {me.freePurchases} (não gasta ouro nem limite)</color>");
+        sb.AppendLine();
+
+        // ---- Cartas em campo ----
+        BoardManager board = BoardManager.Instance;
+        var myCards = board != null
+            ? board.GetCardsByOwner(localPlayer)
+            : new System.Collections.Generic.List<CardDisplay>();
+
+        sb.AppendLine($"<color={H}><b>== SUAS CARTAS EM CAMPO ({myCards.Count}) ==</b></color>");
+        if (myCards.Count == 0) sb.AppendLine("Nenhuma carta no tabuleiro ainda.");
+
+        int totalRows = board != null ? board.rows : 10;
+        foreach (var c in myCards)
+        {
+            if (c == null || c.card == null) continue;
+            AppendCardLine(sb, c, totalRows, lobbyPhase);
+        }
+        sb.AppendLine();
+
+        // ---- Efeitos para ativar ----
+        sb.AppendLine($"<color={H}><b>== EFEITOS PARA ATIVAR ==</b></color>");
+        AppendTriadStatus(sb, myCards);
+        AppendComboWatch(sb, myCards, localPlayer);
+
+        return sb.ToString();
+    }
+
+    void AppendCardLine(System.Text.StringBuilder sb, CardDisplay c,
+        int totalRows, bool lobbyPhase)
+    {
+        string pos = c.currentTile != null ? $"({c.currentTile.row},{c.currentTile.column})" : "(?)";
+        sb.AppendLine($"<b>• {c.card.cardName}</b> {pos}  ATK {c.currentAttack} / DEF {c.currentShield} / HP {c.currentHealth}");
+
+        // Status ativos (com duração)
+        if (c.isFrozen)
+            sb.AppendLine($"   <color={TU}>CONGELADA — descongela em {c.freezeTurnsLeft} turno(s) dela</color>");
+        if (c.isStunned)
+            sb.AppendLine($"   <color={TU}>ATORDOADA — libera em {c.stunTurnsLeft} turno(s) dela</color>");
+        if (c.eagleMarked)
+            sb.AppendLine($"   <color={TU}>MARCADA pela águia — não ataca por {c.eagleTurnsLeft} turno(s)</color>");
+        if (c.invulnerableRoundsLeft > 0)
+            sb.AppendLine($"   <color={RO}>INVULNERÁVEL por {c.invulnerableRoundsLeft} round(s)</color>");
+
+        // Ações disponíveis (fora da fase inicial)
+        if (!lobbyPhase)
+        {
+            bool canMove = c.CanMoveThisRound();
+            bool canAttack = c.CanAttackThisRound();
+            int targets = canAttack ? c.GetAdjacentEnemies().Count : 0;
+
+            string moveTxt = canMove ? $"<color={OK}>pode MOVER</color>" : $"<color={NO}>já moveu</color>";
+            string atkTxt;
+            if (!canAttack) atkTxt = $"<color={NO}>não pode atacar</color>";
+            else if (targets > 0) atkTxt = $"<color={OK}>pode ATACAR ({targets} alvo(s) no alcance)</color>";
+            else atkTxt = "pode atacar, sem alvos no alcance";
+            sb.AppendLine($"   {moveTxt}  |  {atkTxt}");
+
+            // Torre ao alcance? (última fileira; Mago/Arqueiro também da penúltima)
+            if (canAttack && c.currentTile != null)
+            {
+                bool longRange = c.card.cardClass == CardClass.Arqueiro || c.card.cardClass == CardClass.Mago;
+                int reach = longRange ? 2 : 1;
+                bool towerInReach = (c.ownerPlayerNumber == 1 && c.currentTile.row >= totalRows - reach) ||
+                                    (c.ownerPlayerNumber == 2 && c.currentTile.row <= reach - 1);
+                if (towerInReach)
+                    sb.AppendLine($"   <color={OK}>pode atacar a TORRE inimiga (tecla T ou clique além do tabuleiro)</color>");
+            }
+        }
+
+        // Contador de efeito periódico / cooldown
+        if (c.effectCounter > 0)
+        {
+            string unit = c.effectCounterIsRound ? "round(s)" : "turno(s)";
+            string cor = c.effectCounterIsRound ? RO : TU;
+            sb.AppendLine(c.effectPeriod > 0
+                ? $"   <color={cor}>efeito automático dispara em {c.effectCounter} {unit}</color>"
+                : $"   <color={cor}>habilidade recarrega em {c.effectCounter} {unit}</color>");
+        }
+        else if (c.card.cardClass == CardClass.Healer && c.card.tier == CardTier.Tier1 &&
+                 c.card.attack == 1 && c.card.health == 2)
+        {
+            sb.AppendLine($"   <color={OK}>anular ataque: PRONTO</color>");
+        }
+
+        // Descrição resumida do efeito da carta
+        if (!string.IsNullOrEmpty(c.card.effectDescription))
+        {
+            string desc = c.card.effectDescription.Replace("\n", " ");
+            if (desc.Length > 80) desc = desc.Substring(0, 80) + "…";
+            sb.AppendLine($"   <i><color=#9AA3C0>{desc}</color></i>");
+        }
+    }
+
+    // Progresso das tríades tier-2 (uma por classe)
+    void AppendTriadStatus(System.Text.StringBuilder sb, System.Collections.Generic.List<CardDisplay> myCards)
+    {
+        sb.AppendLine("<b>Tríades (as 3 em campo ativam o bônus):</b>");
+        AppendOneTriad(sb, myCards, "Arqueiros (+5 ATK a todos os aliados)", CardClass.Arqueiro,
+            new int[][] { new[] { 3, 0, 1 }, new[] { 3, 0, 3 }, new[] { 4, 0, 2 } });
+        AppendOneTriad(sb, myCards, "Healers (ouro e vida da torre no máximo)", CardClass.Healer,
+            new int[][] { new[] { 1, 0, 3 }, new[] { 0, 0, 3 }, new[] { 2, 0, 3 } });
+        AppendOneTriad(sb, myCards, "Magos (invoca Mago Lendário)", CardClass.Mago,
+            new int[][] { new[] { 2, 0, 3 }, new[] { 3, 0, 1 }, new[] { 3, 0, 2 } });
+        AppendOneTriad(sb, myCards, "Tanks (+10 armadura a todos os aliados)", CardClass.Tank,
+            new int[][] { new[] { 2, 1, 3 }, new[] { 2, 2, 2 }, new[] { 0, 4, 1 } });
+    }
+
+    // members: cada item = {ATK, DEF, HP} da carta da tríade
+    void AppendOneTriad(System.Text.StringBuilder sb,
+        System.Collections.Generic.List<CardDisplay> myCards,
+        string label, CardClass cls, int[][] members)
+    {
+        int present = 0;
+        bool activated = false;
+        var missing = new System.Collections.Generic.List<string>();
+
+        foreach (int[] m in members)
+        {
+            bool found = false;
+            foreach (var c in myCards)
+            {
+                if (c == null || c.card == null) continue;
+                if (c.card.cardClass == cls && c.card.tier == CardTier.Tier2 &&
+                    c.card.attack == m[0] && c.card.shield == m[1] && c.card.health == m[2])
+                {
+                    found = true;
+                    if (cls == CardClass.Healer ? c.healerComboActivated : c.archerComboActivated)
+                        activated = true;
+                    break;
+                }
+            }
+
+            if (found) present++;
+            else missing.Add(m[1] > 0
+                ? $"(ATK {m[0]}, DEF {m[1]}, HP {m[2]})"
+                : $"(ATK {m[0]}, HP {m[2]})");
+        }
+
+        if (activated)
+            sb.AppendLine($"• {label}: <color={OK}>ATIVADA!</color>");
+        else if (present == 0)
+            sb.AppendLine($"• {label}: 0/3 em campo");
+        else
+            sb.AppendLine($"• {label}: {present}/3 — falta {string.Join(", ", missing)}");
+    }
+
+    // Combos de cartas específicas que estão em campo (o que falta para ativar)
+    void AppendComboWatch(System.Text.StringBuilder sb,
+        System.Collections.Generic.List<CardDisplay> myCards, int localPlayer)
+    {
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        bool hasTank = board.HasClassOnBoard(localPlayer, CardClass.Tank);
+        bool hasHealer = board.HasClassOnBoard(localPlayer, CardClass.Healer);
+        bool hasMage = board.HasClassOnBoard(localPlayer, CardClass.Mago);
+        bool hasArcher = board.HasClassOnBoard(localPlayer, CardClass.Arqueiro);
+
+        bool any = false;
+        foreach (var c in myCards)
+        {
+            if (c == null || c.card == null) continue;
+            Card card = c.card;
+
+            // Tank 4 (5/10/10): 50% menos dano + armadura/turno com as 3 classes
+            if (card.cardClass == CardClass.Tank && card.tier == CardTier.Tier4 &&
+                card.attack == 5 && card.shield == 10 && card.health == 10)
+            {
+                any = true;
+                sb.AppendLine(ComboLine("Tank 4 (5/10/10) — 50% menos dano + armadura/turno",
+                    Missing(hasHealer, "Healer", hasMage, "Mago", hasArcher, "Arqueiro"), false));
+            }
+            // Tank 4 (1/6/3): +5 HP +2 DEF com Arqueiro e Mago (1x)
+            else if (card.cardClass == CardClass.Tank && card.tier == CardTier.Tier4 &&
+                     card.attack == 1 && card.shield == 6 && card.health == 3)
+            {
+                any = true;
+                sb.AppendLine(ComboLine("Tank 4 (1/6/3) — +5 HP e +2 DEF",
+                    Missing(hasArcher, "Arqueiro", hasMage, "Mago"), c.tankTier4Effect1Used));
+            }
+            // Tank 4 (2/3/5): Arqueiros atacam 2x com as 4 classes (1x)
+            else if (card.cardClass == CardClass.Tank && card.tier == CardTier.Tier4 &&
+                     card.attack == 2 && card.shield == 3 && card.health == 5)
+            {
+                any = true;
+                sb.AppendLine(ComboLine("Tank 4 (2/3/5) — Arqueiros atacam 2x",
+                    Missing(hasTank, "Tank", hasHealer, "Healer", hasMage, "Mago", hasArcher, "Arqueiro"),
+                    c.tankTier4Effect3Used));
+            }
+            // Healer 4 (4/4): +3 em todos os status com Tank+Arqueiro+Mago (1x)
+            else if (card.cardClass == CardClass.Healer && card.tier == CardTier.Tier4 &&
+                     card.attack == 4 && card.health == 4)
+            {
+                any = true;
+                sb.AppendLine(ComboLine("Healer 4 (4/4) — +3 todos os status dos aliados",
+                    Missing(hasTank, "Tank", hasArcher, "Arqueiro", hasMage, "Mago"), c.healerTier4Effect4Used));
+            }
+        }
+
+        if (!any)
+            sb.AppendLine("<i>Nenhum combo de carta específica em campo no momento.</i>");
+    }
+
+    string ComboLine(string label, string missing, bool used)
+    {
+        if (used) return $"• {label}: <color={OK}>já ativado nesta partida</color>";
+        if (string.IsNullOrEmpty(missing)) return $"• {label}: <color={OK}>condições OK!</color>";
+        return $"• {label}: falta <color={NO}>{missing}</color> em campo";
+    }
+
+    // Monta a lista de classes faltantes a partir de pares (temClasse, nome)
+    string Missing(params object[] pairs)
+    {
+        var missing = new System.Collections.Generic.List<string>();
+        for (int i = 0; i + 1 < pairs.Length; i += 2)
+        {
+            if (!(bool)pairs[i]) missing.Add((string)pairs[i + 1]);
+        }
+        return string.Join(" + ", missing);
+    }
+
+    HandManager FindHandManagerFor(int playerNumber)
+    {
+        foreach (HandManager hm in FindObjectsOfType<HandManager>())
+        {
+            if (hm.playerNumber == playerNumber) return hm;
+        }
+        return null;
+    }
+
     void CreateQuitButton()
     {
         Canvas canvas = GetComponentInParent<Canvas>();
@@ -214,6 +651,13 @@ public class GameUIManager : MonoBehaviour
     void Update()
     {
         if (TurnManager.Instance == null) return;
+
+        // Painel de logs aberto: atualiza o relatório 1x por segundo
+        if (logsPanel != null && logsPanel.activeSelf &&
+            Time.unscaledTime - lastLogsRefresh > 1f)
+        {
+            RefreshLogsPanel();
+        }
 
         // Atualiza UI do Jogador 1
         if (player1NameText != null)
@@ -340,15 +784,19 @@ public class GameUIManager : MonoBehaviour
             return;
         }
 
-        // Em multiplayer, valida o turno e sincroniza o reset nos dois clientes
+        // Em multiplayer, sincroniza o reset nos dois clientes. Na fase inicial
+        // (compras simultâneas) não há turno para validar — o reset é sempre do
+        // jogador local; durante a partida, só no seu turno
         if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
         {
-            if (TurnManager.Instance.currentPlayerNumber != PhotonGameManager.Instance.myPlayerNumber)
+            bool lobbyPhase = TurnManager.Instance.gameState == GameState.Lobby;
+            if (!lobbyPhase &&
+                TurnManager.Instance.currentPlayerNumber != PhotonGameManager.Instance.myPlayerNumber)
             {
                 Debug.Log("[GameUI] Não é seu turno, não pode resetar a loja!");
                 return;
             }
-            PhotonGameManager.Instance.SendResetStoreRPC();
+            PhotonGameManager.Instance.SendResetStoreRPC(PhotonGameManager.Instance.myPlayerNumber);
             return;
         }
 

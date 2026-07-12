@@ -62,6 +62,13 @@ public class TurnManager : MonoBehaviour
     // Pede para passar a vez. Em multiplayer, valida se é seu turno e sincroniza via RPC.
     public void RequestEndTurn()
     {
+        // Fase inicial de compras é SIMULTÂNEA: não existe passar a vez
+        if (gameState == GameState.Lobby)
+        {
+            Debug.Log("[TurnManager] Fase de compras: não há turnos, compre e clique em Iniciar Partida!");
+            return;
+        }
+
         // Não deixa passar a vez com decisão de efeito pendente: o dano/efeito
         // daquela decisão ainda vai ser aplicado e mudaria o estado fora de ordem
         if (GameManager.IsDecisionPending())
@@ -159,10 +166,24 @@ public class TurnManager : MonoBehaviour
         // Resetar contador de cartas compradas neste turno
         player1.cardsBoughtThisTurn = 0;
         player2.cardsBoughtThisTurn = 0;
+        player1.storeResetsThisTurn = 0;
+        player2.storeResetsThisTurn = 0;
+
+        // A fase de compras usa teto de 20 de ouro; a partida volta ao teto 10:
+        // sobra acima de 10 vira 10, abaixo de 10 fica como está
+        if (player1.gold > 10) player1.gold = 10;
+        if (player2.gold > 10) player2.gold = 10;
 
         Debug.Log($"Estado mudou para: {gameState}");
         Debug.Log($"Round: {currentRound}");
         Debug.Log($"Jogador atual: {currentPlayerNumber}");
+
+        // Descarta as filas da fase inicial (a partida volta a sortear do pool)
+        CardPool cardPool = FindObjectOfType<CardPool>();
+        if (cardPool != null)
+        {
+            cardPool.ClearLobbyQueues();
+        }
 
         // Notificar CardManager para mover cartas para a direita
         if (CardManager.Instance != null)
@@ -288,15 +309,39 @@ public class TurnManager : MonoBehaviour
         return currentPlayerNumber == playerNum;
     }
 
+    // Limite de resets da loja na fase inicial de compras (por jogador)
+    public const int LobbyMaxStoreResets = 2;
+
     public bool TryResetStore()
     {
-        PlayerData currentPlayer = GetCurrentPlayer();
+        // Compatibilidade: sem jogador explícito, usa o do turno atual
+        return TryResetStore(currentPlayerNumber);
+    }
 
-        // Determinar custo baseado no estado do jogo
-        int cost = gameState == GameState.Lobby ? 1 : 2;
+    public bool TryResetStore(int playerNumber)
+    {
+        PlayerData player = GetPlayer(playerNumber);
+        bool lobbyPhase = gameState == GameState.Lobby;
+
+        // Quem já clicou em "Iniciar Partida" não faz mais nada na fase inicial
+        if (lobbyPhase)
+        {
+            bool alreadyReady = (playerNumber == 1 && player1Ready) ||
+                                (playerNumber == 2 && player2Ready);
+            if (alreadyReady)
+            {
+                Debug.Log($"[TurnManager] {player.playerName} já está pronto — aguarde o oponente!");
+                return false;
+            }
+        }
+
+        // Custo e limite por fase: início = 1 ouro, até 2 resets na fase toda;
+        // partida = 2 ouro, 1 reset por turno
+        int cost = lobbyPhase ? 1 : 2;
+        int maxResets = lobbyPhase ? LobbyMaxStoreResets : 1;
 
         // Tenta pagar pelo reset
-        if (!currentPlayer.PayForStoreReset(cost))
+        if (!player.PayForStoreReset(cost, maxResets))
         {
             return false;
         }
@@ -306,10 +351,10 @@ public class TurnManager : MonoBehaviour
         if (CardManager.Instance != null)
         {
             if (PhotonNetwork.inRoom)
-                CardManager.Instance.RefreshShopForPlayer(currentPlayer.playerNumber);
+                CardManager.Instance.RefreshShopForPlayer(playerNumber);
             else
                 CardManager.Instance.RefreshShop();
-            Debug.Log($"Loja resetada! Custo: {cost} ouro");
+            Debug.Log($"Loja resetada por {player.playerName}! Custo: {cost} ouro");
         }
         else
         {
