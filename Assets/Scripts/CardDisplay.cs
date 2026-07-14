@@ -2198,49 +2198,13 @@ public class CardDisplay : MonoBehaviour
             }
         }
 
-        // Triggers para Mago tier-2 quando Healer é atacado
+        // Healer atacado: o Tank 1/3/2 (fora da tríade) ainda pode assumir o dano.
+        // (Os efeitos de tríade — Mago 2/3 ganhar +1 ATK e Tank 2/1/3 interceptar —
+        // foram removidos: os membros de tríade só têm o efeito da tríade.)
         if (card.cardClass == CardClass.Healer && ownerPlayerNumber != 0)
         {
-            BoardManager board = BoardManager.Instance;
-            if (board != null)
-            {
-                var allies = board.GetCardsByOwner(ownerPlayerNumber);
-
-                // Mago 2 (ATK 2, HP 3) ganha +1 ATK
-                foreach (var ally in allies)
-                {
-                    if (ally != null && ally.card.cardClass == CardClass.Mago &&
-                        ally.card.attack == 2 && ally.card.health == 3 &&
-                        ally.card.tier == CardTier.Tier2)
-                    {
-                        if (!DuplicateEffectGate.TryActivate(ally)) continue;
-                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
-                        if (effect != null)
-                            effect.MageTier2Effect1_BoostAttack();
-                    }
-                }
-
-                // Tank 2 (ATK 2, Shield 1, HP 3) recebe o ATAQUE (dano de efeito não conta)
-                foreach (var ally in allies)
-                {
-                    if (attacker != null && ally != null && ally != this && ally.card.cardClass == CardClass.Tank &&
-                        ally.card.attack == 2 && ally.card.shield == 1 && ally.card.health == 3)
-                    {
-                        if (!DuplicateEffectGate.TryActivate(ally)) continue;
-                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
-                        if (effect != null)
-                        {
-                            FloatingTextFX.ShowAboveCard(ally, "ASSUMIU O DANO!", FloatingTextFX.EffectColor, 4.2f);
-                            effect.TankTier2Effect1_TakeHealerAttack(this, damage, attacker);
-                        }
-                        return; // Tank recebeu o ataque, não aplicar dano ao Healer
-                    }
-                }
-
-                // Tank tier 2 (ATK 1, Shield 3, HP 2) pode assumir o dano (o dono escolhe)
-                if (TryTankAssumeAnyDamage(damage, attacker))
-                    return; // Decisão pendente: o dano é resolvido no callback
-            }
+            if (TryTankAssumeAnyDamage(damage, attacker))
+                return; // Decisão pendente: o dano é resolvido no callback
         }
 
         // (A cura do Healer 3 [3/1] quando um Tank leva dano agora dispara
@@ -2268,85 +2232,22 @@ public class CardDisplay : MonoBehaviour
             }
         }
 
-        // Triggers para Mago tier-2 quando Arqueiro é atacado
+        // Arqueiro atacado: o Tank 1/3/2 (fora da tríade) ainda pode assumir o dano.
+        // (Mago 3/1 congelar o atacante e Tank 2/2/2 interceptar foram removidos —
+        // os membros de tríade só têm o efeito da tríade.)
         if (card.cardClass == CardClass.Arqueiro && ownerPlayerNumber != 0)
         {
-            BoardManager board = BoardManager.Instance;
-            if (board != null)
-            {
-                var allies = board.GetCardsByOwner(ownerPlayerNumber);
-
-                // Mago 2 (ATK 3, HP 1) congela o ATACANTE. BUGFIX: antes passava
-                // "this" (a própria carta atacada!) — quem atacava um Arqueiro
-                // via o alvo se congelar sozinho
-                if (attacker != null)
-                {
-                    foreach (var ally in allies)
-                    {
-                        if (ally != null && ally.card.cardClass == CardClass.Mago &&
-                            ally.card.attack == 3 && ally.card.health == 1 &&
-                            ally.card.tier == CardTier.Tier2)
-                        {
-                            if (!DuplicateEffectGate.TryActivate(ally)) continue;
-                            CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
-                            if (effect != null)
-                                effect.MageTier2Effect4_FreezeAttacker(attacker);
-                        }
-                    }
-                }
-
-                // Tank tier 2 (ATK 2, Shield 2, HP 2) recebe o ataque
-                foreach (var ally in allies)
-                {
-                    if (attacker != null && ally != null && ally != this && ally.card.cardClass == CardClass.Tank &&
-                        ally.card.attack == 2 && ally.card.shield == 2 && ally.card.health == 2)
-                    {
-                        if (!DuplicateEffectGate.TryActivate(ally)) continue;
-                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
-                        if (effect != null)
-                        {
-                            FloatingTextFX.ShowAboveCard(ally, "ASSUMIU O DANO!", FloatingTextFX.EffectColor, 4.2f);
-                            effect.TankTier2Effect2_TakeArcherAttack(this, damage, attacker);
-                        }
-                        return; // Tank recebeu o ataque, não aplicar dano
-                    }
-                }
-
-                // Tank tier 2 (ATK 1, Shield 3, HP 2) pode assumir o dano (o dono escolhe)
-                if (TryTankAssumeAnyDamage(damage, attacker))
-                    return; // Decisão pendente: o dano é resolvido no callback
-            }
+            if (TryTankAssumeAnyDamage(damage, attacker))
+                return; // Decisão pendente: o dano é resolvido no callback
         }
 
-        // Triggers para Mago tier-2 quando Mago é atacado
+        // Mago atacado: o Tank 1/3/2 (fora da tríade) ainda pode assumir o dano.
+        // (Tank 0/4/1 interceptar foi removido — os membros de tríade só têm o
+        // efeito da tríade.)
         if (card.cardClass == CardClass.Mago && ownerPlayerNumber != 0)
         {
-            BoardManager board = BoardManager.Instance;
-            if (board != null)
-            {
-                var allies = board.GetCardsByOwner(ownerPlayerNumber);
-
-                // Tank tier 2 (ATK 0, Shield 4, HP 1) recebe o ATAQUE (dano de efeito não conta)
-                foreach (var ally in allies)
-                {
-                    if (attacker != null && ally != null && ally != this && ally.card.cardClass == CardClass.Tank &&
-                        ally.card.attack == 0 && ally.card.shield == 4 && ally.card.health == 1)
-                    {
-                        if (!DuplicateEffectGate.TryActivate(ally)) continue;
-                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
-                        if (effect != null)
-                        {
-                            FloatingTextFX.ShowAboveCard(ally, "ASSUMIU O DANO!", FloatingTextFX.EffectColor, 4.2f);
-                            effect.TankTier2Effect3_TakeMagoAttack(this, damage, attacker);
-                        }
-                        return; // Tank recebeu o ataque, não aplicar dano ao Mago
-                    }
-                }
-
-                // Tank tier 2 (ATK 1, Shield 3, HP 2) pode assumir o dano (o dono escolhe)
-                if (TryTankAssumeAnyDamage(damage, attacker))
-                    return; // Decisão pendente: o dano é resolvido no callback
-            }
+            if (TryTankAssumeAnyDamage(damage, attacker))
+                return; // Decisão pendente: o dano é resolvido no callback
         }
 
         // Verifica se é um Healer sendo atacado e há Archer 2 (ATK 3, HP 2) que pode parar o ataque.
@@ -2385,25 +2286,8 @@ public class CardDisplay : MonoBehaviour
             }
         }
 
-        // Verifica se é um Archer 2 (ATK 3, HP 1) recebendo ATAQUE
-        if (card.cardClass == CardClass.Arqueiro && card.attack == 3 && card.health == 1 &&
-            card.tier == CardTier.Tier2 &&
-            !archerStunOnHitUsed && ownerPlayerNumber != 0 && attacker != null)
-        {
-            // Decisão sincronizada: o dono do Archer escolhe se stuna o atacante.
-            // BUGFIX: stuna o ATACANTE (antes passava "this" = se stunava sozinho)
-            CardEffectSimple stunEffect = GetComponent<CardEffectSimple>();
-            CardDisplay atk2 = attacker;
-            PhotonGameManager.AskEffectDecision(ownerPlayerNumber,
-                $"{card.cardName} pode stunar o atacante!",
-                "Ativar stun", "Não usar",
-                accepted =>
-                {
-                    if (accepted && stunEffect != null) stunEffect.ArcherTier2Effect3_ActivateStun(atk2);
-                    ApplyDamageNormally(damage, atk2);
-                });
-            return;
-        }
+        // (O Archer 3/1 é membro de tríade: o solo de "stunar o atacante ao
+        // receber ataque" foi removido — só tem o efeito da tríade.)
 
         // Verifica se há uma Healer 1* (1/2, tier 1, "anule um ATAQUE a cada 3
         // turnos") aliada que pode bloquear. BUGFIX: sem o filtro de tier, a
@@ -2727,19 +2611,8 @@ public class CardDisplay : MonoBehaviour
         // TODOS os caminhos de ataque (clique, tecla A, dano adiado por popup).
         // Antes o Archer 4 (7/3) só copiava no caminho da tecla A.
 
-        // Archer 2 (ATK 3, HP 3): invoca um Archer aleatório ao matar
-        if (attackerCardDisplay != null &&
-            attackerCardDisplay.card.cardClass == CardClass.Arqueiro &&
-            attackerCardDisplay.card.attack == 3 &&
-            attackerCardDisplay.card.health == 3 &&
-            attackerCardDisplay.card.tier == CardTier.Tier2)
-        {
-            CardManager cardManager = CardManager.Instance;
-            if (cardManager != null)
-            {
-                cardManager.InvokeRandomArcher(attackerCardDisplay.ownerPlayerNumber, attackerCardDisplay.currentTile);
-            }
-        }
+        // (O Archer 3/3 é membro de tríade: o solo de "invocar um Archer ao matar"
+        // foi removido — só tem o efeito da tríade.)
 
         // Archer 4 (ATK 7, HP 3): cria cópia de si ao matar (+ move de novo se tem Tank)
         if (attackerCardDisplay != null &&

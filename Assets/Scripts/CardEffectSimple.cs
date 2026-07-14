@@ -509,11 +509,8 @@ public class CardEffectSimple : MonoBehaviour
         int baseAtk = cardDisplay.card.attack;
         int baseHp = cardDisplay.card.health;
 
-        if (baseAtk == 3 && baseHp == 3)
-            ArcherTier2Effect1_InvokeOnKill();
-        else if (baseAtk == 3 && baseHp == 1)
-            ArcherTier2Effect3_StunOnHit();
-        // Archer 2 (ATK 3, HP 2) tem efeito reativo, não é ativado ao entrar em campo
+        // Os membros da tríade (4/2, 3/3, 3/1) NÃO têm mais efeito solo — só a
+        // tríade. (Archer 2 [3/2], fora da tríade, mantém seu efeito reativo.)
 
         // Verifica combo das 3 cartas
         CheckArcherTier2Combo();
@@ -1061,13 +1058,10 @@ public class CardEffectSimple : MonoBehaviour
         int baseAtk = cardDisplay.card.attack;
         int baseHp = cardDisplay.card.health;
 
+        // Membros da tríade (1/3, 0/3, 2/3): SÓ tríade, sem efeito solo.
+        // (Healer 2/1, fora da tríade, mantém o "+vida máxima ao curar".)
         if (baseAtk == 2 && baseHp == 1)
             HealerTier2Effect1_MaxHealthOnHeal();
-        // (1/3): tríade pura — efeito solo de +2 armadura em Tank foi removido
-        else if (baseAtk == 0 && baseHp == 3)
-            HealerTier2Effect3_ArcherDamageBoost();
-        else if (baseAtk == 2 && baseHp == 3)
-            HealerTier2Effect4_ComboOnly();
 
         // Verifica combo das 3 Healers tier-2
         CheckHealerTier2Combo();
@@ -1768,14 +1762,10 @@ public class CardEffectSimple : MonoBehaviour
         int baseAtk = cardDisplay.card.attack;
         int baseHp = cardDisplay.card.health;
 
-        if (baseAtk == 2 && baseHp == 3)
-            MageTier2Effect1_AttackOnHealerHit();
-        // Mage 2 (ATK 3, HP 2): SÓ tríade — o solo da bola de fogo foi removido
-        // da carta (descrição atualizada), então não há mais efeito próprio aqui
-        else if (baseAtk == 4 && baseHp == 3)
+        // Membros da tríade (2/3, 3/2, 3/1): SÓ tríade, sem efeito solo.
+        // (Mago 4/3, fora da tríade, mantém o efeito de quebrar armadura.)
+        if (baseAtk == 4 && baseHp == 3)
             MageTier2Effect3_ShieldBreak();
-        else if (baseAtk == 3 && baseHp == 1)
-            MageTier2Effect4_FreezeOnArcherHit();
 
         // Verifica combo dos 3 Magos tier-2
         CheckMageTier2Combo();
@@ -2576,13 +2566,9 @@ public class CardEffectSimple : MonoBehaviour
         int baseShield = cardDisplay.card.shield;
         int baseHp = cardDisplay.card.health;
 
-        if (baseAtk == 2 && baseShield == 1 && baseHp == 3)
-            TankTier2Effect1_DefendHealer();
-        else if (baseAtk == 2 && baseShield == 2 && baseHp == 2)
-            TankTier2Effect2_DefendArcher();
-        else if (baseAtk == 0 && baseShield == 4 && baseHp == 1)
-            TankTier2Effect3_DefendMago();
-        else if (baseAtk == 1 && baseShield == 3 && baseHp == 2)
+        // Membros da tríade (2/1/3, 2/2/2, 0/4/1): SÓ tríade — não interceptam
+        // mais ataques. (O Tank 1/3/2, fora da tríade, ainda pode assumir o dano.)
+        if (baseAtk == 1 && baseShield == 3 && baseHp == 2)
             TankTier2Effect4_DefendAny();
 
         // Verifica combo dos 3 Tanks tier-2 (exceto o 4º)

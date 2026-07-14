@@ -32,12 +32,13 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
 
         if (!PhotonNetwork.connected)
         {
-            // gameVersion separa builds incompatíveis no matchmaking. "3.6" =
-            // porcentagens de tier na loja (TierOdds), reinício sincronizado
-            // (novos RPCs RPC_RestartGame/RPC_RequestRestart), Archer 1/3 e a
-            // tela de vitória por código. "3.5" = pacote grande de correções de
-            // efeitos. Builds antigos simulariam outro resultado → desync.
-            PhotonNetwork.ConnectUsingSettings("3.6");
+            // gameVersion separa builds incompatíveis no matchmaking. "3.7" =
+            // membros de tríade perderam TODOS os efeitos solo (só a tríade agora
+            // — Mago +1 ATK, congelar, interceptações dos Tanks, stun/invocar dos
+            // Archers). "3.6" = porcentagens de tier na loja, reinício sincronizado
+            // (RPCs novos), Archer 1/3 e tela de vitória por código. Builds antigos
+            // simulariam outro resultado → desync.
+            PhotonNetwork.ConnectUsingSettings("3.7");
             Debug.Log("[Lobby] Conectando ao Photon...");
         }
         else if (PhotonNetwork.inRoom)
