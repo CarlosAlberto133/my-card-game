@@ -496,11 +496,9 @@ public class GameManager : MonoBehaviour
         toTile.OccupyTile(cardObject);
         cardDisplay.currentTile = toTile;
 
-        // Marca que a carta se moveu neste round
-        if (TurnManager.Instance != null)
-        {
-            cardDisplay.lastMovedRound = TurnManager.Instance.currentRound;
-        }
+        // Marca que a carta se moveu neste round (conta o 2º movimento do
+        // Archer 3 [3/2] com Mago)
+        cardDisplay.MarkMoveUsed();
 
         Debug.Log($"[GameManager] {cardDisplay.card.cardName} moveu de ({fromRow},{fromCol}) para ({toRow},{toCol})");
     }
@@ -544,14 +542,9 @@ public class GameManager : MonoBehaviour
         // Atualiza a referência do tile na carta
         selectedCardDisplay.currentTile = targetTile;
 
-        // Marca que a carta se moveu neste round
-        if (TurnManager.Instance != null)
-        {
-            selectedCardDisplay.lastMovedRound = TurnManager.Instance.currentRound;
-        }
-        else
-        {
-        }
+        // Marca que a carta se moveu neste round (conta o 2º movimento do
+        // Archer 3 [3/2] com Mago)
+        selectedCardDisplay.MarkMoveUsed();
 
         // Limpa os destaques
         ClearTileHighlights();
@@ -781,22 +774,12 @@ public class GameManager : MonoBehaviour
         CardDisplay attacker = fromTile.occupiedCard.GetComponent<CardDisplay>();
         CardDisplay target = toTile.occupiedCard.GetComponent<CardDisplay>();
 
-        // Rastreia quem atacou (para efeitos reativos como congelar o atacante)
-        target.attackerCardDisplay = attacker;
+        // Ataque com TODOS os efeitos de atacante (dano dobrado, ignorar
+        // armadura, execução, ataque duplo...). Antes este caminho fazia só um
+        // TakeDamage seco e nenhum efeito de Arqueiro funcionava no clique
+        attacker.PerformAttackOn(target);
 
-        // Investida visual do atacante em direção ao alvo
-        attacker.PlayAttackAnim(target);
-
-        int damageDealt = attacker.currentAttack;
-        target.TakeDamage(damageDealt);
-
-        // Marca que atacou neste round
-        if (TurnManager.Instance != null)
-        {
-            attacker.lastAttackedRound = TurnManager.Instance.currentRound;
-        }
-
-        Debug.Log($"[GameManager] {attacker.card.cardName} atacou {target.card.cardName} causando {damageDealt} de dano");
+        Debug.Log($"[GameManager] {attacker.card.cardName} atacou {target.card.cardName}");
     }
 
     // Checa efeitos periódicos das cartas (chamado a cada round)
@@ -900,8 +883,8 @@ public class GameManager : MonoBehaviour
 
         targetPlayer.TakeDamage(damage);
 
-        // Marca que atacou neste round
-        attackerDisplay.lastAttackedRound = TurnManager.Instance.currentRound;
+        // Marca que atacou neste round (ou consome o 2º ataque da aura do Tank 4)
+        attackerDisplay.MarkAttackUsed();
 
         // Verifica se o jogador foi derrotado
         if (targetPlayer.IsDefeated())
@@ -928,6 +911,14 @@ public class GameManager : MonoBehaviour
             mageCard.ownerPlayerNumber != PhotonGameManager.Instance.myPlayerNumber)
         {
             Debug.Log("[FreezeSelection] Oponente está escolhendo o alvo do congelamento...");
+            return;
+        }
+
+        // Outra seleção em andamento: entra na fila (não sobrescreve o estado)
+        if (AnySelectionActive())
+        {
+            queuedSelections.Enqueue(() => StartFreezeSelection(mageCard));
+            Debug.Log("[FreezeSelection] Seleção enfileirada (outra em andamento)");
             return;
         }
 
@@ -979,15 +970,18 @@ public class GameManager : MonoBehaviour
             }
             isWaitingForFreezeTarget = false;
             mageFreezingCard = null;
+            StartNextQueuedSelection();
             return;
         }
 
         // Congela o inimigo
+        EffectProjectileFX.Launch(mageFreezingCard, targetCard, EffectProjectileFX.Ice);
         targetCard.Freeze();
         isWaitingForFreezeTarget = false;
         mageFreezingCard = null;
 
         Debug.Log($"[FreezeSelection] {targetCard.card.cardName} foi congelada!");
+        StartNextQueuedSelection();
     }
 
     // Executa efeitos com alvo escolhido (chamado via RPC nos dois clientes)
@@ -1010,6 +1004,8 @@ public class GameManager : MonoBehaviour
         switch (effectType)
         {
             case 1: // Congelar (Mage 1)
+                if (source != null)
+                    EffectProjectileFX.Launch(source, target, EffectProjectileFX.Ice);
                 target.Freeze();
                 Debug.Log($"[GameManager] {target.card.cardName} foi congelada!");
                 break;
@@ -1049,6 +1045,16 @@ public class GameManager : MonoBehaviour
             sourceCard.ownerPlayerNumber != PhotonGameManager.Instance.myPlayerNumber)
         {
             Debug.Log("[EffectTarget] Oponente está escolhendo o alvo do efeito...");
+            return;
+        }
+
+        // Já existe uma seleção em andamento? Entra na FILA em vez de
+        // sobrescrever o estado (dois efeitos ao mesmo tempo: o segundo
+        // apagava o primeiro e os cliques resolviam contra o efeito errado)
+        if (AnySelectionActive())
+        {
+            queuedSelections.Enqueue(() => StartEffectTargetSelection(sourceCard, effectType, candidates, prompt));
+            Debug.Log($"[EffectTarget] Seleção do efeito {effectType} enfileirada (outra em andamento)");
             return;
         }
 
@@ -1099,8 +1105,17 @@ public class GameManager : MonoBehaviour
 
         CardDisplay source = effectTargetSource;
         int effectType = effectTargetType;
-        CancelEffectTargetSelection(); // Encerra o modo antes de aplicar
+
+        // Encerra o modo SEM puxar a fila ainda: a escolha clicada precisa ser
+        // aplicada ANTES da próxima seleção enfileirada (senão um efeito da
+        // fila podia matar o alvo clicado antes do RPC dele)
+        isWaitingForEffectTarget = false;
+        effectTargetSource = null;
+        effectTargetType = 0;
+        effectTargetCandidates = null;
+
         ApplyEffectTargetChoice(source, effectType, targetCard);
+        StartNextQueuedSelection();
     }
 
     public void CancelEffectTargetSelection()
@@ -1110,6 +1125,29 @@ public class GameManager : MonoBehaviour
         effectTargetType = 0;
         effectTargetCandidates = null;
         Debug.Log("[EffectTarget] Seleção de alvo encerrada");
+        StartNextQueuedSelection();
+    }
+
+    // ── Fila de seleções de alvo ────────────────────────────────────────
+    // Só UMA seleção por vez segura o estado; as demais esperam aqui. Sem a
+    // fila, dois efeitos simultâneos (ex.: carta colocada enquanto um contador
+    // de fim de turno pedia alvo) se atropelavam e um deles era perdido.
+    private readonly Queue<System.Action> queuedSelections = new Queue<System.Action>();
+
+    bool AnySelectionActive()
+    {
+        return isWaitingForEffectTarget || isWaitingForFreezeTarget || isWaitingForShieldBreakTargets;
+    }
+
+    void StartNextQueuedSelection()
+    {
+        // Re-invoca a próxima seleção enfileirada; se ela não entrar em modo
+        // (alvos morreram nesse meio-tempo), segue para a seguinte
+        while (queuedSelections.Count > 0 && !AnySelectionActive())
+        {
+            var next = queuedSelections.Dequeue();
+            next();
+        }
     }
 
     // Limpa TODOS os modos de seleção de alvo (chamado na passagem de turno).
@@ -1117,6 +1155,7 @@ public class GameManager : MonoBehaviour
     // conseguia mais mover nenhuma carta — este é o cinto de segurança.
     public void CancelAllTargetSelections()
     {
+        queuedSelections.Clear(); // Seleções enfileiradas morrem com o turno
         if (IsWaitingForFreezeTarget()) CancelFreezeSelection();
         if (IsWaitingForShieldBreakTargets()) CancelShieldBreakSelection();
         if (IsWaitingForEffectTarget()) CancelEffectTargetSelection();
@@ -1149,6 +1188,18 @@ public class GameManager : MonoBehaviour
             return;
         }
 
+        // Projétil visual do feitiço voando da carta lançadora até o alvo
+        // (roxo = arcano ofensivo, dourado = bênção em aliado, azul = armadura)
+        Color projColor;
+        switch (effectType)
+        {
+            case 5: projColor = EffectProjectileFX.Fire; break;       // destruir
+            case 7: case 8: projColor = EffectProjectileFX.GoldBuff; break; // bênçãos
+            case 9: projColor = EffectProjectileFX.ShieldBlue; break; // armadura
+            default: projColor = EffectProjectileFX.Arcane; break;    // 4, 6...
+        }
+        EffectProjectileFX.Launch(source, target, projColor);
+
         switch (effectType)
         {
             case 4: effect.ActivateCopyStats(target); break;        // Mage 5: copiar stats do inimigo
@@ -1168,6 +1219,7 @@ public class GameManager : MonoBehaviour
         isWaitingForFreezeTarget = false;
         mageFreezingCard = null;
         Debug.Log("[FreezeSelection] Seleção cancelada");
+        StartNextQueuedSelection();
     }
 
     public bool IsWaitingForFreezeTarget()
@@ -1189,6 +1241,14 @@ public class GameManager : MonoBehaviour
             mageCard.ownerPlayerNumber != PhotonGameManager.Instance.myPlayerNumber)
         {
             Debug.Log("[ShieldBreakSelection] Oponente está escolhendo os alvos...");
+            return;
+        }
+
+        // Outra seleção em andamento: entra na fila (não sobrescreve o estado)
+        if (AnySelectionActive())
+        {
+            queuedSelections.Enqueue(() => StartShieldBreakSelection(mageCard));
+            Debug.Log("[ShieldBreakSelection] Seleção enfileirada (outra em andamento)");
             return;
         }
 
@@ -1269,6 +1329,7 @@ public class GameManager : MonoBehaviour
             shieldBreakTargetsSelected = 0;
             shieldBreakFirstTarget = null;
             Debug.Log("[ShieldBreakSelection] Seleção completa!");
+            StartNextQueuedSelection();
         }
         else
         {
@@ -1283,6 +1344,7 @@ public class GameManager : MonoBehaviour
         shieldBreakTargetsSelected = 0;
         shieldBreakFirstTarget = null;
         Debug.Log("[ShieldBreakSelection] Seleção cancelada");
+        StartNextQueuedSelection();
     }
 
     public bool IsWaitingForShieldBreakTargets()

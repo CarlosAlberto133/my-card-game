@@ -269,7 +269,7 @@ public class GameUIManager : MonoBehaviour
         RectTransform viewRt = viewport.GetComponent<RectTransform>();
         viewRt.anchorMin = new Vector2(0f, 0f);
         viewRt.anchorMax = new Vector2(1f, 1f);
-        viewRt.offsetMin = new Vector2(14f, 14f);
+        viewRt.offsetMin = new Vector2(14f, 58f); // deixa espaço para o botão Exportar
         viewRt.offsetMax = new Vector2(-14f, -52f);
         viewport.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.01f);
 
@@ -301,6 +301,47 @@ public class GameUIManager : MonoBehaviour
         scroll.vertical = true;
         scroll.movementType = ScrollRect.MovementType.Clamped;
         scroll.scrollSensitivity = 25f;
+
+        // Botão "Exportar": salva o histórico COMPLETO da partida (todos os
+        // eventos e erros desde a abertura do jogo) em um .txt e abre a pasta
+        GameObject exportObj = new GameObject("ExportButton",
+            typeof(RectTransform), typeof(Image), typeof(Button));
+        exportObj.transform.SetParent(logsPanel.transform, false);
+        RectTransform exportRt = exportObj.GetComponent<RectTransform>();
+        exportRt.anchorMin = new Vector2(0.5f, 0f);
+        exportRt.anchorMax = new Vector2(0.5f, 0f);
+        exportRt.pivot = new Vector2(0.5f, 0f);
+        exportRt.anchoredPosition = new Vector2(0f, 10f);
+        exportRt.sizeDelta = new Vector2(300f, 38f);
+        exportObj.GetComponent<Image>().color = new Color(0.16f, 0.42f, 0.24f, 0.95f);
+
+        GameObject exportTxtObj = new GameObject("Text", typeof(RectTransform));
+        exportTxtObj.transform.SetParent(exportObj.transform, false);
+        RectTransform exportTxtRt = exportTxtObj.GetComponent<RectTransform>();
+        exportTxtRt.anchorMin = Vector2.zero;
+        exportTxtRt.anchorMax = Vector2.one;
+        exportTxtRt.offsetMin = Vector2.zero;
+        exportTxtRt.offsetMax = Vector2.zero;
+        TMPro.TextMeshProUGUI exportTxt = exportTxtObj.AddComponent<TMPro.TextMeshProUGUI>();
+        exportTxt.text = "Exportar todos os logs (.txt)";
+        exportTxt.fontSize = 18f;
+        exportTxt.fontStyle = TMPro.FontStyles.Bold;
+        exportTxt.alignment = TMPro.TextAlignmentOptions.Center;
+        exportTxt.color = Color.white;
+
+        exportObj.GetComponent<Button>().onClick.AddListener(() =>
+        {
+            string path = MatchLogRecorder.ExportToFile(BuildLogsReport());
+            if (path != null)
+            {
+                exportTxt.text = "Salvo! Abrindo a pasta...";
+                MatchLogRecorder.RevealInExplorer(path);
+            }
+            else
+            {
+                exportTxt.text = "Falha ao salvar :(";
+            }
+        });
 
         logsPanel.SetActive(false);
     }
@@ -758,14 +799,14 @@ public class GameUIManager : MonoBehaviour
                 sb.AppendLine(ComboLine("Tank 4 (1/6/3) — +5 HP e +2 DEF",
                     Missing(hasArcher, "Arqueiro", hasMage, "Mago"), c.tankTier4Effect1Used));
             }
-            // Tank 4 (2/3/5): Arqueiros atacam 2x com as 4 classes (1x)
+            // Tank 4 (2/3/5): Arqueiros atacam 2x com as 4 classes (aura contínua)
             else if (card.cardClass == CardClass.Tank && card.tier == CardTier.Tier4 &&
                      card.attack == 2 && card.shield == 3 && card.health == 5)
             {
                 any = true;
-                sb.AppendLine(ComboLine("Tank 4 (2/3/5) — Arqueiros atacam 2x",
+                sb.AppendLine(ComboLine("Tank 4 (2/3/5) — Arqueiros atacam 2x (enquanto houver as 4 classes)",
                     Missing(hasTank, "Tank", hasHealer, "Healer", hasMage, "Mago", hasArcher, "Arqueiro"),
-                    c.tankTier4Effect3Used));
+                    false));
             }
             // Healer 4 (4/4): +3 em todos os status com Tank+Arqueiro+Mago (1x)
             else if (card.cardClass == CardClass.Healer && card.tier == CardTier.Tier4 &&
@@ -1251,8 +1292,10 @@ public class GameUIManager : MonoBehaviour
         System.Action callback = onDecisionYes;
         onDecisionYes = null;
         onDecisionNo = null;
-        callback?.Invoke();
-        ShowNextDecision(); // A callback pode ter enfileirado novas decisões
+        // finally: se a callback estourar exceção, a fila de decisões NÃO
+        // pode ficar presa (decisionShowing=true sem popup = clique travado)
+        try { callback?.Invoke(); }
+        finally { ShowNextDecision(); } // A callback pode ter enfileirado novas decisões
     }
 
     void OnDecisionNoClicked()
@@ -1262,7 +1305,7 @@ public class GameUIManager : MonoBehaviour
         System.Action callback = onDecisionNo;
         onDecisionYes = null;
         onDecisionNo = null;
-        callback?.Invoke();
-        ShowNextDecision();
+        try { callback?.Invoke(); }
+        finally { ShowNextDecision(); }
     }
 }

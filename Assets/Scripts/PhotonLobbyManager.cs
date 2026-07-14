@@ -32,10 +32,12 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
 
         if (!PhotonNetwork.connected)
         {
-            // gameVersion separa builds incompatíveis no matchmaking. "3.4" =
-            // removido efeito solo do Healer 2 (1/3) que dava armadura em
-            // qualquer clique em Tank (build antigo aplicaria, novo não → desync)
-            PhotonNetwork.ConnectUsingSettings("3.4");
+            // gameVersion separa builds incompatíveis no matchmaking. "3.5" =
+            // pacote grande de correções de efeitos (alvos errados de freeze/
+            // stun, aura do Tank 4, cura do Healer 3 pós-dano, Mago 1 filtrado,
+            // efeitos por turno só no turno do dono...) — builds antigos
+            // simulariam outro resultado → desync garantido
+            PhotonNetwork.ConnectUsingSettings("3.5");
             Debug.Log("[Lobby] Conectando ao Photon...");
         }
         else if (PhotonNetwork.inRoom)

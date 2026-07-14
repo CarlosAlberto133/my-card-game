@@ -27,10 +27,12 @@ public class BoardManager : MonoBehaviour
             Destroy(gameObject);
         }
 
-        // Força por código (a cena ainda tem 12x12 serializado): tabuleiro 10x10.
-        // Total: 10*6 + 9*0.6 = 65.4 de lado (meia-largura 32.7)
-        rows = 10;
-        columns = 10;
+        // Força por código (a cena ainda tem 12x12 serializado): tabuleiro 7x7.
+        // Total: 7*6 + 6*0.6 = 45.6 de lado (meia-largura 22.8).
+        // Loja (CardManager) e mãos (HandManager) são posicionadas com base
+        // nesta meia-largura — mudar aqui pede ajuste lá também
+        rows = 7;
+        columns = 7;
     }
 
     void Start()
@@ -301,15 +303,19 @@ public class BoardManager : MonoBehaviour
         int row = fromTile.row;
         int col = fromTile.column;
 
-        // Tenta encontrar um tile vazio nas adjacências (esquerda, direita, frente)
-        int[] colOffsets = { -1, 1, 0 };
+        // Tenta as 4 adjacências em ordem FIXA (determinística nos 2 clientes):
+        // esquerda, direita, atrás, frente. Antes só olhava os lados — com os
+        // dois ocupados, a cópia falhava em silêncio
+        int[] rowOffsets = { 0, 0, -1, 1 };
+        int[] colOffsets = { -1, 1, 0, 0 };
 
-        foreach (int colOffset in colOffsets)
+        for (int i = 0; i < colOffsets.Length; i++)
         {
-            int newCol = col + colOffset;
-            if (newCol < 0 || newCol >= columns) continue;
+            int newRow = row + rowOffsets[i];
+            int newCol = col + colOffsets[i];
+            if (newRow < 0 || newRow >= rows || newCol < 0 || newCol >= columns) continue;
 
-            CardTile tile = board[row, newCol];
+            CardTile tile = board[newRow, newCol];
             if (tile != null && !tile.IsOccupied())
             {
                 return tile;

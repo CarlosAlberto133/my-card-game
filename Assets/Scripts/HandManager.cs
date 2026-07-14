@@ -28,8 +28,8 @@ public class HandManager : MonoBehaviour
         handYPosition = CardDisplay.GroundY(CardDisplay.HandScale);
         // Mão mais afastada do tabuleiro (cartas 2x maiores invadiam a visão do campo).
         // Cada jogador tem a mão do seu lado: P1 embaixo (-Z), P2 em cima (+Z).
-        // Tabuleiro 10x10: borda em 32.7 + folga 6.7 = 39.4 (no 12x12 era 39.3 + 6.7 = 46)
-        handZPosition = playerNumber == 2 ? 39.4f : -39.4f;
+        // Tabuleiro 7x7: borda em 22.8 + folga 6.7 = 29.5 (no 10x10 era 32.7 + 6.7 = 39.4)
+        handZPosition = playerNumber == 2 ? 29.5f : -29.5f;
     }
 
     // Adiciona uma carta à mão

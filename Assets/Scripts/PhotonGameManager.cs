@@ -337,7 +337,25 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
         }
         else
         {
-            Debug.LogError($"[PhotonGame] Decisão {decisionId} não encontrada neste cliente!");
+            // Os IDs são contadores implícitos nos dois clientes; se divergirem
+            // (ex.: exceção no meio de um efeito num lado só), a entrada órfã
+            // ficava em pendingDecisions PARA SEMPRE → IsDecisionPending()
+            // travava cliques e o fim de turno = jogo congelado sem volta.
+            // Melhor limpar e seguir (com log alto) do que travar a partida
+            Debug.LogError($"[PhotonGame] Decisão {decisionId} não encontrada neste cliente! " +
+                $"Possível dessincronização — limpando {pendingDecisions.Count} decisão(ões) pendente(s) para o jogo não travar.");
+            pendingDecisions.Clear();
+
+            // Aviso VISÍVEL: a partida pode ter divergido entre os clientes.
+            // Melhor os jogadores saberem (e exportarem os logs) do que seguir
+            // jogando uma partida corrompida só com um log no console
+            if (GameUIManager.Instance != null)
+            {
+                GameUIManager.Instance.ShowDecisionPopup(
+                    "⚠ A partida pode ter DESSINCRONIZADO entre os jogadores!\n" +
+                    "Recomendado: exportem os logs (botão Logs > Exportar) e reiniciem a sala.",
+                    "Entendi", () => { }, "Fechar", () => { });
+            }
         }
 
         // Última decisão resolvida: tira a faixa de espera da tela

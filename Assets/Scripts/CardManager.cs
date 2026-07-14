@@ -14,7 +14,7 @@ public class CardManager : MonoBehaviour
     public int numberOfCards = 5;
     public const int LobbyShopSize = 10; // Fase inicial de compras: 10 cartas
     public Vector3 centerPosition = new Vector3(0, 1.5f, 0);
-    public Vector3 shopPosition = new Vector3(-35.4f, 1.5f, 0); // Posição ao lado do tabuleiro
+    public Vector3 shopPosition = new Vector3(-25.5f, 1.5f, 0); // Posição ao lado do tabuleiro (7x7)
     public float cardSpacing = 4f;
     public float cardScale = 1.5f;
 
@@ -50,8 +50,8 @@ public class CardManager : MonoBehaviour
         float shopY = CardDisplay.GroundY(cardScale);
         centerPosition = new Vector3(centerPosition.x, shopY, centerPosition.z);
         // X forçado por código (a cena tem -42 serializado, do tabuleiro 12x12):
-        // tabuleiro 10x10 tem borda em -32.7, loja fica com a mesma folga de antes
-        shopPosition = new Vector3(-35.4f, shopY, 0f);
+        // tabuleiro 7x7 tem borda em -22.8, loja fica com a mesma folga (2.7)
+        shopPosition = new Vector3(-25.5f, shopY, 0f);
 
         // Inicialmente no centro (lobby)
         currentSpawnPosition = centerPosition;
@@ -416,6 +416,12 @@ public class CardManager : MonoBehaviour
             cardObject.transform.localScale = Vector3.one * CardDisplay.BoardScale;
             cardDisplay.currentTile = tile;
             cardDisplay.isOnBoard = true;
+            // CRÍTICO: a carta nasce do prefab com isInShop=true (padrão). Sem
+            // zerar isso, o OnMouseDown a trata como carta de loja e o clique
+            // NUNCA entra na lógica de "atacar carta inimiga" — cópias e cartas
+            // invocadas ficavam impossíveis de atacar
+            cardDisplay.isInShop = false;
+            cardDisplay.isInHand = false;
             cardDisplay.ownerPlayerNumber = ownerPlayerNumber;
             cardDisplay.UpdateDisplay(); // Atualiza a borda com a cor do dono
 
