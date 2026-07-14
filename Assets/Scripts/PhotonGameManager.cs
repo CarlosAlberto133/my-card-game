@@ -524,6 +524,67 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
         }
     }
 
+    // ========== REINÍCIO DE PARTIDA (Jogar Novamente) ==========
+
+    // Botão "Jogar Novamente": qualquer jogador pode pedir. O Master gera a NOVA
+    // seed e sincroniza o reinício nos dois clientes (loja idêntica, sem desync).
+    public void RequestRestart()
+    {
+        if (!PhotonNetwork.inRoom)
+        {
+            // Offline: gera seed local e reinicia direto
+            int seed = UnityEngine.Random.Range(1, 100000);
+            DoRestart(seed);
+            return;
+        }
+
+        PhotonView pv = GetComponent<PhotonView>();
+        if (pv == null) return;
+
+        if (PhotonNetwork.isMasterClient)
+        {
+            int seed = UnityEngine.Random.Range(1, 100000);
+            pv.RPC("RPC_RestartGame", PhotonTargets.All, seed);
+        }
+        else
+        {
+            // Não-master pede ao Master, que gera a seed e faz o broadcast
+            pv.RPC("RPC_RequestRestart", PhotonTargets.MasterClient);
+        }
+    }
+
+    [PunRPC]
+    public void RPC_RequestRestart()
+    {
+        if (!PhotonNetwork.isMasterClient) return;
+        int seed = UnityEngine.Random.Range(1, 100000);
+        PhotonView pv = GetComponent<PhotonView>();
+        if (pv != null) pv.RPC("RPC_RestartGame", PhotonTargets.All, seed);
+    }
+
+    [PunRPC]
+    public void RPC_RestartGame(int seed)
+    {
+        Debug.Log($"[PhotonGame] RPC_RestartGame com seed {seed}");
+        DoRestart(seed);
+    }
+
+    // Aplica a nova seed (zerando o contador de ações do lockstep) e dispara o
+    // reset completo no TurnManager, que respawna a loja da fase inicial.
+    void DoRestart(int seed)
+    {
+        currentGameSeed = seed;
+        syncedActionCount = 0;
+        UnityEngine.Random.InitState(seed);
+
+        // Reaplica o cenário com a seed nova (o MAPA continua o escolhido pelo
+        // anfitrião — room property "theme" —, só a decoração é re-semeada)
+        BoardThemeManager.SetSeed(seed);
+
+        if (TurnManager.Instance != null)
+            TurnManager.Instance.RestartGame();
+    }
+
     // Sincroniza a seed aleatória para ambos os jogadores
     void SyncGameSeed()
     {
@@ -585,6 +646,10 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
     // Aplica a seed e spawna a loja
     void ApplySeedAndSpawnShop(int seed)
     {
+        // Entrega a seed ao cenário (decoração determinística; o mapa em si vem
+        // da escolha do anfitrião via room property "theme")
+        BoardThemeManager.SetSeed(seed);
+
         UnityEngine.Random.InitState(seed);
         Debug.Log($"[PhotonGame] Random.InitState({seed}) aplicado");
 

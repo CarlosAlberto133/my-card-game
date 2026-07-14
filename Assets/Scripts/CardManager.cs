@@ -42,16 +42,18 @@ public class CardManager : MonoBehaviour
         }
 
         // Força os valores por código (os da cena estavam desatualizados):
-        // cartas 2x maiores e espaçamento que evita sobreposição na loja
-        cardScale = 3f;
-        cardSpacing = 8f;
+        // cartas maiores (pedido do Carlos) e espaçamento que evita sobreposição
+        cardScale = 3.4f;
+        cardSpacing = 9f;
 
-        // Altura correta para a nova escala (a base da carta não pode afundar no chão)
+        // Altura correta para a nova escala (a base da carta não pode afundar no
+        // chão) — cresce só para cima porque a base fica fixa em GroundY
         float shopY = CardDisplay.GroundY(cardScale);
         centerPosition = new Vector3(centerPosition.x, shopY, centerPosition.z);
         // X forçado por código (a cena tem -42 serializado, do tabuleiro 12x12):
-        // tabuleiro 7x7 tem borda em -22.8, loja fica com a mesma folga (2.7)
-        shopPosition = new Vector3(-25.5f, shopY, 0f);
+        // tabuleiro 7x7 tem borda em -22.8. Cartas maiores → loja um pouco mais
+        // afastada para a carta (mais larga) não invadir o tile do tabuleiro
+        shopPosition = new Vector3(-27.5f, shopY, 0f);
 
         // Inicialmente no centro (lobby)
         currentSpawnPosition = centerPosition;
@@ -186,9 +188,12 @@ public class CardManager : MonoBehaviour
         // Spawna cartas aleatórias
         for (int i = 0; i < cardsToSpawn; i++)
         {
+            // Sorteio com porcentagens de tier (TierOdds): no lobby a fila já foi
+            // montada com as chances; na partida a chance evolui com o round
+            int currentRound = TurnManager.Instance != null ? TurnManager.Instance.currentRound : 1;
             CardInstance randomCard = useLobbyQueues
                 ? cardPool.DrawFromLobbyQueue(shopNumber)
-                : cardPool.DrawRandomCard();
+                : cardPool.DrawRandomCard(lobbyPhase, currentRound);
 
             if (randomCard != null)
             {
@@ -327,6 +332,17 @@ public class CardManager : MonoBehaviour
         // (Destroy é adiado), e as preservadas já saíram da loja (mão/tabuleiro).
         // Sem isso, a lista acumulava entradas mortas e os índices da loja ficavam errados.
         shop.Clear();
+    }
+
+    // Reinício de partida: destrói as cartas da loja, zera os contadores de spawn
+    // (para as seeds derivadas baterem com um jogo novo) e volta a loja para o
+    // layout/posição da fase inicial (centro, horizontal).
+    public void ResetForRestart()
+    {
+        DestroyAllCards();
+        shopSpawnCounts = new int[3];
+        currentSpawnPosition = centerPosition;
+        verticalLayout = false;
     }
 
     public void DestroyAllCards()

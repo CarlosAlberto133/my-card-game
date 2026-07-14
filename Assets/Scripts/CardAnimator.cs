@@ -122,22 +122,22 @@ public class CardAnimator : MonoBehaviour
         var main = ps.main;
         main.loop = false;
         main.duration = 0.6f;
-        main.startLifetime = new ParticleSystem.MinMaxCurve(0.35f, 0.7f);
-        main.startSpeed = new ParticleSystem.MinMaxCurve(3f, 7f);
-        main.startSize = new ParticleSystem.MinMaxCurve(0.35f, 0.8f);
+        main.startLifetime = new ParticleSystem.MinMaxCurve(0.40f, 0.8f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(5f, 10f);
+        main.startSize = new ParticleSystem.MinMaxCurve(0.7f, 1.5f);
         main.startColor = new ParticleSystem.MinMaxGradient(color);
-        main.maxParticles = 40;
+        main.maxParticles = 60;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
         main.gravityModifier = 0.4f;
 
         var emission = ps.emission;
         emission.enabled = true;
         emission.rateOverTime = 0f;
-        emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 24) });
+        emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 34) });
 
         var shape = ps.shape;
         shape.shapeType = ParticleSystemShapeType.Sphere;
-        shape.radius = 0.4f;
+        shape.radius = 0.75f;
 
         // Some ao longo da vida
         var col = ps.colorOverLifetime;

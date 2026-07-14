@@ -66,8 +66,9 @@ public class CardDisplay : MonoBehaviour
     public int currentShield;
     public int currentAttack;
 
-    // Escalas padrão por zona (o tabuleiro tem tiles 6x6, cartas pequenas ficavam ilegíveis)
-    public const float HandScale = 2f;
+    // Escalas padrão por zona (o tabuleiro tem tiles 6x6, cartas pequenas ficavam ilegíveis).
+    // Loja/mão maiores a pedido do Carlos — crescem PARA CIMA (base fixa em GroundY)
+    public const float HandScale = 2.4f;
     public const float BoardScale = 2f;
 
     // No TABULEIRO a carta fica DEITADA sobre o tile, centralizada
@@ -330,6 +331,45 @@ public class CardDisplay : MonoBehaviour
         int round = TurnManager.Instance.currentRound;
         if (lastAttackedRound == round) extraAttackUsedRound = round;
         else lastAttackedRound = round;
+    }
+
+    // Versões "silenciosas" (sem Debug.Log nem efeitos colaterais) de
+    // CanMoveThisRound/CanAttackThisRound — usadas pelas bolinhas de ação
+    // (CardActionDots), que consultam o estado a cada frame.
+    public bool CanMovePeek()
+    {
+        if (isFrozen || isStunned) return false;
+        if (TurnManager.Instance == null) return true;
+        int round = TurnManager.Instance.currentRound;
+
+        if (lastMovedRound < round) return true;
+
+        // Archer 3 (3/2) com Mago aliado: 2º movimento no mesmo round
+        int moves = (lastMoveCountRound < round) ? 0 : moveCountThisRound;
+        if (card != null && card.cardClass == CardClass.Arqueiro &&
+            card.tier == CardTier.Tier3 && card.attack == 3 && card.health == 2 &&
+            moves < 2 && BoardManager.Instance != null &&
+            BoardManager.Instance.HasClassOnBoard(ownerPlayerNumber, CardClass.Mago))
+            return true;
+
+        return false;
+    }
+
+    public bool CanAttackPeek()
+    {
+        if (eagleMarked || isFrozen || isStunned) return false;
+        if (TurnManager.Instance == null) return true;
+        if (!isOnBoard) return false;
+        int round = TurnManager.Instance.currentRound;
+
+        if (lastAttackedRound < round) return true;
+
+        // Aura do Tank 4 (2/3/5): 2º ataque dos Arqueiros com as 4 classes
+        if (card != null && card.cardClass == CardClass.Arqueiro &&
+            extraAttackUsedRound < round && HasArcherDoubleAttackAura())
+            return true;
+
+        return false;
     }
 
     void AutoAssignElements()
@@ -633,10 +673,20 @@ public class CardDisplay : MonoBehaviour
     private int lastShownHealth;
     private bool statsTracked = false;
 
+    private CardActionDots actionDots;
+
     void UpdateStatusVisuals()
     {
         CardStatusVisuals visuals = GetComponent<CardStatusVisuals>();
         if (visuals == null) visuals = gameObject.AddComponent<CardStatusVisuals>();
+
+        // Bolinhas de ação (andar/atacar) na base — só para cartas no tabuleiro
+        // (as da loja/mão não agem). Criadas 1x; se atualizam sozinhas por frame.
+        if (isOnBoard && actionDots == null)
+        {
+            actionDots = gameObject.AddComponent<CardActionDots>();
+            actionDots.Init(this);
+        }
 
         visuals.SetFrozen(isFrozen);
         visuals.SetStunned(isStunned);
@@ -1336,6 +1386,22 @@ public class CardDisplay : MonoBehaviour
         }
     }
 
+    // Caixa envolvente (mundo) somando os renderers da carta — usada para ancorar
+    // o zoom de hover na base/lado. Renderer.bounds já reflete a escala atual.
+    Bounds GetCardWorldBounds()
+    {
+        Renderer[] rends = GetComponentsInChildren<Renderer>();
+        bool has = false;
+        Bounds b = new Bounds(transform.position, Vector3.zero);
+        foreach (var r in rends)
+        {
+            if (r == null) continue;
+            if (!has) { b = r.bounds; has = true; }
+            else b.Encapsulate(r.bounds);
+        }
+        return b;
+    }
+
     // Para interação com o mouse — zoom RELATIVO à escala atual (o bug antigo usava
     // uma "escala original" capturada antes da escala da loja ser aplicada, então
     // o hover ENCOLHIA a carta em vez de aumentar)
@@ -1349,11 +1415,27 @@ public class CardDisplay : MonoBehaviour
 
         if (isInShop)
         {
-            // Zoom forte na loja para conseguir ler o efeito;
-            // sobe a carta para ficar por cima das vizinhas
-            transform.localScale = preHoverScale * 2f;
+            // Zoom para ler o efeito. ANCORA a base (min Y) e o lado voltado ao
+            // tabuleiro (max X): assim a carta cresce só PARA CIMA e para o lado
+            // da loja — antes escalava a partir do centro e a metade de baixo
+            // afundava no tile do tabuleiro (e crescia por cima dele)
             preHoverPosition = transform.position;
-            transform.position = preHoverPosition + Vector3.up * 2f;
+            Bounds before = GetCardWorldBounds();
+            transform.localScale = preHoverScale * 1.7f;
+            Bounds after = GetCardWorldBounds();
+            Vector3 shift = Vector3.zero;
+            shift.y = before.min.y - after.min.y;   // base fixa → cresce para cima
+            shift.x = before.max.x - after.max.x;   // borda do tabuleiro fixa → cresce para a loja
+            transform.position += shift;
+
+            // Traz a carta para a FRENTE das vizinhas. Como a câmera é ortográfica,
+            // mover ao longo de -forward muda só a PROFUNDIDADE (desenha por cima)
+            // sem alterar posição/tamanho na tela — então a âncora acima é mantida
+            // e o hover não volta a invadir o tabuleiro.
+            Camera cam = Camera.main;
+            if (cam != null)
+                transform.position += -cam.transform.forward * 10f;
+
             hoverLifted = true;
         }
         else
@@ -1957,13 +2039,14 @@ public class CardDisplay : MonoBehaviour
             EffectProjectileFX.Launch(source, this, EffectProjectileFX.HealGreen);
 
         int hpBefore = currentHealth;
-        currentHealth += amount;
 
-        // Vida máxima inclui o bônus do Healer 2 (2/1). BUGFIX: o clamp antigo
-        // usava só a vida base — curar uma carta com vida bônus APAGAVA o bônus
+        // Cura sobe a vida até o máximo (base + bônus do Healer 2), mas NUNCA
+        // reduz. BUGFIX: o clamp antigo (currentHealth += amount; clampa para o
+        // máximo) CORTAVA a vida de aliados que estavam ACIMA do máximo base
+        // por buffs (+5 HP do Tank 4, +3 do Healer 4...) — a "cura" do Healer 1
+        // parecia DAR DANO nesses aliados. Max(hpBefore, ...) impede a redução.
         int maxHp = card.health + maxHealthBonus;
-        if (currentHealth > maxHp)
-            currentHealth = maxHp;
+        currentHealth = Mathf.Max(hpBefore, Mathf.Min(hpBefore + amount, maxHp));
 
         int healedAmount = currentHealth - hpBefore;
         UpdateCardDisplay();

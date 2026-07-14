@@ -15,12 +15,16 @@ public class PlayerData
     // começa, sobras acima de 10 voltam para 10 (TurnManager.StartGame)
     public const int LobbyStartingGold = 20;
 
+    // Vida da torre (ponto único de verdade — usada na criação, no display e no
+    // combo de Healers tier-2 que restaura a vida cheia)
+    public const int MaxTowerHealth = 30;
+
     public PlayerData(int playerNum)
     {
         playerNumber = playerNum;
         playerName = $"Jogador {playerNum}";
         gold = LobbyStartingGold;
-        health = 10;
+        health = MaxTowerHealth;
         cardsBoughtThisTurn = 0;
         storeResetsThisTurn = 0;
     }
@@ -37,7 +41,7 @@ public class PlayerData
             playerNumber = 1;
 
         gold = LobbyStartingGold;
-        health = 10;
+        health = MaxTowerHealth;
         cardsBoughtThisTurn = 0;
         storeResetsThisTurn = 0;
     }

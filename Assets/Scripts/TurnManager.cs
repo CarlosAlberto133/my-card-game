@@ -373,46 +373,57 @@ public class TurnManager : MonoBehaviour
         return true;
     }
 
+    // Reinício completo da partida (chamado por PhotonGameManager.DoRestart nos
+    // DOIS clientes, com a nova seed já aplicada). A ordem importa: destruir tudo
+    // e devolver as cartas ao deck ANTES de respawnar a loja da fase inicial.
     public void RestartGame()
     {
         Debug.Log("========== REINICIANDO JOGO ==========");
 
-        // Resetar dados dos jogadores
+        // 1. Destroi as cartas das MÃOS dos dois jogadores. O reset antigo NÃO
+        //    fazia isso — as cartas na mão vazavam para a nova partida.
+        foreach (HandManager hm in FindObjectsOfType<HandManager>())
+            hm.ClearHand();
+
+        // 2. Destroi as cartas do TABULEIRO. ClearAllTiles só zerava as
+        //    referências dos tiles — os GameObjects continuavam na cena.
+        BoardManager board = BoardManager.Instance;
+        if (board != null)
+        {
+            foreach (CardDisplay c in board.GetAllCards())
+                if (c != null) Destroy(c.gameObject);
+            board.ClearAllTiles();
+        }
+
+        // 3. Destroi as cartas da LOJA, zera os contadores de spawn e volta o
+        //    layout/posição da loja para o do lobby (fase inicial no centro).
+        if (CardManager.Instance != null)
+            CardManager.Instance.ResetForRestart();
+
+        // 4. Devolve TODAS as cartas ao deck. Sem isso o pool fica esvaziado
+        //    (cartas que foram para mão/tabuleiro seguem marcadas como usadas) e
+        //    a nova loja nasce com poucas ou nenhuma carta.
+        CardPool pool = FindObjectOfType<CardPool>();
+        if (pool != null)
+            pool.ResetPool();
+
+        // 5. Reseta jogadores e estado do jogo (volta ao Lobby)
         player1 = new PlayerData("Jogador 1");
         player2 = new PlayerData("Jogador 2");
-
-        // Resetar estado do jogo
         gameState = GameState.Lobby;
         currentRound = 0;
         currentPlayerNumber = 1;
-
-        // Resetar flags
         player1Ready = false;
         player2Ready = false;
+        DuplicateEffectGate.ResetTurn();
 
-        // Limpar todas as cartas do jogo
-        if (CardManager.Instance != null)
-        {
-            CardManager.Instance.DestroyAllCards();
-        }
-
-        // Limpar o tabuleiro
-        if (BoardManager.Instance != null)
-        {
-            BoardManager.Instance.ClearAllTiles();
-        }
-
-        // Esconder tela de vitória
+        // 6. Esconde a tela de vitória
         if (GameUIManager.Instance != null)
-        {
             GameUIManager.Instance.HideVictoryScreen();
-        }
 
-        // Spawnar novas cartas na loja
+        // 7. Respawna a loja da fase inicial (com a nova seed já aplicada)
         if (CardManager.Instance != null)
-        {
             CardManager.Instance.SpawnRandomCards();
-        }
 
         Debug.Log("========== JOGO REINICIADO - AGUARDANDO NO LOBBY ==========");
     }

@@ -31,6 +31,12 @@ public class GameUIManager : MonoBehaviour
     public TextMeshProUGUI victoryMessageText;
     public Button restartButton;
 
+    // Overlay de vitória construído por código (o painel serializado da cena
+    // renderizava quebrado). Criado sob demanda em ShowVictoryScreen.
+    private GameObject victoryOverlay;
+    private TextMeshProUGUI victoryOverlayTitle;
+    private TextMeshProUGUI victoryOverlaySubtitle;
+
     [Header("Decision Popup")]
     public GameObject decisionPopupPanel;
     public TextMeshProUGUI decisionMessageText;
@@ -88,7 +94,8 @@ public class GameUIManager : MonoBehaviour
             Debug.LogError("ResetStoreButton é NULL!");
         }
 
-        CreateQuitButton();
+        // "Sair do Jogo" e "Sair da partida" agora ficam DENTRO do popup da
+        // engrenagem (MusicManager) — não há mais botões soltos no canto
         CreateShopButton();
         CreateLogsButton();
     }
@@ -621,6 +628,23 @@ public class GameUIManager : MonoBehaviour
             sb.AppendLine($"<color={OK}>Compra GRÁTIS pendente: {me.freePurchases} (não gasta ouro nem limite)</color>");
         sb.AppendLine();
 
+        // ---- Chances de tier na loja (TierOdds) ----
+        string oddsTitle = lobbyPhase
+            ? "== CHANCES DA LOJA (FASE INICIAL) =="
+            : $"== CHANCES DA LOJA (ROUND {tm.currentRound}) ==";
+        sb.AppendLine($"<color={H}><b>{oddsTitle}</b></color>");
+        var oddsLine = new System.Text.StringBuilder(96);
+        for (int t = 1; t <= 5; t++)
+        {
+            int chance = TierOdds.GetChance((CardTier)t, lobbyPhase, tm.currentRound);
+            oddsLine.Append($"T{t}: {chance}%");
+            if (t < 5) oddsLine.Append("   ");
+        }
+        sb.AppendLine(oddsLine.ToString());
+        if (!lobbyPhase)
+            sb.AppendLine("<i>Tiers altos ficam mais comuns a cada round (estabiliza no round 10).</i>");
+        sb.AppendLine();
+
         // ---- Cartas em campo ----
         BoardManager board = BoardManager.Instance;
         var myCards = board != null
@@ -849,49 +873,9 @@ public class GameUIManager : MonoBehaviour
         return null;
     }
 
-    void CreateQuitButton()
-    {
-        Canvas canvas = GetComponentInParent<Canvas>();
-        if (canvas == null) canvas = FindObjectOfType<Canvas>();
-        if (canvas == null)
-        {
-            Debug.LogWarning("[GameUIManager] Nenhum Canvas encontrado, botão Sair não criado");
-            return;
-        }
-
-        GameObject btnObj = new GameObject("QuitGameButton",
-            typeof(RectTransform), typeof(Image), typeof(Button));
-        btnObj.transform.SetParent(canvas.transform, false);
-
-        RectTransform rt = btnObj.GetComponent<RectTransform>();
-        rt.anchorMin = new Vector2(1f, 1f);
-        rt.anchorMax = new Vector2(1f, 1f);
-        rt.pivot = new Vector2(1f, 1f);
-        rt.anchoredPosition = new Vector2(-12f, -12f);
-        rt.sizeDelta = new Vector2(150f, 40f);
-
-        Image img = btnObj.GetComponent<Image>();
-        img.color = new Color(0.55f, 0.12f, 0.12f, 0.92f);
-
-        Button btn = btnObj.GetComponent<Button>();
-        btn.onClick.AddListener(QuitGame);
-
-        GameObject txtObj = new GameObject("Text", typeof(RectTransform));
-        txtObj.transform.SetParent(btnObj.transform, false);
-        RectTransform trt = txtObj.GetComponent<RectTransform>();
-        trt.anchorMin = Vector2.zero;
-        trt.anchorMax = Vector2.one;
-        trt.offsetMin = Vector2.zero;
-        trt.offsetMax = Vector2.zero;
-
-        TextMeshProUGUI tmp = txtObj.AddComponent<TextMeshProUGUI>();
-        tmp.text = "Sair do Jogo";
-        tmp.fontSize = 20f;
-        tmp.alignment = TextAlignmentOptions.Center;
-        tmp.color = Color.white;
-        tmp.raycastTarget = false;
-    }
-
+    // "Sair do Jogo" — usado pelo botão dentro do overlay de vitória e pelo popup
+    // de configurações (MusicManager tem sua própria cópia, para funcionar também
+    // no lobby onde o GameUIManager não existe)
     public void QuitGame()
     {
         Debug.Log("[GameUIManager] Saindo do jogo...");
@@ -954,7 +938,7 @@ public class GameUIManager : MonoBehaviour
         }
         if (player1HealthText != null)
         {
-            player1HealthText.text = $"Vida: {TurnManager.Instance.player1.health}/10";
+            player1HealthText.text = $"Vida: {TurnManager.Instance.player1.health}/{PlayerData.MaxTowerHealth}";
         }
 
         // Atualiza UI do Jogador 2
@@ -968,7 +952,7 @@ public class GameUIManager : MonoBehaviour
         }
         if (player2HealthText != null)
         {
-            player2HealthText.text = $"Vida: {TurnManager.Instance.player2.health}/10";
+            player2HealthText.text = $"Vida: {TurnManager.Instance.player2.health}/{PlayerData.MaxTowerHealth}";
         }
 
         // Atualiza informação de turno e round baseado no estado do jogo
@@ -1002,11 +986,24 @@ public class GameUIManager : MonoBehaviour
         }
     }
 
+    // Retorna os dados do jogador LOCAL (deste cliente), não do jogador do turno.
+    // Na fase de compra (lobby) as compras são simultâneas, então cada cliente
+    // precisa ver o próprio contador — GetCurrentPlayer() mostraria o mesmo para
+    // os dois. Fallback para o jogador do turno se a sincronização ainda não veio.
+    PlayerData GetLocalPlayer()
+    {
+        if (PhotonGameManager.Instance != null && PhotonGameManager.Instance.myPlayerNumber != 0)
+            return TurnManager.Instance.GetPlayer(PhotonGameManager.Instance.myPlayerNumber);
+        return TurnManager.Instance.GetCurrentPlayer();
+    }
+
     void UpdateLobbyUI()
     {
         if (turnInfoText != null)
         {
-            PlayerData currentPlayer = TurnManager.Instance.GetCurrentPlayer();
+            // Fase de compra inicial: mostrar as compras do PRÓPRIO jogador contra o
+            // teto do lobby (5), não o limite de 2 por turno da partida.
+            PlayerData me = GetLocalPlayer();
 
             // Conta quantos jogadores estão prontos
             int readyCount = 0;
@@ -1015,7 +1012,7 @@ public class GameUIManager : MonoBehaviour
 
             string readyMsg = readyCount == 0 ? "Clique 2x em 'Iniciar Partida'" : "Clique mais 1x para iniciar!";
 
-            turnInfoText.text = $"Turno: {currentPlayer.playerName}\nCartas: {currentPlayer.cardsBoughtThisTurn}/{PlayerData.MaxCardsPerTurn}\n{readyMsg}";
+            turnInfoText.text = $"{me.playerName}\nCartas: {me.cardsBoughtThisTurn}/{PlayerData.MaxCardsInLobby}\n{readyMsg}";
         }
 
         if (roundText != null)
@@ -1097,41 +1094,161 @@ public class GameUIManager : MonoBehaviour
 
     public void ShowVictoryScreen(int winnerPlayerNumber)
     {
-        if (victoryPanel != null)
-        {
-            victoryPanel.SetActive(true);
-        }
+        // O painel serializado da cena renderizava quebrado — escondemos ele e
+        // usamos um overlay construído 100% por código (sempre limpo)
+        if (victoryPanel != null) victoryPanel.SetActive(false);
 
-        if (victoryMessageText != null)
-        {
-            victoryMessageText.text = $"Parabéns, jogador {winnerPlayerNumber} venceu!";
-        }
+        if (victoryOverlay == null) BuildVictoryOverlay();
+        if (victoryOverlay == null) return; // sem canvas — nada a fazer
 
-        if (restartButton != null && !restartButton.onClick.GetPersistentEventCount().Equals(0) == false)
-        {
-            restartButton.onClick.RemoveAllListeners();
-            restartButton.onClick.AddListener(OnRestartButtonClicked);
-        }
+        // Descobre se o JOGADOR LOCAL venceu (em multiplayer) para personalizar
+        int localPlayer = (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
+            ? PhotonGameManager.Instance.myPlayerNumber
+            : winnerPlayerNumber;
+        if (localPlayer == 0) localPlayer = winnerPlayerNumber;
+        bool localWon = localPlayer == winnerPlayerNumber;
 
-        Debug.Log($"Tela de vitória mostrada para Jogador {winnerPlayerNumber}");
+        if (victoryOverlayTitle != null)
+        {
+            victoryOverlayTitle.text = localWon ? "VITÓRIA!" : "DERROTA";
+            victoryOverlayTitle.color = localWon
+                ? new Color(0.96f, 0.77f, 0.32f)   // dourado
+                : new Color(1f, 0.42f, 0.37f);     // vermelho
+        }
+        if (victoryOverlaySubtitle != null)
+            victoryOverlaySubtitle.text = $"Jogador {winnerPlayerNumber} venceu a partida.";
+
+        victoryOverlay.SetActive(true);
+        victoryOverlay.transform.SetAsLastSibling(); // fica por cima de tudo
+
+        Debug.Log($"Tela de vitória mostrada. Vencedor: Jogador {winnerPlayerNumber}");
     }
 
     public void HideVictoryScreen()
     {
-        if (victoryPanel != null)
+        if (victoryPanel != null) victoryPanel.SetActive(false);
+        if (victoryOverlay != null) victoryOverlay.SetActive(false);
+    }
+
+    // Constrói o overlay de vitória: painel escurecido em tela cheia, título,
+    // subtítulo e botões "Jogar Novamente" e "Sair do Jogo".
+    void BuildVictoryOverlay()
+    {
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null) canvas = FindObjectOfType<Canvas>();
+        if (canvas == null)
         {
-            victoryPanel.SetActive(false);
+            Debug.LogWarning("[GameUIManager] Nenhum Canvas — overlay de vitória não criado");
+            return;
         }
+
+        // Fundo em tela cheia (bloqueia cliques atrás)
+        victoryOverlay = new GameObject("VictoryOverlay",
+            typeof(RectTransform), typeof(Image));
+        victoryOverlay.transform.SetParent(canvas.transform, false);
+        RectTransform ort = victoryOverlay.GetComponent<RectTransform>();
+        ort.anchorMin = Vector2.zero;
+        ort.anchorMax = Vector2.one;
+        ort.offsetMin = Vector2.zero;
+        ort.offsetMax = Vector2.zero;
+        victoryOverlay.GetComponent<Image>().color = new Color(0.04f, 0.05f, 0.09f, 0.88f);
+
+        // Caixa central
+        GameObject box = new GameObject("Box", typeof(RectTransform), typeof(Image));
+        box.transform.SetParent(victoryOverlay.transform, false);
+        RectTransform brt = box.GetComponent<RectTransform>();
+        brt.anchorMin = new Vector2(0.5f, 0.5f);
+        brt.anchorMax = new Vector2(0.5f, 0.5f);
+        brt.pivot = new Vector2(0.5f, 0.5f);
+        brt.sizeDelta = new Vector2(560f, 360f);
+        box.GetComponent<Image>().color = new Color(0.10f, 0.13f, 0.20f, 0.98f);
+
+        // Título
+        victoryOverlayTitle = MakeOverlayLabel(box.transform, "VITÓRIA!", 64f,
+            new Vector2(0f, 110f), new Vector2(520f, 90f), FontStyles.Bold);
+
+        // Subtítulo
+        victoryOverlaySubtitle = MakeOverlayLabel(box.transform, "", 28f,
+            new Vector2(0f, 40f), new Vector2(520f, 50f), FontStyles.Normal);
+        victoryOverlaySubtitle.color = new Color(0.85f, 0.88f, 0.95f);
+
+        // Botão "Jogar Novamente"
+        MakeOverlayButton(box.transform, "Jogar Novamente",
+            new Color(0.15f, 0.45f, 0.28f, 1f), new Vector2(0f, -55f),
+            OnRestartButtonClicked);
+
+        // Botão "Sair do Jogo"
+        MakeOverlayButton(box.transform, "Sair do Jogo",
+            new Color(0.45f, 0.14f, 0.14f, 1f), new Vector2(0f, -130f),
+            QuitGame);
+
+        victoryOverlay.SetActive(false);
+    }
+
+    TextMeshProUGUI MakeOverlayLabel(Transform parent, string text, float size,
+        Vector2 anchoredPos, Vector2 sizeDelta, FontStyles style)
+    {
+        GameObject obj = new GameObject("Label", typeof(RectTransform));
+        obj.transform.SetParent(parent, false);
+        RectTransform rt = obj.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = anchoredPos;
+        rt.sizeDelta = sizeDelta;
+
+        TextMeshProUGUI tmp = obj.AddComponent<TextMeshProUGUI>();
+        tmp.text = text;
+        tmp.fontSize = size;
+        tmp.fontStyle = style;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.color = Color.white;
+        tmp.raycastTarget = false;
+        return tmp;
+    }
+
+    void MakeOverlayButton(Transform parent, string label, Color color,
+        Vector2 anchoredPos, UnityEngine.Events.UnityAction onClick)
+    {
+        GameObject btnObj = new GameObject("Button_" + label,
+            typeof(RectTransform), typeof(Image), typeof(Button));
+        btnObj.transform.SetParent(parent, false);
+        RectTransform rt = btnObj.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = anchoredPos;
+        rt.sizeDelta = new Vector2(300f, 58f);
+        btnObj.GetComponent<Image>().color = color;
+        btnObj.GetComponent<Button>().onClick.AddListener(onClick);
+
+        GameObject txtObj = new GameObject("Text", typeof(RectTransform));
+        txtObj.transform.SetParent(btnObj.transform, false);
+        RectTransform trt = txtObj.GetComponent<RectTransform>();
+        trt.anchorMin = Vector2.zero;
+        trt.anchorMax = Vector2.one;
+        trt.offsetMin = Vector2.zero;
+        trt.offsetMax = Vector2.zero;
+
+        TextMeshProUGUI tmp = txtObj.AddComponent<TextMeshProUGUI>();
+        tmp.text = label;
+        tmp.fontSize = 26f;
+        tmp.fontStyle = FontStyles.Bold;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.color = Color.white;
+        tmp.raycastTarget = false;
     }
 
     void OnRestartButtonClicked()
     {
-        Debug.Log("Botão Restart foi clicado!");
+        Debug.Log("Botão 'Jogar Novamente' clicado!");
 
-        if (TurnManager.Instance != null)
-        {
+        // Reinício sincronizado nos dois clientes (o Master gera a nova seed).
+        // Em modo offline, RequestRestart reinicia direto.
+        if (PhotonGameManager.Instance != null)
+            PhotonGameManager.Instance.RequestRestart();
+        else if (TurnManager.Instance != null)
             TurnManager.Instance.RestartGame();
-        }
     }
 
     // Fila de decisões: o popup é um painel ÚNICO. Antes, uma segunda decisão

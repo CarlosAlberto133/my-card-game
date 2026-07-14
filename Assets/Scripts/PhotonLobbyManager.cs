@@ -32,12 +32,12 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
 
         if (!PhotonNetwork.connected)
         {
-            // gameVersion separa builds incompatíveis no matchmaking. "3.5" =
-            // pacote grande de correções de efeitos (alvos errados de freeze/
-            // stun, aura do Tank 4, cura do Healer 3 pós-dano, Mago 1 filtrado,
-            // efeitos por turno só no turno do dono...) — builds antigos
-            // simulariam outro resultado → desync garantido
-            PhotonNetwork.ConnectUsingSettings("3.5");
+            // gameVersion separa builds incompatíveis no matchmaking. "3.6" =
+            // porcentagens de tier na loja (TierOdds), reinício sincronizado
+            // (novos RPCs RPC_RestartGame/RPC_RequestRestart), Archer 1/3 e a
+            // tela de vitória por código. "3.5" = pacote grande de correções de
+            // efeitos. Builds antigos simulariam outro resultado → desync.
+            PhotonNetwork.ConnectUsingSettings("3.6");
             Debug.Log("[Lobby] Conectando ao Photon...");
         }
         else if (PhotonNetwork.inRoom)
@@ -295,9 +295,11 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         PhotonNetwork.room.IsVisible = false;
 
         // Room property avisa os DOIS clientes para carregar o jogo
-        // (chega ao anfitrião também, mas LoadGameScene é protegido contra repetição)
+        // (chega ao anfitrião também, mas LoadGameScene é protegido contra repetição).
+        // "theme" leva o mapa escolhido pelo anfitrião (0 = Espaço, 1 = Mesa de RPG)
         Hashtable props = new Hashtable();
         props["start"] = 1;
+        props["theme"] = ui != null ? ui.SelectedMapTheme : 1;
         PhotonNetwork.room.SetCustomProperties(props);
 
         LoadGameScene();

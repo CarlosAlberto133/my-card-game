@@ -19,6 +19,39 @@ public class CardInstance
     }
 }
 
+// Porcentagens de aparição por tier na loja. Quando um slot da loja sorteia uma
+// carta candidata, rola-se 0-99 contra a chance do tier dela: passou, entra;
+// falhou, sorteia outra candidata (com limite de tentativas). Assim tiers altos
+// vão ficando mais comuns conforme os rounds avançam.
+// IMPORTANTE (lockstep): só é chamado dentro de fluxos já semeados (loja usa
+// Random.InitState com seed derivada; filas do lobby usam System.Random com
+// seed fixa), então o resultado é idêntico nos dois clientes.
+public static class TierOdds
+{
+    // Chance (%) por round de partida (índice 0 = round 1; round 10+ usa o último)
+    static readonly int[][] roundOdds =
+    {
+        //          R1   R2   R3   R4   R5   R6   R7   R8   R9  R10+
+        new int[] { 100, 100, 100,  95,  85,  75,  65,  55,  50,  45 }, // Tier 1
+        new int[] {  90,  92,  95,  95,  95,  90,  85,  80,  75,  70 }, // Tier 2
+        new int[] {  50,  60,  70,  80,  90,  95,  95,  95,  95,  90 }, // Tier 3
+        new int[] {   0,  10,  20,  35,  50,  62,  75,  82,  88,  95 }, // Tier 4
+        new int[] {   0,   5,  10,  17,  25,  31,  37,  41,  44,  47 }, // Tier 5 (metade do T4 — mais "lendário")
+    };
+
+    // Chance (%) na fase inicial de compras (loja do lobby)
+    static readonly int[] lobbyOdds = { 100, 90, 50, 20, 10 };
+
+    public static int GetChance(CardTier tier, bool lobbyPhase, int round)
+    {
+        int t = Mathf.Clamp((int)tier, 1, 5) - 1;
+        if (lobbyPhase) return lobbyOdds[t];
+
+        int r = Mathf.Clamp(round, 1, 10) - 1;
+        return roundOdds[t][r];
+    }
+}
+
 public class CardPool : MonoBehaviour
 {
     [Header("Todas as Cartas Base")]
@@ -123,7 +156,7 @@ public class CardPool : MonoBehaviour
         return cardPool.Find(c => c.instanceId == instanceId);
     }
 
-    // Pega uma carta aleatória disponível
+    // Pega uma carta aleatória disponível (uniforme, sem porcentagens de tier)
     public CardInstance DrawRandomCard()
     {
         List<CardInstance> available = GetAvailableCards();
@@ -134,6 +167,41 @@ public class CardPool : MonoBehaviour
         drawnCard.isInDeck = false;
 
         return drawnCard;
+    }
+
+    // Pega uma carta aleatória respeitando as porcentagens de tier (TierOdds).
+    // Determinístico: as chamadas de Random acontecem na mesma ordem nos dois
+    // clientes (fluxo da loja já re-semeado com Random.InitState)
+    public CardInstance DrawRandomCard(bool lobbyPhase, int round)
+    {
+        List<CardInstance> available = GetAvailableCards();
+        CardInstance drawn = PickWithOdds(available, lobbyPhase, round, max => Random.Range(0, max));
+        if (drawn != null) drawn.isInDeck = false;
+        return drawn;
+    }
+
+    // Sorteio com teste de aceitação: candidata aleatória + dado 0-99 contra a
+    // chance do tier. Após esgotar as tentativas, cai no MENOR tier disponível
+    // (não deixa a loja com slot vazio). nextInt abstrai a fonte de aleatório
+    // (UnityEngine.Random na loja, System.Random nas filas do lobby).
+    static CardInstance PickWithOdds(List<CardInstance> pool, bool lobbyPhase, int round,
+                                     System.Func<int, int> nextInt)
+    {
+        if (pool == null || pool.Count == 0) return null;
+
+        for (int attempt = 0; attempt < 20; attempt++)
+        {
+            CardInstance candidate = pool[nextInt(pool.Count)];
+            int chance = TierOdds.GetChance(candidate.cardData.tier, lobbyPhase, round);
+            if (nextInt(100) < chance)
+                return candidate;
+        }
+
+        // Fallback determinístico: primeira carta do menor tier ainda disponível
+        CardInstance best = pool[0];
+        foreach (CardInstance c in pool)
+            if (c.cardData.tier < best.cardData.tier) best = c;
+        return best;
     }
 
     // Retorna uma carta ao deck
@@ -167,20 +235,27 @@ public class CardPool : MonoBehaviour
 
         List<CardInstance> available = GetAvailableCards();
 
-        // Fisher-Yates com System.Random próprio (não mexe no UnityEngine.Random,
-        // que o lockstep re-semeia para os efeitos)
+        // Monta a ordem das filas com as porcentagens de tier do lobby (TierOdds):
+        // sorteia carta a carta com teste de aceitação, então o COMEÇO das filas
+        // (o que os jogadores realmente veem) segue as chances — tiers altos
+        // afundam para o fim. System.Random próprio (não mexe no UnityEngine.Random,
+        // que o lockstep re-semeia para os efeitos).
+        // As cartas são distribuídas ALTERNADAMENTE entre P1 e P2, para as duas
+        // filas terem o mesmo perfil de raridade (partir ao meio concentraria os
+        // tiers altos na fila de um jogador só).
         System.Random rng = new System.Random(seed);
-        for (int i = available.Count - 1; i > 0; i--)
+        lobbyQueueP1 = new List<CardInstance>();
+        lobbyQueueP2 = new List<CardInstance>();
+
+        bool toP1 = true;
+        while (available.Count > 0)
         {
-            int j = rng.Next(i + 1);
-            CardInstance tmp = available[i];
-            available[i] = available[j];
-            available[j] = tmp;
+            CardInstance picked = PickWithOdds(available, true, 1, max => rng.Next(max));
+            available.Remove(picked);
+            (toP1 ? lobbyQueueP1 : lobbyQueueP2).Add(picked);
+            toP1 = !toP1;
         }
 
-        int half = available.Count / 2;
-        lobbyQueueP1 = available.GetRange(0, half);
-        lobbyQueueP2 = available.GetRange(half, available.Count - half);
         Debug.Log($"[CardPool] Filas da fase inicial: P1={lobbyQueueP1.Count}, P2={lobbyQueueP2.Count} cartas");
     }
 
@@ -200,6 +275,20 @@ public class CardPool : MonoBehaviour
     {
         lobbyQueueP1 = null;
         lobbyQueueP2 = null;
+    }
+
+    // Reinício de partida: devolve TODAS as instâncias ao deck e descarta as
+    // filas da fase inicial. Sem isso, as cartas que foram para mão/tabuleiro
+    // continuam marcadas como usadas e o pool nasce esvaziado na nova partida.
+    public void ResetPool()
+    {
+        foreach (CardInstance c in cardPool)
+        {
+            c.isOnBoard = false;
+            c.isInDeck = true;
+        }
+        ClearLobbyQueues();
+        Debug.Log($"[CardPool] Pool resetado para reinício: {cardPool.Count} cartas de volta ao deck");
     }
 
     // Coloca uma carta no tabuleiro

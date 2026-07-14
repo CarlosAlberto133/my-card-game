@@ -34,8 +34,9 @@ public class GameManager : MonoBehaviour
         handManager = FindObjectOfType<HandManager>();
         boardManager = FindObjectOfType<BoardManager>();
 
-        // Fundo espacial (céu escuro + estrelas + meteoros), criado por código
-        SpaceBackground.Ensure();
+        // Temática da partida (mapa escolhido pelo anfitrião na sala: Espaço ou
+        // Mesa de RPG) — aplica o cenário quando o tabuleiro + seed existirem
+        BoardThemeManager.Ensure();
         SoundManager.Ensure();
     }
 
@@ -262,12 +263,10 @@ public class GameManager : MonoBehaviour
         currentTile = tile;
         isMovingCard = true;
 
-        // Destaca tiles de movimento só se a carta ainda pode andar neste round
-        if (cardDisplay.CanMoveThisRound())
-        {
-            HighlightValidTiles(); // Destaca tiles válidos/inválidos
-        }
-
+        // Sempre destaca: os tiles de MOVIMENTO só aparecem se a carta ainda pode
+        // andar, mas o AMARELO de ataque deve aparecer mesmo depois de ela ter
+        // andado (mover e atacar são independentes). A lógica fica em HighlightValidTiles.
+        HighlightValidTiles();
     }
 
     // Tenta colocar a carta selecionada em um tile
@@ -656,16 +655,41 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    // Destaca todos os tiles do tabuleiro (verde = válido, vermelho = inválido)
+    // Destaca todos os tiles do tabuleiro: verde = válido, vermelho = inválido,
+    // AMARELO = inimigo ao alcance de ataque da carta selecionada (no tabuleiro).
     void HighlightValidTiles()
     {
         if (boardManager == null) return;
 
+        bool boardCard = isMovingCard && selectedCardDisplay != null && selectedCardDisplay.isOnBoard;
+
+        // Inimigos que a carta selecionada consegue atacar agora (só se estiver no
+        // tabuleiro e puder atacar neste round). CanAttackPeek é silencioso.
+        var attackable = new System.Collections.Generic.HashSet<CardTile>();
+        if (boardCard && selectedCardDisplay.CanAttackPeek())
+        {
+            foreach (CardDisplay enemy in selectedCardDisplay.GetAdjacentEnemies())
+            {
+                if (enemy != null && enemy.currentTile != null)
+                    attackable.Add(enemy.currentTile);
+            }
+        }
+
+        // Tiles de movimento (verde/vermelho) só quando a ação de mover ainda está
+        // disponível: colocando da mão (!isMovingCard) ou carta que ainda pode andar.
+        // Se já andou, não mostra verde/vermelho — mas o amarelo de ataque continua.
+        bool showMoveTiles = !isMovingCard ||
+            (selectedCardDisplay != null && selectedCardDisplay.CanMovePeek());
+
         CardTile[] allTiles = FindObjectsOfType<CardTile>();
         foreach (CardTile tile in allTiles)
         {
-            bool isValid = IsValidTileForCurrentSelection(tile);
-            tile.SetHighlight(isValid);
+            if (attackable.Contains(tile))
+                tile.SetAttackHighlight();                          // Amarelo: dá pra atacar
+            else if (showMoveTiles)
+                tile.SetHighlight(IsValidTileForCurrentSelection(tile)); // Verde/vermelho de movimento
+            else
+                tile.ClearHighlight();                              // Já andou: sem verde/vermelho
         }
     }
 

@@ -28,8 +28,9 @@ public class CardStatusVisuals : MonoBehaviour
         {
             counterObj = new GameObject("EffectCounter");
             counterObj.transform.SetParent(transform, false);
-            // Logo acima da borda superior da carta (altura 2.5 → topo em -1.25)
-            counterObj.transform.localPosition = new Vector3(0f, 0.06f, -1.55f);
+            // Na BASE da carta, centralizado ENTRE as bolinhas de ação
+            // (andar/atacar), formando uma fileira 🟢 N 🔴
+            counterObj.transform.localPosition = new Vector3(0f, 0.09f, 1.35f);
             counterObj.transform.localRotation = Quaternion.Euler(90f, 180f, 0f);
 
             counterText = counterObj.AddComponent<TextMeshPro>();
@@ -37,7 +38,7 @@ public class CardStatusVisuals : MonoBehaviour
             counterText.fontStyle = FontStyles.Bold;
             counterText.alignment = TextAlignmentOptions.Center;
             counterText.richText = false;
-            counterText.rectTransform.sizeDelta = new Vector2(1.4f, 0.7f);
+            counterText.rectTransform.sizeDelta = new Vector2(0.8f, 0.6f);
             counterText.outlineWidth = 0.25f; // Contorno para ler sobre qualquer fundo
             counterText.outlineColor = new Color32(10, 10, 20, 255);
         }

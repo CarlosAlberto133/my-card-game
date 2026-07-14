@@ -481,50 +481,22 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 4: Archer 3 (ATK 4, HP 1) - Causa 3 de dano em padrão + (cruz) + ganha 4 de armadura se houver Tank
+    // Efeito 4: Archer 3 (ATK 4, HP 1) - +4 de armadura se houver Tank (AO ENTRAR).
+    // (O dano em cruz "ao atacar" foi removido a pedido do Carlos — agora a carta
+    // só tem o bônus de armadura ao entrar em campo.)
     void ArcherTier3Effect4_CrussDamageAndShield()
     {
         if (cardDisplay == null || cardDisplay.archerTier3Effect4Used) return;
 
         BoardManager board = BoardManager.Instance;
-        if (board == null || cardDisplay.currentTile == null) return;
+        if (board == null) return;
 
-        int row = cardDisplay.currentTile.row;
-        int col = cardDisplay.currentTile.column;
-        int playerNum = cardDisplay.ownerPlayerNumber;
-
-        // Dano em padrão + (cruz): mesma linha, mesma coluna (adjacentes)
-        int[] targetRows = { row - 1, row + 1, row, row };
-        int[] targetCols = { col, col, col - 1, col + 1 };
-
-        for (int i = 0; i < 4; i++)
-        {
-            int targetRow = targetRows[i];
-            int targetCol = targetCols[i];
-
-            if (targetRow >= 0 && targetRow < board.rows && targetCol >= 0 && targetCol < board.columns)
-            {
-                CardTile targetTile = board.GetTile(targetRow, targetCol);
-                if (targetTile != null && targetTile.occupiedCard != null)
-                {
-                    CardDisplay targetCard = targetTile.occupiedCard.GetComponent<CardDisplay>();
-                    if (targetCard != null && targetCard.ownerPlayerNumber != playerNum)
-                    {
-                        EffectProjectileFX.Launch(cardDisplay, targetCard, EffectProjectileFX.Arrow);
-                        targetCard.TakeDamage(3);
-                        Debug.Log($"[ArcherTier3Effect4] {cardDisplay.card.cardName}: Causou 3 de dano a {targetCard.card.cardName} (padrão +)");
-                    }
-                }
-            }
-        }
-
-        cardDisplay.archerTier3Effect4Used = true;
-
-        // Se houver Tank aliado, ganha 4 de armadura
-        if (board.HasClassOnBoard(playerNum, CardClass.Tank))
+        // Armadura +4 com Tank aliado (1x por partida, na entrada)
+        if (board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Tank))
         {
             cardDisplay.currentShield += 4;
             cardDisplay.UpdateDisplay();
+            cardDisplay.archerTier3Effect4Used = true;
             Debug.Log($"[ArcherTier3Effect4] {cardDisplay.card.cardName}: Tem um tank aliado - ganhou 4 de armadura! Total: {cardDisplay.currentShield}");
         }
     }
@@ -684,9 +656,11 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[ArcherEffect1] {cardDisplay.card.cardName}: -2 HP, +1 ATK. HP agora: {cardDisplay.currentHealth}, ATK agora: {cardDisplay.currentAttack}");
     }
 
-    // Efeito 2: Ao entrar em campo, cause 1 de dano à FILEIRA TODA à sua frente.
-    // (O texto da carta diz "na fileira/row toda" — o código antigo atingia só
-    // a casa diretamente à frente)
+    // Efeito 2: Ao entrar em campo, cause 1 de dano à FILEIRA à sua frente.
+    // Como ao entrar a carta nasce na zona de colocação (longe do inimigo), a
+    // fileira colada à frente costuma estar vazia. Em vez de não fazer nada, o
+    // efeito "mira" na PRIMEIRA fileira à frente que tiver inimigos e bate em
+    // todos eles. (Opção escolhida pelo Carlos — foge um pouco do texto original.)
     void ArcherEffect2_DamageRow()
     {
         BoardManager board = BoardManager.Instance;
@@ -699,33 +673,42 @@ public class CardEffectSimple : MonoBehaviour
         int currentRow = cardDisplay.currentTile.row;
         int playerNum = cardDisplay.ownerPlayerNumber;
 
-        // Determina qual row está "à frente" baseado no dono
-        int targetRow = (playerNum == 1) ? currentRow + 1 : currentRow - 1;
+        // Direção "para frente" (em direção ao inimigo): P1 sobe de fileira, P2 desce
+        int step = (playerNum == 1) ? 1 : -1;
 
-        // Verifica limites
-        if (targetRow < 0 || targetRow >= board.rows)
+        // Varre fileira a fileira à frente e para na PRIMEIRA com inimigos.
+        // Ordem fixa (fileira por fileira, coluna 0..columns) = determinístico
+        // nos 2 clientes, então não quebra a sincronização do Photon.
+        for (int targetRow = currentRow + step; targetRow >= 0 && targetRow < board.rows; targetRow += step)
         {
-            Debug.Log($"[ArcherEffect2] Row {targetRow} fora dos limites!");
+            var enemiesInRow = new System.Collections.Generic.List<CardDisplay>();
+            for (int col = 0; col < board.columns; col++)
+            {
+                CardTile targetTile = board.GetTile(targetRow, col);
+                if (targetTile == null || targetTile.occupiedCard == null) continue;
+
+                CardDisplay targetCard = targetTile.occupiedCard.GetComponent<CardDisplay>();
+                if (targetCard == null || targetCard.ownerPlayerNumber == playerNum ||
+                    targetCard.ownerPlayerNumber == 0) continue;
+
+                enemiesInRow.Add(targetCard);
+            }
+
+            // Fileira sem inimigos → continua procurando mais à frente
+            if (enemiesInRow.Count == 0) continue;
+
+            // Primeira fileira à frente com inimigos: bate em todos
+            foreach (var targetCard in enemiesInRow)
+            {
+                EffectProjectileFX.Launch(cardDisplay, targetCard, EffectProjectileFX.Arrow);
+                targetCard.TakeDamage(1);
+            }
+
+            Debug.Log($"[ArcherEffect2] {cardDisplay.card.cardName}: Causou 1 de dano a {enemiesInRow.Count} inimigo(s) na fileira {targetRow} (primeira à frente com inimigos)");
             return;
         }
 
-        // Atinge todos os INIMIGOS da fileira (ordem fixa de coluna = determinístico)
-        int hits = 0;
-        for (int col = 0; col < board.columns; col++)
-        {
-            CardTile targetTile = board.GetTile(targetRow, col);
-            if (targetTile == null || targetTile.occupiedCard == null) continue;
-
-            CardDisplay targetCard = targetTile.occupiedCard.GetComponent<CardDisplay>();
-            if (targetCard == null || targetCard.ownerPlayerNumber == playerNum ||
-                targetCard.ownerPlayerNumber == 0) continue;
-
-            EffectProjectileFX.Launch(cardDisplay, targetCard, EffectProjectileFX.Arrow);
-            targetCard.TakeDamage(1);
-            hits++;
-        }
-
-        Debug.Log($"[ArcherEffect2] {cardDisplay.card.cardName}: Causou 1 de dano a {hits} inimigo(s) na fileira {targetRow}");
+        Debug.Log($"[ArcherEffect2] {cardDisplay.card.cardName}: Nenhum inimigo à frente para atingir.");
     }
 
     // Efeito 3: Faz uma cópia de si se estiver com um tanque aliado em campo
@@ -992,11 +975,11 @@ public class CardEffectSimple : MonoBehaviour
         if (cardDisplay == null || damagedTank == null) return;
 
         EffectProjectileFX.Launch(cardDisplay, damagedTank, EffectProjectileFX.HealGreen);
-        damagedTank.currentHealth += 2;
-        // Vida máxima inclui o bônus do Healer 2 (2/1)
+        // Cura +2 sem NUNCA reduzir (mesma regra do Heal): um tank buffado
+        // acima do máximo base não perde vida ao ser curado
         int tankMaxHp = damagedTank.card.health + damagedTank.maxHealthBonus;
-        if (damagedTank.currentHealth > tankMaxHp)
-            damagedTank.currentHealth = tankMaxHp;
+        damagedTank.currentHealth = Mathf.Max(damagedTank.currentHealth,
+            Mathf.Min(damagedTank.currentHealth + 2, tankMaxHp));
 
         damagedTank.UpdateDisplay();
         Debug.Log($"[HealerTier3Effect2] {cardDisplay.card.cardName}: Curou {damagedTank.card.cardName} em 2 (HP agora: {damagedTank.currentHealth})");
@@ -1174,8 +1157,8 @@ public class CardEffectSimple : MonoBehaviour
             {
                 // Restaura ouro máximo (10)
                 player.gold = 10;
-                // Restaura vida máxima do jogador (10)
-                player.health = 10;
+                // Restaura vida máxima do jogador
+                player.health = PlayerData.MaxTowerHealth;
 
                 // Marca que o combo foi ativado para todas as 3
                 foreach (var ally in allies)

@@ -1,27 +1,31 @@
 <title>Card Game — Alpha Test</title>
 <style>
   :root {
-    /* Espaço profundo — ground escolhido com viés azul, não cinza puro */
-    --bg:      #080b14;
-    --bg-2:    #0e1422;
-    --bg-3:    #151d2f;
-    --line:    rgba(150, 170, 210, 0.12);
-    --line-2:  rgba(150, 170, 210, 0.22);
-    --ink:     #eaeef9;
-    --muted:   #8b95ac;
-    --muted-2: #64708a;
-    /* Ouro = acento único e alto (economia + CTA) */
+    /* Mesa de RPG à luz de vela — madeira escura e pergaminho quente */
+    --bg:      #15100a;
+    --bg-2:    #1f160d;
+    --bg-3:    #2a1d11;
+    --line:    rgba(214, 182, 130, 0.12);
+    --line-2:  rgba(214, 182, 130, 0.24);
+    --ink:     #f3e8d3;
+    --muted:   #b6a07c;
+    --muted-2: #8a785c;
+    /* Ouro = acento único e alto (tesouro + CTA) */
     --gold:    #f5c451;
     --gold-2:  #ffd876;
     --gold-dk: #b98a24;
-    /* Facções */
+    /* Facções (as duas torres) */
     --blue:    #5a86f5;
     --red:     #ff5b4a;
-    /* Classes (dessaturadas pra não brigar com o ouro) */
+    /* Classes (as cores das cartas no jogo) */
     --c-arch:  #8fd06a;
     --c-mage:  #b490ff;
     --c-tank:  #6e9bf0;
     --c-heal:  #4fd0a0;
+    /* Madeira e feltro da mesa */
+    --wood:    #3a2716;
+    --wood-2:  #2a1c10;
+    --felt:    #3c5330;
 
     --display: 800 1em/1 "Segoe UI", system-ui, -apple-system, sans-serif;
     --body:    "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
@@ -42,7 +46,7 @@
     overflow-x: hidden;
   }
 
-  /* Starfield atrás de tudo */
+  /* Poeira/brasas flutuando à luz de vela, atrás de tudo */
   #sky {
     position: fixed;
     inset: 0;
@@ -50,16 +54,17 @@
     display: block;
     pointer-events: none;
   }
-  /* Vinheta + brilho de horizonte azul/vermelho, referência às duas torres */
-  .space-glow {
+  /* Luz de vela quente pooling na mesa + veios de madeira + vinheta */
+  .table-glow {
     position: fixed;
     inset: 0;
     z-index: 0;
     pointer-events: none;
     background:
-      radial-gradient(60% 40% at 15% 0%, rgba(90,134,245,0.16), transparent 70%),
-      radial-gradient(60% 40% at 85% 8%, rgba(255,91,74,0.12), transparent 70%),
-      radial-gradient(120% 80% at 50% 120%, rgba(0,0,0,0.6), transparent 60%);
+      radial-gradient(55% 40% at 22% 4%, rgba(245,196,81,0.14), transparent 70%),
+      radial-gradient(50% 40% at 82% 10%, rgba(255,120,60,0.10), transparent 70%),
+      repeating-linear-gradient(96deg, rgba(60,40,22,0.0) 0px, rgba(60,40,22,0.0) 26px, rgba(90,60,32,0.05) 27px, rgba(60,40,22,0.0) 30px),
+      radial-gradient(130% 90% at 50% 120%, rgba(0,0,0,0.72), transparent 58%);
   }
 
   .wrap { position: relative; z-index: 1; max-width: var(--maxw); margin: 0 auto; padding: 0 24px; }
@@ -104,7 +109,7 @@
     padding: 20px 24px;
   }
   .brand { display: flex; align-items: center; gap: 11px; font-family: var(--display); font-weight: 800; letter-spacing: 0.02em; font-size: 18px; }
-  .brand .glyph { width: 22px; height: 22px; flex: none; }
+  .brand .glyph { width: 24px; height: 24px; flex: none; }
   .brand b { color: var(--gold); font-weight: 800; }
   .nav-links { display: flex; align-items: center; gap: 26px; }
   .nav-links a { color: var(--muted); text-decoration: none; font-size: 14px; letter-spacing: 0.01em; transition: color .2s; }
@@ -140,24 +145,41 @@
     margin: 20px 0 0; text-wrap: balance;
   }
   h1.title .cosmic { color: var(--gold); text-shadow: 0 0 40px rgba(245,196,81,0.35); }
-  .lede { color: var(--muted); font-size: clamp(16px, 2vw, 19px); max-width: 30ch; margin: 22px 0 30px; }
+  .lede { color: var(--muted); font-size: clamp(16px, 2vw, 19px); max-width: 34ch; margin: 22px 0 30px; }
   .hero-cta { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
   .hero-meta { margin-top: 20px; font-family: var(--mono); font-size: 12.5px; color: var(--muted-2); letter-spacing: 0.04em; display: flex; gap: 8px 18px; flex-wrap: wrap; }
   .hero-meta span { display: inline-flex; align-items: center; gap: 7px; }
   .hero-meta .k { color: var(--c-heal); }
 
-  /* Vitrine: carta flutuando sobre grade de batalha */
+  /* Vitrine: cartas flutuando sobre o tabuleiro na mesa de madeira */
   .showcase { position: relative; height: 420px; display: grid; place-items: center; }
+  /* Tampo de madeira sob o tabuleiro */
+  .table-surface {
+    position: absolute; inset: 8% -14% -6% -14%;
+    background:
+      repeating-linear-gradient(92deg, rgba(0,0,0,0.16) 0 2px, transparent 2px 26px),
+      linear-gradient(180deg, var(--wood), var(--wood-2));
+    border-radius: 14px;
+    transform: perspective(720px) rotateX(52deg) scale(1.16);
+    transform-origin: center 72%;
+    box-shadow: inset 0 0 60px rgba(0,0,0,0.55), 0 30px 60px rgba(0,0,0,0.5);
+    mask-image: radial-gradient(ellipse 70% 70% at 50% 45%, #000 40%, transparent 82%);
+    -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 45%, #000 40%, transparent 82%);
+  }
+  /* O campo (grade verde) impresso sobre a mesa */
   .battle-grid {
-    position: absolute; inset: -10% -20%;
+    position: absolute; inset: 2% 2% 8% 2%;
     background-image:
-      linear-gradient(var(--line) 1px, transparent 1px),
-      linear-gradient(90deg, var(--line) 1px, transparent 1px);
-    background-size: 40px 40px;
-    transform: perspective(700px) rotateX(58deg) scale(1.3);
+      linear-gradient(rgba(150,190,120,0.20) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(150,190,120,0.20) 1px, transparent 1px),
+      linear-gradient(180deg, rgba(60,83,48,0.55), rgba(40,58,32,0.35));
+    background-size: 38px 38px, 38px 38px, 100% 100%;
+    border: 2px solid rgba(120,80,44,0.55);
+    border-radius: 8px;
+    transform: perspective(700px) rotateX(58deg) scale(1.16);
     transform-origin: center 70%;
-    mask-image: radial-gradient(ellipse 60% 60% at 50% 45%, #000 20%, transparent 72%);
-    -webkit-mask-image: radial-gradient(ellipse 60% 60% at 50% 45%, #000 20%, transparent 72%);
+    mask-image: radial-gradient(ellipse 60% 60% at 50% 45%, #000 25%, transparent 74%);
+    -webkit-mask-image: radial-gradient(ellipse 60% 60% at 50% 45%, #000 25%, transparent 74%);
   }
 
   /* ---------- Game card ---------- */
@@ -165,7 +187,7 @@
     position: relative; width: 230px; border-radius: 18px;
     background: linear-gradient(180deg, var(--bg-3), var(--bg-2));
     border: 1px solid var(--line-2);
-    box-shadow: 0 30px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06);
+    box-shadow: 0 30px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06);
     padding: 16px; overflow: hidden;
     --accent: var(--c-mage);
   }
@@ -252,7 +274,7 @@
   .ins code { font-family: var(--mono); font-size: 12.5px; color: var(--gold-2); background: rgba(245,196,81,0.08); padding: 1px 6px; border-radius: 5px; }
 
   .terminal {
-    background: #05070d; border: 1px solid var(--line-2); border-radius: 16px; overflow: hidden;
+    background: #120c06; border: 1px solid var(--line-2); border-radius: 16px; overflow: hidden;
     box-shadow: 0 24px 50px rgba(0,0,0,0.5);
   }
   .term-bar { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,0.02); }
@@ -265,12 +287,12 @@
   .lwin .ls { font-family: var(--mono); font-size: 12px; color: var(--c-heal); margin: 14px 0 12px; }
   .lwin .lbar { height: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
   .lwin .lbar > i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-2)); }
-  .lwin .lplay { margin-top: 14px; padding: 11px; border-radius: 9px; background: linear-gradient(180deg, var(--blue), #3a63d6); color: #fff; font-weight: 700; font-size: 15px; }
+  .lwin .lplay { margin-top: 14px; padding: 11px; border-radius: 9px; background: linear-gradient(180deg, var(--felt), #2c3f22); color: #f3e8d3; font-weight: 700; font-size: 15px; }
 
   /* Alpha notice */
   .alpha {
     border: 1px solid rgba(245,196,81,0.28); border-radius: 20px; padding: 40px;
-    background: linear-gradient(180deg, rgba(245,196,81,0.05), rgba(255,91,74,0.03));
+    background: linear-gradient(180deg, rgba(245,196,81,0.05), rgba(120,80,44,0.05));
   }
   .alpha-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 40px; margin-top: 26px; }
   .apoint { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; }
@@ -312,11 +334,11 @@
 </style>
 
 <canvas id="sky"></canvas>
-<div class="space-glow"></div>
+<div class="table-glow"></div>
 
 <nav>
   <div class="brand">
-    <svg class="glyph" viewBox="0 0 24 24" fill="none"><path d="M12 2l2.2 5.6L20 8l-4.2 3.7L17 18l-5-3-5 3 1.2-6.3L4 8l5.8-.4L12 2z" fill="#f5c451"/></svg>
+    <svg class="glyph" viewBox="0 0 24 24"><rect x="3.2" y="3.2" width="17.6" height="17.6" rx="4.4" fill="#f5c451"/><circle cx="8" cy="8" r="1.7" fill="#1a1405"/><circle cx="16" cy="8" r="1.7" fill="#1a1405"/><circle cx="12" cy="12" r="1.7" fill="#1a1405"/><circle cx="8" cy="16" r="1.7" fill="#1a1405"/><circle cx="16" cy="16" r="1.7" fill="#1a1405"/></svg>
     CARD<b>GAME</b>
   </div>
   <div class="nav-links">
@@ -335,8 +357,8 @@
     <div class="hero-grid">
       <div>
         <span class="tag"><span class="dot"></span>Alpha Test aberto</span>
-        <h1 class="title">Um duelo tático de cartas no <span class="cosmic">espaço profundo</span></h1>
-        <p class="lede">Monte seu exército, domine o tabuleiro 12×12 e destrua a torre inimiga. Por turnos, online, contra seus amigos.</p>
+        <h1 class="title">Um duelo tático de cartas na sua <span class="cosmic">mesa de RPG</span></h1>
+        <p class="lede">Monte seu exército, domine o tabuleiro 7×7 e destrua a torre inimiga. Por turnos, online, com o clima de uma sessão de RPG de mesa — ou leve o duelo pro espaço profundo.</p>
         <div class="hero-cta">
           <a class="btn btn-gold btn-lg" href="https://github.com/CarlosAlberto133/card-game-releases/raw/main/launcher.zip" download>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
@@ -353,6 +375,7 @@
       </div>
 
       <div class="showcase">
+        <div class="table-surface"></div>
         <div class="battle-grid"></div>
         <div class="gcard behind">
           <div class="gcard-top"><span class="gcard-class">Arqueiro</span><span class="gcard-tier">Tier 4</span></div>
@@ -387,7 +410,7 @@
     <div class="steps reveal">
       <div class="step"><div class="bar"></div><div class="num">01</div><h3>Ganhe ouro</h3><p>A cada rodada você recebe ouro pra investir. Gastar agora ou guardar pra uma carta forte?</p></div>
       <div class="step"><div class="bar"></div><div class="num">02</div><h3>Compre na loja</h3><p>Até 2 cartas por turno entre arqueiros, magos, tanques e curandeiros — em 5 tiers de poder.</p></div>
-      <div class="step"><div class="bar"></div><div class="num">03</div><h3>Posicione e ataque</h3><p>Coloque as cartas no tabuleiro 12×12, avance, flanqueie e ataque os inimigos adjacentes.</p></div>
+      <div class="step"><div class="bar"></div><div class="num">03</div><h3>Posicione e ataque</h3><p>Coloque as cartas no tabuleiro 7×7, avance, flanqueie e ataque os inimigos adjacentes.</p></div>
       <div class="step"><div class="bar"></div><div class="num">04</div><h3>Destrua a torre</h3><p>Cada jogador tem uma torre. Zere a vida da torre adversária pra vencer o duelo.</p></div>
     </div>
   </div>
@@ -448,8 +471,8 @@
       </div>
       <div class="feat">
         <div class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg></div>
-        <h3>Tabuleiro 12×12</h3>
-        <p>Espaço de sobra pra posicionamento, flanqueio e emboscadas. O lugar importa.</p>
+        <h3>Tabuleiro 7×7</h3>
+        <p>Enxuto e tático: cada casa conta. Espaço pra posicionar, flanquear e emboscar.</p>
       </div>
       <div class="feat">
         <div class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.5 10.2c0-1.2 1.1-1.7 2.5-1.7s2.5.6 2.5 1.9c0 2.4-5 1.4-5 3.7 0 1.3 1.1 1.9 2.5 1.9s2.5-.5 2.5-1.7"/></svg></div>
@@ -462,9 +485,9 @@
         <p>Investidas, curas e explosões com feedback visual e sonoro a cada ação no tabuleiro.</p>
       </div>
       <div class="feat">
-        <div class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg></div>
-        <h3>Ambiente cósmico</h3>
-        <p>Duelos num tabuleiro flutuando no espaço, com estrelas e meteoros ao fundo.</p>
+        <div class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/><circle cx="6.5" cy="6.5" r="1"/><circle cx="17.5" cy="17.5" r="1"/><path d="M14 6.5h7M17.5 3v7"/></svg></div>
+        <h3>Dois campos de batalha</h3>
+        <p>Duele numa mesa de RPG cheia de miniaturas, árvores e dados — ou num tabuleiro flutuando no espaço. O anfitrião escolhe o mapa.</p>
       </div>
     </div>
   </div>
@@ -518,7 +541,7 @@
 <section class="final">
   <div class="wrap reveal">
     <p class="eyebrow" style="text-align:center">Alpha aberto · entrada livre</p>
-    <h2>Pronto pra entrar na <em>arena</em>?</h2>
+    <h2>Pronto pra puxar a <em>cadeira</em>?</h2>
     <p>Baixe, chame um amigo e monte o exército. Leva um minuto pra instalar.</p>
     <a class="btn btn-gold btn-lg" href="https://github.com/CarlosAlberto133/card-game-releases/raw/main/launcher.zip" download>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
@@ -530,7 +553,7 @@
 <footer>
   <div class="wrap foot">
     <div class="brand" style="font-size:15px">
-      <svg class="glyph" viewBox="0 0 24 24" fill="none"><path d="M12 2l2.2 5.6L20 8l-4.2 3.7L17 18l-5-3-5 3 1.2-6.3L4 8l5.8-.4L12 2z" fill="#f5c451"/></svg>
+      <svg class="glyph" viewBox="0 0 24 24"><rect x="3.2" y="3.2" width="17.6" height="17.6" rx="4.4" fill="#f5c451"/><circle cx="8" cy="8" r="1.7" fill="#1a1405"/><circle cx="16" cy="8" r="1.7" fill="#1a1405"/><circle cx="12" cy="12" r="1.7" fill="#1a1405"/><circle cx="8" cy="16" r="1.7" fill="#1a1405"/><circle cx="16" cy="16" r="1.7" fill="#1a1405"/></svg>
       CARD<b style="color:var(--gold)">GAME</b>
     </div>
     <div class="mono">Alpha Test · Windows · feito por Carlos</div>
@@ -543,10 +566,10 @@
   "use strict";
   var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  /* ---------- Starfield + meteoros ---------- */
+  /* ---------- Poeira à luz de vela + brasas subindo ---------- */
   var canvas = document.getElementById("sky");
   var ctx = canvas.getContext("2d");
-  var stars = [], meteors = [], w, h, dpr;
+  var motes = [], embers = [], w, h, dpr;
 
   function resize() {
     dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -554,49 +577,64 @@
     h = canvas.height = Math.floor(innerHeight * dpr);
     canvas.style.width = innerWidth + "px";
     canvas.style.height = innerHeight + "px";
-    var count = Math.min(220, Math.floor((innerWidth * innerHeight) / 7000));
-    stars = [];
+    var count = Math.min(180, Math.floor((innerWidth * innerHeight) / 9000));
+    motes = [];
     for (var i = 0; i < count; i++) {
-      stars.push({
+      motes.push({
         x: Math.random() * w, y: Math.random() * h,
-        r: (Math.random() * 1.3 + 0.3) * dpr,
-        a: Math.random() * 0.6 + 0.25,
+        r: (Math.random() * 1.4 + 0.4) * dpr,
+        a: Math.random() * 0.5 + 0.15,
         tw: Math.random() * 0.02 + 0.004,
         ph: Math.random() * Math.PI * 2,
-        vx: (Math.random() * 0.12 + 0.02) * dpr
+        vy: (Math.random() * 0.10 + 0.02) * dpr,
+        vx: (Math.random() * 0.10 - 0.05) * dpr
       });
     }
   }
 
-  function spawnMeteor() {
+  function spawnEmber() {
     if (reduce) return;
-    var startX = Math.random() * w * 0.8 + w * 0.2;
-    meteors.push({ x: startX, y: -20 * dpr, len: (Math.random() * 90 + 70) * dpr, sp: (Math.random() * 5 + 6) * dpr, a: 1 });
+    embers.push({
+      x: Math.random() * w * 0.7 + w * 0.15,
+      y: h + 12 * dpr,
+      r: (Math.random() * 1.6 + 1.2) * dpr,
+      sp: (Math.random() * 0.9 + 0.7) * dpr,
+      drift: (Math.random() * 0.5 - 0.25) * dpr,
+      a: 1, ph: Math.random() * Math.PI * 2
+    });
   }
 
   var last = 0;
   function frame(t) {
     ctx.clearRect(0, 0, w, h);
-    for (var i = 0; i < stars.length; i++) {
-      var s = stars[i];
-      if (!reduce) { s.ph += s.tw; s.x -= s.vx; if (s.x < 0) s.x = w; }
-      var alpha = s.a * (0.6 + 0.4 * Math.sin(s.ph));
+
+    // Poeira dourada suspensa, deriva lenta pra cima
+    for (var i = 0; i < motes.length; i++) {
+      var s = motes[i];
+      if (!reduce) {
+        s.ph += s.tw; s.y -= s.vy; s.x += s.vx;
+        if (s.y < 0) s.y = h; if (s.x < 0) s.x = w; if (s.x > w) s.x = 0;
+      }
+      var alpha = s.a * (0.55 + 0.45 * Math.sin(s.ph));
       ctx.globalAlpha = alpha;
-      ctx.fillStyle = "#dfe7ff";
+      ctx.fillStyle = "#f3d18a";
       ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 6.283); ctx.fill();
     }
+
+    // Brasas: sobem tremeluzindo e apagam
     ctx.globalAlpha = 1;
-    for (var j = meteors.length - 1; j >= 0; j--) {
-      var m = meteors[j];
-      m.x -= m.sp; m.y += m.sp * 0.9; m.a -= 0.008;
-      var g = ctx.createLinearGradient(m.x, m.y, m.x + m.len, m.y - m.len * 0.9);
-      g.addColorStop(0, "rgba(245,196,81," + Math.max(0, m.a) + ")");
-      g.addColorStop(1, "rgba(245,196,81,0)");
-      ctx.strokeStyle = g; ctx.lineWidth = 2 * dpr; ctx.beginPath();
-      ctx.moveTo(m.x, m.y); ctx.lineTo(m.x + m.len, m.y - m.len * 0.9); ctx.stroke();
-      if (m.a <= 0 || m.y > h + 40) meteors.splice(j, 1);
+    for (var j = embers.length - 1; j >= 0; j--) {
+      var m = embers[j];
+      m.ph += 0.15; m.y -= m.sp; m.x += m.drift + Math.sin(m.ph) * 0.3 * dpr; m.a -= 0.006;
+      var glow = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, m.r * 3);
+      glow.addColorStop(0, "rgba(255,196,90," + Math.max(0, m.a) + ")");
+      glow.addColorStop(1, "rgba(255,120,40,0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.arc(m.x, m.y, m.r * 3, 0, 6.283); ctx.fill();
+      if (m.a <= 0 || m.y < -20) embers.splice(j, 1);
     }
-    if (!reduce && t - last > 2600 && Math.random() < 0.4) { spawnMeteor(); last = t; }
+
+    if (!reduce && t - last > 1400 && Math.random() < 0.5) { spawnEmber(); last = t; }
     requestAnimationFrame(frame);
   }
 

@@ -28,6 +28,14 @@ public class LobbyUI
     private TMP_Text hostTitle;
     private TMP_Text hostStatus;
     private Button startButton;
+    private Toggle mapTableToggle;
+    private Toggle mapSpaceToggle;
+
+    // Mapa escolhido pelo anfitrião: 1 = Mesa de RPG (padrão), 0 = Espaço
+    public int SelectedMapTheme
+    {
+        get { return (mapSpaceToggle != null && mapSpaceToggle.isOn) ? 0 : 1; }
+    }
     private TMP_Text guestTitle;
     private Transform listContent;
     private TMP_Text listEmptyLabel;
@@ -74,26 +82,44 @@ public class LobbyUI
 
     void BuildHostPanel()
     {
-        hostPanel = MakePanel(540f, 380f);
+        hostPanel = MakePanel(540f, 460f);
 
         hostTitle = MakeText(hostPanel.transform, "Title", "Sala", 32, Gold, TextAlignmentOptions.Center,
-            new Vector2(0f, 140f), new Vector2(500f, 44f)).GetComponent<TMP_Text>();
+            new Vector2(0f, 180f), new Vector2(500f, 44f)).GetComponent<TMP_Text>();
         hostTitle.fontStyle = FontStyles.Bold;
 
         MakeImage(hostPanel.transform, "Divider", new Vector2(460f, 2f), PanelBorder)
-            .GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 112f);
+            .GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 152f);
 
         MakeText(hostPanel.transform, "You", "Você está na sala  (anfitrião)", 19, TextLight,
-            TextAlignmentOptions.Center, new Vector2(0f, 70f), new Vector2(500f, 30f));
+            TextAlignmentOptions.Center, new Vector2(0f, 112f), new Vector2(500f, 30f));
 
         hostStatus = MakeText(hostPanel.transform, "Status", "Aguardando o jogador 2 entrar...", 19, TextMuted,
-            TextAlignmentOptions.Center, new Vector2(0f, 32f), new Vector2(500f, 30f)).GetComponent<TMP_Text>();
+            TextAlignmentOptions.Center, new Vector2(0f, 76f), new Vector2(500f, 30f)).GetComponent<TMP_Text>();
 
-        startButton = MakeButton(hostPanel.transform, "Iniciar Partida", new Vector2(0f, -46f),
+        // Escolha do mapa (só o anfitrião vê este painel). Padrão: Mesa de RPG.
+        MakeText(hostPanel.transform, "MapLabel", "Mapa da partida:", 17, TextMuted,
+            TextAlignmentOptions.Center, new Vector2(0f, 38f), new Vector2(500f, 26f));
+        mapTableToggle = MakeCheckbox(hostPanel.transform, "Mesa de RPG", new Vector2(-118f, 4f), true);
+        mapSpaceToggle = MakeCheckbox(hostPanel.transform, "Espaço", new Vector2(118f, 4f), false);
+
+        // Comportamento de "rádio": sempre exatamente UM mapa marcado
+        mapTableToggle.onValueChanged.AddListener(on =>
+        {
+            if (on) mapSpaceToggle.SetIsOnWithoutNotify(false);
+            else if (!mapSpaceToggle.isOn) mapTableToggle.SetIsOnWithoutNotify(true);
+        });
+        mapSpaceToggle.onValueChanged.AddListener(on =>
+        {
+            if (on) mapTableToggle.SetIsOnWithoutNotify(false);
+            else if (!mapTableToggle.isOn) mapSpaceToggle.SetIsOnWithoutNotify(true);
+        });
+
+        startButton = MakeButton(hostPanel.transform, "Iniciar Partida", new Vector2(0f, -74f),
             new Vector2(260f, 56f), Gold, GoldTextDark, 21, null);
         startButton.interactable = false;
 
-        MakeButton(hostPanel.transform, "Sair da Sala", new Vector2(0f, -126f),
+        MakeButton(hostPanel.transform, "Sair da Sala", new Vector2(0f, -156f),
             new Vector2(260f, 44f), Slate, TextLight, 17, null).name = "LeaveButton";
     }
 
@@ -294,6 +320,38 @@ public class LobbyUI
         rt.anchoredPosition = position;
         rt.sizeDelta = size;
         return go;
+    }
+
+    // Checkbox no estilo do lobby: caixinha + marca dourada + rótulo à direita
+    Toggle MakeCheckbox(Transform parent, string label, Vector2 position, bool startOn)
+    {
+        GameObject go = new GameObject("Chk_" + label, typeof(RectTransform), typeof(Image), typeof(Toggle));
+        go.transform.SetParent(parent, false);
+        RectTransform rt = go.GetComponent<RectTransform>();
+        rt.anchoredPosition = position;
+        rt.sizeDelta = new Vector2(210f, 34f);
+
+        // Fundo invisível: área de clique confortável (o Image recebe o raycast)
+        Image bg = go.GetComponent<Image>();
+        bg.color = new Color(0f, 0f, 0f, 0f);
+
+        GameObject box = MakeImage(go.transform, "Box", new Vector2(26f, 26f), Slate);
+        RectTransform boxRt = box.GetComponent<RectTransform>();
+        boxRt.anchorMin = new Vector2(0f, 0.5f);
+        boxRt.anchorMax = new Vector2(0f, 0.5f);
+        boxRt.pivot = new Vector2(0f, 0.5f);
+        boxRt.anchoredPosition = new Vector2(4f, 0f);
+
+        GameObject check = MakeImage(box.transform, "Check", new Vector2(16f, 16f), Gold);
+
+        MakeText(go.transform, "Label", label, 17, TextLight, TextAlignmentOptions.Left,
+            new Vector2(24f, 0f), new Vector2(165f, 30f));
+
+        Toggle toggle = go.GetComponent<Toggle>();
+        toggle.targetGraphic = bg;
+        toggle.graphic = check.GetComponent<Image>();
+        toggle.isOn = startOn;
+        return toggle;
     }
 
     Button MakeButton(Transform parent, string label, Vector2 position, Vector2 size,

@@ -58,4 +58,6 @@ MonoBehaviour:
   - RPC_EffectDecision
   - RPC_EffectTarget
   - RPC_TargetedAttack
+  - RPC_RequestRestart
+  - RPC_RestartGame
   DisableAutoOpenWizard: 1

@@ -29,6 +29,16 @@ public class SpaceBackground : MonoBehaviour
         sb.cameraFacing = true;
     }
 
+    // Remove o fundo espacial (troca de temática pelo BoardThemeManager)
+    public static void Clear()
+    {
+        if (instance != null)
+        {
+            Destroy(instance.gameObject);
+            instance = null;
+        }
+    }
+
     void Start()
     {
         // Céu escuro (quase preto, levemente azulado).

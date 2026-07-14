@@ -19,5 +19,4 @@ MonoBehaviour:
   attack: 4
   shield: 0
   health: 1
-  effectDescription: Cause 3 de dano em todas as casas em formato de +. Caso tenha
-    um tanque em campo, ganhe 4 de armadura
+  effectDescription: Caso tenha um tanque em campo, ao entrar ganhe 4 de armadura

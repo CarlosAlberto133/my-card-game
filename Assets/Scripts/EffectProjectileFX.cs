@@ -10,7 +10,7 @@ public class EffectProjectileFX : MonoBehaviour
     private Color color;
     private float duration = 0.45f;
     private float age = 0f;
-    private float baseSize = 0.55f;
+    private float baseSize = 1.15f;
     private Transform core;
     private Material coreMat; // destruído junto (Destroy(go) não libera assets)
 
@@ -23,13 +23,13 @@ public class EffectProjectileFX : MonoBehaviour
     public static readonly Color ShieldBlue = new Color(0.40f, 0.70f, 1f);
     public static readonly Color GoldBuff = new Color(1f, 0.85f, 0.30f);
 
-    public static void Launch(CardDisplay from, CardDisplay to, Color color, float size = 0.55f)
+    public static void Launch(CardDisplay from, CardDisplay to, Color color, float size = 1.15f)
     {
         if (from == null || to == null || from == to) return;
         Launch(from.transform.position, to.transform.position, color, size);
     }
 
-    public static void Launch(Vector3 from, Vector3 to, Color color, float size = 0.55f)
+    public static void Launch(Vector3 from, Vector3 to, Color color, float size = 1.15f)
     {
         GameObject go = new GameObject("EffectProjectile");
         EffectProjectileFX fx = go.AddComponent<EffectProjectileFX>();
@@ -81,7 +81,7 @@ public class EffectProjectileFX : MonoBehaviour
         // Trajetória em arco (parábola) com leve aceleração no fim
         float eased = k * k * (3f - 2f * k); // smoothstep
         Vector3 pos = Vector3.Lerp(start, end, eased);
-        pos.y += Mathf.Sin(k * Mathf.PI) * 2.2f;
+        pos.y += Mathf.Sin(k * Mathf.PI) * 2.6f;
         transform.position = pos;
 
         // Pulso do núcleo (dá vida ao projétil)

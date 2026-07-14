@@ -20,8 +20,8 @@ public class HandManager : MonoBehaviour
     void Awake()
     {
         // Força por código (valor da cena estava desatualizado): cartas na mão
-        // agora têm escala 2 (3.6 de largura), espaçamento 4 evita sobreposição
-        cardSpacing = 4f;
+        // maiores (HandScale 2.4) — espaçamento maior evita sobreposição lateral
+        cardSpacing = 5f;
         // Limite da mão: 8 cartas (o valor serializado na cena era 10)
         maxCardsInHand = 8;
         // Altura correta para a nova escala (a base da carta não afunda no chão)

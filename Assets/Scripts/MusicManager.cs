@@ -225,18 +225,69 @@ public class MusicManager : MonoBehaviour
         rt.sizeDelta = new Vector2(52f, 52f);
         btnObj.GetComponent<Image>().color = new Color(0.16f, 0.18f, 0.30f, 0.95f);
 
-        GameObject txtObj = new GameObject("Icon", typeof(RectTransform));
-        txtObj.transform.SetParent(btnObj.transform, false);
-        RectTransform txtRt = txtObj.GetComponent<RectTransform>();
-        txtRt.anchorMin = Vector2.zero; txtRt.anchorMax = Vector2.one;
-        txtRt.offsetMin = Vector2.zero; txtRt.offsetMax = Vector2.zero;
-        TextMeshProUGUI icon = txtObj.AddComponent<TextMeshProUGUI>();
-        icon.text = "♪"; // ♪
-        icon.fontSize = 30f;
-        icon.alignment = TextAlignmentOptions.Center;
-        icon.color = new Color(0.96f, 0.85f, 0.45f);
+        // Ícone de engrenagem (configurações). Desenhado por código como sprite —
+        // o glifo ⚙ da fonte TMP padrão não existe (renderizaria como quadrado)
+        GameObject iconObj = new GameObject("Icon", typeof(RectTransform), typeof(Image));
+        iconObj.transform.SetParent(btnObj.transform, false);
+        RectTransform iconRt = iconObj.GetComponent<RectTransform>();
+        iconRt.anchorMin = new Vector2(0.5f, 0.5f);
+        iconRt.anchorMax = new Vector2(0.5f, 0.5f);
+        iconRt.pivot = new Vector2(0.5f, 0.5f);
+        iconRt.anchoredPosition = Vector2.zero;
+        iconRt.sizeDelta = new Vector2(34f, 34f);
+        Image iconImg = iconObj.GetComponent<Image>();
+        iconImg.sprite = GetGearSprite();
+        iconImg.color = new Color(0.96f, 0.85f, 0.45f);
+        iconImg.raycastTarget = false;
 
         btnObj.GetComponent<Button>().onClick.AddListener(ToggleSettingsModal);
+    }
+
+    // Sprite de engrenagem gerado por código (compartilhado). Anel com dentes +
+    // furo central, com anti-aliasing simples na borda.
+    private static Sprite gearSprite;
+
+    static Sprite GetGearSprite()
+    {
+        if (gearSprite != null) return gearSprite;
+
+        const int size = 64;
+        const int teeth = 8;
+        float cx = size / 2f - 0.5f;
+        float cy = size / 2f - 0.5f;
+        float baseR = size * 0.30f;   // corpo do anel
+        float toothR = size * 0.44f;  // ponta dos dentes
+        float holeR = size * 0.13f;   // furo central
+
+        Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        tex.wrapMode = TextureWrapMode.Clamp;
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float dx = x - cx;
+                float dy = y - cy;
+                float r = Mathf.Sqrt(dx * dx + dy * dy);
+                float ang = Mathf.Atan2(dy, dx); // -π..π
+
+                // Onda quadrada dos dentes: metade do período é "dente" (raio maior)
+                float phase = Mathf.Repeat(ang / (2f * Mathf.PI) * teeth, 1f);
+                float outerR = phase < 0.5f ? toothR : baseR;
+
+                // Alpha: dentro do anel (entre furo e borda externa), com borda suave
+                float aOuter = Mathf.Clamp01(outerR - r);      // 1 dentro, 0 fora
+                float aInner = Mathf.Clamp01(r - holeR);       // 1 fora do furo
+                float alpha = Mathf.Min(aOuter, aInner);
+
+                tex.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+            }
+        }
+
+        tex.Apply();
+        gearSprite = Sprite.Create(tex, new Rect(0, 0, size, size),
+            new Vector2(0.5f, 0.5f), 100f);
+        return gearSprite;
     }
 
     void ToggleSettingsModal()
@@ -253,6 +304,10 @@ public class MusicManager : MonoBehaviour
 
     void CreateSettingsModal(Canvas canvas)
     {
+        // Só na partida (SampleScene) faz sentido "Sair da partida"; no lobby o
+        // modal mostra só "Fechar o jogo"
+        bool inGame = loadedCategory == "game";
+
         settingsModal = new GameObject("MusicSettingsModal",
             typeof(RectTransform), typeof(Image));
         settingsModal.transform.SetParent(canvas.transform, false);
@@ -261,13 +316,16 @@ public class MusicManager : MonoBehaviour
         panelRt.anchorMax = new Vector2(0.5f, 0.5f);
         panelRt.pivot = new Vector2(0.5f, 0.5f);
         panelRt.anchoredPosition = Vector2.zero;
-        panelRt.sizeDelta = new Vector2(440f, 260f);
+        float panelH = inGame ? 400f : 330f;
+        panelRt.sizeDelta = new Vector2(440f, panelH);
         settingsModal.GetComponent<Image>().color = new Color(0.06f, 0.07f, 0.13f, 0.98f);
 
-        // Título
-        MakeText(settingsModal.transform, "Title", "MÚSICA",
-            new Vector2(0.5f, 1f), new Vector2(0f, -34f), new Vector2(400f, 40f),
-            26f, FontStyles.Bold, new Color(0.96f, 0.77f, 0.32f));
+        float half = panelH / 2f;
+
+        // Título (agora o modal tem mais que música)
+        MakeText(settingsModal.transform, "Title", "CONFIGURAÇÕES",
+            new Vector2(0.5f, 0.5f), new Vector2(0f, half - 32f), new Vector2(400f, 40f),
+            24f, FontStyles.Bold, new Color(0.96f, 0.77f, 0.32f));
 
         // Botão fechar (X)
         GameObject closeObj = new GameObject("Close",
@@ -287,20 +345,76 @@ public class MusicManager : MonoBehaviour
 
         // Rótulo do volume (mostra a %)
         volumeLabel = MakeText(settingsModal.transform, "VolLabel", "Volume da música: 60%",
-            new Vector2(0.5f, 1f), new Vector2(0f, -92f), new Vector2(400f, 30f),
+            new Vector2(0.5f, 0.5f), new Vector2(0f, half - 92f), new Vector2(400f, 30f),
             19f, FontStyles.Normal, Color.white);
 
         // Linha do slider: [ - ] [==== slider ====] [ + ]
-        MakeStepButton(settingsModal.transform, "-", new Vector2(-176f, 12f), () => SetVolume(volume - 0.1f));
-        volumeSlider = MakeSlider(settingsModal.transform, new Vector2(0f, 12f), new Vector2(260f, 24f));
+        float sliderY = half - 140f;
+        MakeStepButton(settingsModal.transform, "-", new Vector2(-176f, sliderY), () => SetVolume(volume - 0.1f));
+        volumeSlider = MakeSlider(settingsModal.transform, new Vector2(0f, sliderY), new Vector2(260f, 24f));
         volumeSlider.value = volume;
         volumeSlider.onValueChanged.AddListener(SetVolume);
-        MakeStepButton(settingsModal.transform, "+", new Vector2(176f, 12f), () => SetVolume(volume + 0.1f));
+        MakeStepButton(settingsModal.transform, "+", new Vector2(176f, sliderY), () => SetVolume(volume + 0.1f));
 
         // Checkbox de mute
-        CreateMuteToggle(settingsModal.transform, new Vector2(0f, -60f));
+        CreateMuteToggle(settingsModal.transform, new Vector2(0f, half - 200f));
+
+        // Botões de saída (abaixo do mute). "Sair da partida" só na partida.
+        if (inGame)
+        {
+            MakeWideButton(settingsModal.transform, "Sair da partida",
+                new Color(0.55f, 0.36f, 0.10f, 1f), new Vector2(0f, -half + 130f), OnLeaveMatch);
+            MakeWideButton(settingsModal.transform, "Fechar o jogo",
+                new Color(0.55f, 0.12f, 0.12f, 1f), new Vector2(0f, -half + 68f), OnQuitGame);
+        }
+        else
+        {
+            MakeWideButton(settingsModal.transform, "Fechar o jogo",
+                new Color(0.55f, 0.12f, 0.12f, 1f), new Vector2(0f, -half + 68f), OnQuitGame);
+        }
 
         settingsModal.SetActive(false);
+    }
+
+    // Botão largo (usado pelas opções de saída dentro do modal)
+    void MakeWideButton(Transform parent, string label, Color color, Vector2 pos,
+        UnityEngine.Events.UnityAction onClick)
+    {
+        GameObject btnObj = new GameObject("Btn_" + label,
+            typeof(RectTransform), typeof(Image), typeof(Button));
+        btnObj.transform.SetParent(parent, false);
+        RectTransform rt = btnObj.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = pos;
+        rt.sizeDelta = new Vector2(300f, 48f);
+        btnObj.GetComponent<Image>().color = color;
+        btnObj.GetComponent<Button>().onClick.AddListener(onClick);
+        MakeText(btnObj.transform, "L", label,
+            new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(300f, 48f),
+            22f, FontStyles.Bold, Color.white);
+    }
+
+    // Sai da sala do Photon e volta para a cena do lobby (não fecha o jogo)
+    void OnLeaveMatch()
+    {
+        if (settingsModal != null) settingsModal.SetActive(false);
+        Debug.Log("[MusicManager] Saindo da partida, voltando ao lobby...");
+        if (PhotonNetwork.inRoom) PhotonNetwork.LeaveRoom();
+        SceneManager.LoadScene("Lobby");
+    }
+
+    // Fecha o jogo (desconecta do Photon antes, avisando o oponente)
+    void OnQuitGame()
+    {
+        Debug.Log("[MusicManager] Fechando o jogo...");
+        if (PhotonNetwork.connected) PhotonNetwork.Disconnect();
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+#else
+        Application.Quit();
+#endif
     }
 
     void CreateMuteToggle(Transform parent, Vector2 anchoredPos)
