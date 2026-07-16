@@ -29,26 +29,104 @@ public static class DecorProps
         return sharedMat;
     }
 
+    // Atlas do Forest Nature Pack (árvores/arbustos/pedras/grama)
+    static Material forestMat;
+
+    static Material GetForestMaterial()
+    {
+        if (forestMat != null) return forestMat;
+
+        Shader shader = Shader.Find("Universal Render Pipeline/Lit")
+                     ?? Shader.Find("Sprites/Default");
+        if (shader == null) return null;
+
+        forestMat = new Material(shader);
+        forestMat.color = Color.white;
+        Texture2D tex = Resources.Load<Texture2D>("decor/kaykit/forest/forest_texture");
+        if (tex != null)
+        {
+            forestMat.mainTexture = tex;
+            forestMat.SetTexture("_BaseMap", tex);
+        }
+        return forestMat;
+    }
+
     // Instancia um prop do KayKit em pé sobre uma superfície:
     //   basePos = ponto de apoio; up = normal da superfície;
     //   lookDir = para onde o prop "olha"; targetHeight = altura final.
     public static GameObject Place(Transform parent, string model, Vector3 basePos,
         float targetHeight, Vector3 up, Vector3 lookDir)
     {
+        return PlaceFrom(parent, "decor/kaykit/" + model, GetMaterial(),
+            basePos, targetHeight, up, lookDir);
+    }
+
+    // Prop do Forest Nature Pack (árvores, arbustos, pedras, grama)
+    public static GameObject PlaceForest(Transform parent, string model, Vector3 basePos,
+        float targetHeight, Vector3 up, Vector3 lookDir)
+    {
+        return PlaceFrom(parent, "decor/kaykit/forest/" + model, GetForestMaterial(),
+            basePos, targetHeight, up, lookDir);
+    }
+
+    // Peça de CHÃO do KayKit dimensionada pela largura (footprint) e com o
+    // TOPO alinhado em topCenter — usada pelas casas do tabuleiro no tema Mesa
+    // de RPG. Devolve também o Renderer principal para o CardTile tingir
+    // (o acesso via .material do tile cria a instância própria — o highlight
+    // de uma casa não vaza para as outras).
+    public static GameObject PlaceFloor(Transform parent, string model, Vector3 topCenter,
+        float size, float yRotation, out Renderer mainRenderer)
+    {
+        mainRenderer = null;
+
         GameObject prefab = Resources.Load<GameObject>("decor/kaykit/" + model);
         if (prefab == null)
         {
-            Debug.LogWarning($"[DecorProps] Modelo não encontrado: {model}");
+            Debug.LogWarning($"[DecorProps] Peça de chão não encontrada: {model}");
             return null;
         }
 
         GameObject go = Object.Instantiate(prefab, parent);
-        go.name = "Decor_" + model;
+        go.name = "Floor_" + model;
 
         foreach (Collider c in go.GetComponentsInChildren<Collider>(true))
             Object.Destroy(c);
 
         Material mat = GetMaterial();
+        foreach (Renderer r in go.GetComponentsInChildren<Renderer>(true))
+        {
+            if (mat != null) r.sharedMaterial = mat;
+            if (mainRenderer == null) mainRenderer = r;
+        }
+
+        go.transform.rotation = Quaternion.Euler(0f, yRotation, 0f);
+
+        Bounds b = BoundsOf(go);
+        float foot = Mathf.Max(b.size.x, b.size.z);
+        if (foot > 0.0001f)
+            go.transform.localScale = go.transform.localScale * (size / foot);
+
+        b = BoundsOf(go);
+        go.transform.position += topCenter - new Vector3(b.center.x, b.max.y, b.center.z);
+        return go;
+    }
+
+    static GameObject PlaceFrom(Transform parent, string resourcePath, Material mat,
+        Vector3 basePos, float targetHeight, Vector3 up, Vector3 lookDir)
+    {
+        GameObject prefab = Resources.Load<GameObject>(resourcePath);
+        if (prefab == null)
+        {
+            Debug.LogWarning($"[DecorProps] Modelo não encontrado: {resourcePath}");
+            return null;
+        }
+
+        GameObject go = Object.Instantiate(prefab, parent);
+        go.name = "Decor_" + prefab.name;
+
+        foreach (Collider c in go.GetComponentsInChildren<Collider>(true))
+            Object.Destroy(c);
+
         if (mat != null)
         {
             foreach (Renderer r in go.GetComponentsInChildren<Renderer>(true))

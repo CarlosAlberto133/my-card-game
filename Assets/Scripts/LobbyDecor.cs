@@ -86,12 +86,23 @@ public static class LobbyDecor
         MakeCard(onTable(frameW * 0.27f, 3f, 0f), tRot * Quaternion.Euler(0f, 24f, 0f), tUp);
 
         // ── Miniaturas de diorama ────────────────────────────────────────
-        // Árvores nas laterais/fundo (não atrapalham os botões no centro)
-        MakeTree(onTable(-frameW * 0.42f, 10f, 0f), tUp, 1.5f, rng);
-        MakeTree(onTable(-frameW * 0.33f, 14f, 0f), tUp, 1.1f, rng);
-        MakeTree(onTable(frameW * 0.40f, 12f, 0f), tUp, 1.6f, rng);
-        MakeTree(onTable(frameW * 0.31f, 15f, 0f), tUp, 1.0f, rng);
-        MakeTree(onTable(frameW * 0.45f, 6f, 0f), tUp, 0.9f, rng);
+        // Árvores do KayKit Forest nas laterais/fundo (fora dos botões)
+        DecorProps.PlaceForest(root.transform, "Tree_1_A_Color1",
+            onTable(-frameW * 0.42f, 10f, 0f), 11f, tUp, -tFwd);
+        DecorProps.PlaceForest(root.transform, "Tree_2_A_Color1",
+            onTable(-frameW * 0.33f, 14f, 0f), 8.5f, tUp, -tFwd);
+        DecorProps.PlaceForest(root.transform, "Tree_3_A_Color1",
+            onTable(frameW * 0.40f, 12f, 0f), 12f, tUp, -tFwd);
+        DecorProps.PlaceForest(root.transform, "Tree_4_A_Color1",
+            onTable(frameW * 0.31f, 15f, 0f), 8f, tUp, -tFwd);
+        DecorProps.PlaceForest(root.transform, "Tree_1_B_Color1",
+            onTable(frameW * 0.45f, 6f, 0f), 7f, tUp, -tFwd);
+
+        // Arbusto e pedra completando o cantinho
+        DecorProps.PlaceForest(root.transform, "Bush_1_A_Color1",
+            onTable(-frameW * 0.38f, 5f, 0f), 2f, tUp, -tFwd);
+        DecorProps.PlaceForest(root.transform, "Rock_2_C_Color1",
+            onTable(frameW * 0.44f, 10f, 0f), 1.8f, tUp, -tFwd);
 
         // Dados coloridos
         MakeDie(onTable(-frameW * 0.36f, 4f, 0.8f), tRot, new Color(0.72f, 0.18f, 0.16f), rng);
@@ -194,34 +205,6 @@ public static class LobbyDecor
             new Color(0.96f, 0.77f, 0.32f), null);
         MakeBox("CardBack", pos + tUp * 0.06f, new Vector3(4.1f, 0.08f, 5.9f), rot,
             new Color(0.07f, 0.10f, 0.22f), null);
-    }
-
-    static void MakeTree(Vector3 basePos, Vector3 tUp, float scale, System.Random rng)
-    {
-        GameObject trunk = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        trunk.name = "TreeTrunk";
-        trunk.transform.SetParent(root.transform, false);
-        trunk.transform.position = basePos + tUp * (1.1f * scale);
-        trunk.transform.up = tUp;
-        trunk.transform.localScale = new Vector3(0.55f, 1.1f, 0.55f) * scale;
-        FinishDecor(trunk, new Color(0.36f, 0.24f, 0.13f), null);
-
-        float g = 0.32f + (float)rng.NextDouble() * 0.10f;
-        Color leaf = new Color(0.13f, g, 0.15f);
-
-        GameObject lower = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        lower.name = "TreeLeaves1";
-        lower.transform.SetParent(root.transform, false);
-        lower.transform.position = basePos + tUp * (2.9f * scale);
-        lower.transform.localScale = Vector3.one * 2.6f * scale;
-        FinishDecor(lower, leaf, null);
-
-        GameObject upper = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        upper.name = "TreeLeaves2";
-        upper.transform.SetParent(root.transform, false);
-        upper.transform.position = basePos + tUp * (4.3f * scale);
-        upper.transform.localScale = Vector3.one * 1.8f * scale;
-        FinishDecor(upper, new Color(leaf.r, leaf.g + 0.05f, leaf.b), null);
     }
 
     static void MakeDie(Vector3 pos, Quaternion baseRot, Color color, System.Random rng)

@@ -87,14 +87,18 @@ public class BoardThemeManager : MonoBehaviour
 
         if (theme == BoardTheme.Space)
         {
-            // Pedra escura espacial (as cores originais do BoardManager)
+            // Pedra escura espacial (as cores originais do BoardManager).
+            // Remove as peças de pedra de um eventual tema Mesa anterior
+            RemoveStoneFloor();
             RetintTiles(new Color(0.30f, 0.33f, 0.43f), new Color(0.22f, 0.25f, 0.34f));
             SpaceBackground.Ensure();
         }
         else
         {
-            // Tabuleiro "pintado" em verdes de campo, sobre a mesa de madeira
-            RetintTiles(new Color(0.42f, 0.54f, 0.30f), new Color(0.33f, 0.44f, 0.24f));
+            // Casas de PEDRA de verdade (peças do KayKit Dungeon) sobre a mesa,
+            // em tons quentes alternados (xadrez sutil mantém a grade legível)
+            RetintTiles(new Color(1.00f, 0.97f, 0.92f), new Color(0.78f, 0.76f, 0.72f));
+            BuildStoneFloor(themeSeed);
             TabletopEnvironment.Build(themeSeed);
         }
     }
@@ -113,5 +117,58 @@ public class BoardThemeManager : MonoBehaviour
                     tile.SetBaseColor((row + col) % 2 == 0 ? a : b);
             }
         }
+    }
+
+    // Troca o visual de cada casa pelo ladrilho de pedra do KayKit. Variedade
+    // determinística pela seed (rachados/mato — idênticos nos 2 clientes);
+    // clique e destaques continuam no CardTile, que agora tinge a peça.
+    static void BuildStoneFloor(int seed)
+    {
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        System.Random rng = new System.Random(seed * 31 + 11);
+
+        for (int row = 0; row < board.rows; row++)
+        {
+            for (int col = 0; col < board.columns; col++)
+            {
+                CardTile tile = board.GetTile(row, col);
+                if (tile == null) continue;
+
+                // Maioria lisa; algumas rachadas/com mato para o chão ter vida
+                double roll = rng.NextDouble();
+                string model;
+                if (roll < 0.07) model = "floor_tile_small_broken_A";
+                else if (roll < 0.13) model = "floor_tile_small_broken_B";
+                else if (roll < 0.20) model = "floor_tile_small_weeds_A";
+                else if (roll < 0.26) model = "floor_tile_small_weeds_B";
+                else if (roll < 0.31) model = "floor_tile_small_decorated";
+                else model = "floor_tile_small";
+
+                float yRot = 90f * rng.Next(4); // giro aleatório (quebra a repetição)
+
+                Renderer pieceRenderer;
+                GameObject piece = DecorProps.PlaceFloor(tile.transform, model,
+                    tile.transform.position, board.tileSize, yRot, out pieceRenderer);
+
+                if (piece != null && pieceRenderer != null)
+                    tile.AdoptVisual(piece, pieceRenderer);
+            }
+        }
+        Debug.Log("[BoardTheme] Casas de pedra do KayKit aplicadas ao tabuleiro");
+    }
+
+    static void RemoveStoneFloor()
+    {
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        for (int row = 0; row < board.rows; row++)
+            for (int col = 0; col < board.columns; col++)
+            {
+                CardTile tile = board.GetTile(row, col);
+                if (tile != null) tile.ClearAdoptedVisual();
+            }
     }
 }

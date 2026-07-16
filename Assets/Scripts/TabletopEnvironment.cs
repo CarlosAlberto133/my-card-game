@@ -62,7 +62,7 @@ public static class TabletopEnvironment
 
         float top = -0.15f; // Altura do tampo (base das miniaturas)
 
-        // ── Árvores em miniatura (diorama) ────────────────────────────────
+        // ── Árvores em miniatura (KayKit Forest, CC0) ─────────────────────
         // Posições seguras: fora do campo, da coluna da loja (x≈-27.5, |z|<22)
         // e das fileiras das mãos (z≈±29.5, |x|<20). Jitter determinístico.
         Vector2[] treeSpots =
@@ -73,13 +73,34 @@ public static class TabletopEnvironment
             new Vector2(-38f,  27f), new Vector2(-38f, -27f),
             new Vector2( 26f,  36f), new Vector2(-26f, -36f),
         };
+        string[] treeModels =
+        {
+            "Tree_1_A_Color1", "Tree_2_A_Color1", "Tree_3_A_Color1",
+            "Tree_4_A_Color1", "Tree_1_B_Color1", "Tree_2_C_Color1",
+        };
+        int treeIdx = 0;
         foreach (Vector2 spot in treeSpots)
         {
             float jx = (float)(rng.NextDouble() * 3.0 - 1.5);
             float jz = (float)(rng.NextDouble() * 3.0 - 1.5);
             float s = 0.8f + (float)rng.NextDouble() * 0.5f;
-            MakeTree(center + new Vector3(spot.x + jx, top, spot.y + jz), s, rng);
+            Vector3 basePos = center + new Vector3(spot.x + jx, top, spot.y + jz);
+            DecorProps.PlaceForest(root.transform, treeModels[treeIdx % treeModels.Length],
+                basePos, 8.5f * s, Vector3.up, center - basePos);
+            treeIdx++;
         }
+
+        // Arbustos e pedras completando o diorama (mesmo atlas da floresta)
+        DecorProps.PlaceForest(root.transform, "Bush_1_A_Color1",
+            center + new Vector3(27f, top, 32f), 2.2f, Vector3.up, -Vector3.forward);
+        DecorProps.PlaceForest(root.transform, "Bush_2_B_Color1",
+            center + new Vector3(-27f, top, -33f), 2f, Vector3.up, Vector3.forward);
+        DecorProps.PlaceForest(root.transform, "Rock_1_A_Color1",
+            center + new Vector3(35f, top, 33f), 2.4f, Vector3.up, -Vector3.forward);
+        DecorProps.PlaceForest(root.transform, "Rock_3_E_Color1",
+            center + new Vector3(-35f, top, 33f), 1.8f, Vector3.up, -Vector3.forward);
+        DecorProps.PlaceForest(root.transform, "Grass_1_A_Color1",
+            center + new Vector3(31f, top, -34f), 1.2f, Vector3.up, Vector3.forward);
 
         // ── Dados (d6) ────────────────────────────────────────────────────
         MakeDie(center + new Vector3(32f, top, 6f), new Color(0.93f, 0.90f, 0.80f), rng);
@@ -218,35 +239,6 @@ public static class TabletopEnvironment
     }
 
     // ── Miniaturas ────────────────────────────────────────────────────────
-
-    static void MakeTree(Vector3 basePos, float scale, System.Random rng)
-    {
-        // Tronco
-        GameObject trunk = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        trunk.name = "TreeTrunk";
-        trunk.transform.SetParent(root.transform, false);
-        trunk.transform.position = basePos + new Vector3(0f, 1.1f * scale, 0f);
-        trunk.transform.localScale = new Vector3(0.55f, 1.1f, 0.55f) * scale;
-        FinishDecor(trunk, new Color(0.36f, 0.24f, 0.13f), null);
-
-        // Copa: duas esferas empilhadas (tom de verde levemente variado)
-        float g = 0.32f + (float)rng.NextDouble() * 0.10f;
-        Color leaf = new Color(0.13f, g, 0.15f);
-
-        GameObject lower = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        lower.name = "TreeLeaves1";
-        lower.transform.SetParent(root.transform, false);
-        lower.transform.position = basePos + new Vector3(0f, 2.9f * scale, 0f);
-        lower.transform.localScale = Vector3.one * 2.6f * scale;
-        FinishDecor(lower, leaf, null);
-
-        GameObject upper = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        upper.name = "TreeLeaves2";
-        upper.transform.SetParent(root.transform, false);
-        upper.transform.position = basePos + new Vector3(0f, 4.3f * scale, 0f);
-        upper.transform.localScale = Vector3.one * 1.8f * scale;
-        FinishDecor(upper, new Color(leaf.r, leaf.g + 0.05f, leaf.b), null);
-    }
 
     static void MakeDie(Vector3 basePos, Color color, System.Random rng)
     {

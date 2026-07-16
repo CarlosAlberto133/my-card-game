@@ -17,13 +17,63 @@ public class CardTile : MonoBehaviour
     private enum HL { None, Valid, Invalid, Attack }
     private HL highlight = HL.None;
 
+    private Renderer ownRenderer;       // O quad original do tile
+    private GameObject adoptedVisual;   // Peça de chão 3D adotada (tema Mesa de RPG)
+
     void Awake()
     {
         tileRenderer = GetComponent<Renderer>();
+        ownRenderer = tileRenderer;
         if (tileRenderer != null)
         {
             tileRenderer.material.color = normalColor;
         }
+    }
+
+    // ── Peça de chão real (KayKit) no lugar do quad ─────────────────────
+    // O tile continua dono do clique (collider próprio) e dos destaques —
+    // só passa a TINGIR a peça 3D em vez do quad, que fica invisível.
+    public void AdoptVisual(GameObject visual, Renderer visualRenderer)
+    {
+        if (visual == null || visualRenderer == null) return;
+
+        ClearAdoptedVisual();
+        adoptedVisual = visual;
+        if (ownRenderer != null) ownRenderer.enabled = false;
+        tileRenderer = visualRenderer;
+        RefreshColor();
+    }
+
+    // Volta ao quad original (troca de tema Mesa → Espaço num reinício)
+    public void ClearAdoptedVisual()
+    {
+        if (adoptedVisual != null)
+        {
+            Destroy(adoptedVisual);
+            adoptedVisual = null;
+        }
+        if (ownRenderer != null)
+        {
+            ownRenderer.enabled = true;
+            tileRenderer = ownRenderer;
+            RefreshColor();
+        }
+    }
+
+    // Reaplica a cor conforme o estado atual (mesma regra do OnMouseExit)
+    void RefreshColor()
+    {
+        if (tileRenderer == null) return;
+        if (highlight == HL.Valid)
+            tileRenderer.material.color = validPlacementColor;
+        else if (highlight == HL.Attack)
+            tileRenderer.material.color = attackHighlightColor;
+        else if (highlight == HL.Invalid)
+            tileRenderer.material.color = invalidPlacementColor;
+        else if (occupiedCard != null)
+            tileRenderer.material.color = occupiedColor;
+        else
+            tileRenderer.material.color = normalColor;
     }
 
     // Permite ao BoardManager tematizar o tile (tema espacial: tons escuros alternados)
