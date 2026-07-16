@@ -18,15 +18,15 @@ public class CardEffectSimple : MonoBehaviour
         int baseAtk = cardDisplay.card.attack;
         int baseHp = cardDisplay.card.health;
 
-        if (baseAtk == 8 && baseHp == 3)
+        if (baseAtk == 6 && baseHp == 3)
             ArcherTier5Effect1_DoubleDamageAgainstTank();
-        else if (baseAtk == 10 && baseHp == 5)
+        else if (baseAtk == 6 && baseHp == 4)
             ArcherTier5Effect2_RemoveEnemyArmor();
-        else if (baseAtk == 15 && baseHp == 4)
+        else if (baseAtk == 5 && baseHp == 4)
             ArcherTier5Effect3_IgnoreArmorAndExecute();
     }
 
-    // Efeito 1: Archer 5 (ATK 8, HP 3) - Causa dano duplicado se atacar um Tank
+    // Efeito 1: Archer 5 (ATK 6, HP 3) - Causa dano duplicado se atacar um Tank
     void ArcherTier5Effect1_DoubleDamageAgainstTank()
     {
         if (cardDisplay == null) return;
@@ -40,7 +40,7 @@ public class CardEffectSimple : MonoBehaviour
         return target != null && target.card.cardClass == CardClass.Tank;
     }
 
-    // Efeito 2: Archer 5 (ATK 10, HP 5) - Remove 2 armadura de todos inimigos ao entrar, ignora armadura se tem Tank
+    // Efeito 2: Archer 5 (ATK 6, HP 4) - Remove 2 armadura de todos inimigos ao entrar, ignora armadura se tem Tank
     void ArcherTier5Effect2_RemoveEnemyArmor()
     {
         if (cardDisplay == null || cardDisplay.archerTier5Effect2Used) return;
@@ -74,7 +74,7 @@ public class CardEffectSimple : MonoBehaviour
         return board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Tank);
     }
 
-    // Efeito 3: Archer 5 (ATK 15, HP 4) - Ignora armadura, executa se inimigo tem 2 HP ou menos
+    // Efeito 3: Archer 5 (ATK 5, HP 4) - Ignora armadura, executa se inimigo tem 2 HP ou menos
     void ArcherTier5Effect3_IgnoreArmorAndExecute()
     {
         if (cardDisplay == null) return;
@@ -107,15 +107,15 @@ public class CardEffectSimple : MonoBehaviour
         int baseAtk = cardDisplay.card.attack;
         int baseHp = cardDisplay.card.health;
 
-        if (baseAtk == 5 && baseHp == 4)
+        if (baseAtk == 3 && baseHp == 6)
             HealerTier5Effect1_FreeCardPurchase();
-        else if (baseAtk == 6 && baseHp == 3)
+        else if (baseAtk == 2 && baseHp == 7)
             HealerTier5Effect2_PeriodicAllyHeal();
-        else if (baseAtk == 4 && baseHp == 5)
+        else if (baseAtk == 3 && baseHp == 7)
             HealerTier5Effect3_DoubleAllyStats();
     }
 
-    // Efeito 1: Healer 5 (ATK 5, HP 4) - Ao entrar concede 1 compra grátis.
+    // Efeito 1: Healer 5 (ATK 3, HP 6) - Ao entrar concede 1 compra grátis.
     // "Grátis" DE VERDADE: a próxima compra não gasta ouro nem o limite do turno
     // (antes só devolvia o slot e ainda cobrava ouro — sem ouro, não servia de nada)
     void HealerTier5Effect1_FreeCardPurchase()
@@ -130,7 +130,7 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 2: Healer 5 (ATK 6, HP 3) - Cura todos aliados em 2 HP e 2 shield a cada turno
+    // Efeito 2: Healer 5 (ATK 2, HP 7) - Cura todos aliados em 2 HP e 2 shield a cada turno
     void HealerTier5Effect2_PeriodicAllyHeal()
     {
         if (cardDisplay == null) return;
@@ -172,7 +172,7 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[HealerTier5Effect2] {cardDisplay.card.cardName}: Curou os aliados (2 HP / restaura 2 de escudo)!");
     }
 
-    // Efeito 3: Healer 5 (ATK 4, HP 5) - Duplica todos os status de um aliado à escolha
+    // Efeito 3: Healer 5 (ATK 3, HP 7) - Duplica todos os status de um aliado à escolha
     void HealerTier5Effect3_DoubleAllyStats()
     {
         if (cardDisplay == null || cardDisplay.healerTier5Effect3Used) return;
@@ -231,11 +231,11 @@ public class CardEffectSimple : MonoBehaviour
 
         if (baseAtk == 5 && baseHp == 3)
             ArcherTier4Effect1_DoubleAttackHealer();
-        else if (baseAtk == 6 && baseHp == 3)
+        else if (baseAtk == 4 && baseHp == 2)
             ArcherTier4Effect2_StunEvery2Turns();
-        else if (baseAtk == 7 && baseHp == 3)
+        else if (baseAtk == 5 && baseHp == 2)
             ArcherTier4Effect3_CopyOnKill();
-        else if (baseAtk == 6 && baseHp == 2)
+        else if (baseAtk == 4 && baseHp == 3)
             ArcherTier4Effect4_ExtraMoveOnSideAttack();
     }
 
@@ -276,7 +276,7 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 2: Archer 4 (ATK 6, HP 3) - Stuna um inimigo aleatório AO ENTRAR em
+    // Efeito 2: Archer 4 (ATK 4, HP 2) - Stuna um inimigo aleatório AO ENTRAR em
     // campo e repete a cada 2 turnos (contador amarelo na carta). Antes o stun
     // era disparado ao ATACAR, o que não batia com a descrição.
     void ArcherTier4Effect2_StunEvery2Turns()
@@ -314,7 +314,7 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 3: Archer 4 (ATK 7, HP 3) - Cria cópia ao matar, move novamente se tem Tank
+    // Efeito 3: Archer 4 (ATK 5, HP 2) - Cria cópia ao matar, move novamente se tem Tank
     void ArcherTier4Effect3_CopyOnKill()
     {
         if (cardDisplay == null) return;
@@ -347,7 +347,7 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 4: Archer 4 (ATK 6, HP 2) - Move novamente se atacar alvo ao lado
+    // Efeito 4: Archer 4 (ATK 4, HP 3) - Move novamente se atacar alvo ao lado
     void ArcherTier4Effect4_ExtraMoveOnSideAttack()
     {
         if (cardDisplay == null) return;
@@ -382,17 +382,17 @@ public class CardEffectSimple : MonoBehaviour
         int baseAtk = cardDisplay.card.attack;
         int baseHp = cardDisplay.card.health;
 
-        if (baseAtk == 4 && baseHp == 2)
+        if (baseAtk == 3 && baseHp == 3)
             ArcherTier3Effect1_InvokeEagle();
-        else if (baseAtk == 5 && baseHp == 3)
+        else if (baseAtk == 4 && baseHp == 2)
             ArcherTier3Effect2_CopyIfMageAlly();
         else if (baseAtk == 3 && baseHp == 2)
             ArcherTier3Effect3_DamageToTowerAndExtraMove();
-        else if (baseAtk == 4 && baseHp == 1)
+        else if (baseAtk == 4 && baseHp == 3)
             ArcherTier3Effect4_CrussDamageAndShield();
     }
 
-    // Efeito 1: Archer 3 (ATK 4, HP 2) - Invoca uma águia para perseguir um inimigo aleatório
+    // Efeito 1: Archer 3 (ATK 3, HP 3) - Invoca uma águia para perseguir um inimigo aleatório
     void ArcherTier3Effect1_InvokeEagle()
     {
         if (cardDisplay == null || cardDisplay.archerTier3Effect1Used) return;
@@ -417,7 +417,7 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 2: Archer 3 (ATK 5, HP 3) - Faz uma cópia se houver Mago aliado
+    // Efeito 2: Archer 3 (ATK 4, HP 2) - Faz uma cópia se houver Mago aliado
     void ArcherTier3Effect2_CopyIfMageAlly()
     {
         // Cópias NÃO copiam a si mesmas — sem esta trava, a cópia (com a flag
@@ -481,7 +481,7 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 4: Archer 3 (ATK 4, HP 1) - +4 de armadura se houver Tank (AO ENTRAR).
+    // Efeito 4: Archer 3 (ATK 4, HP 3) - +4 de armadura se houver Tank (AO ENTRAR).
     // (O dano em cruz "ao atacar" foi removido a pedido do Carlos — agora a carta
     // só tem o bônus de armadura ao entrar em campo.)
     void ArcherTier3Effect4_CrussDamageAndShield()
@@ -516,7 +516,7 @@ public class CardEffectSimple : MonoBehaviour
         CheckArcherTier2Combo();
     }
 
-    // Efeito 1: Archer 2 (ATK 3, HP 3) - Invoca Archer aleatório quando destrói inimigo
+    // Efeito 1: Archer 2 (ATK 3, HP 2) - Invoca Archer aleatório quando destrói inimigo
     void ArcherTier2Effect1_InvokeOnKill()
     {
         // Este efeito é ativado quando a carta destrói um inimigo
@@ -524,7 +524,7 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[ArcherTier2Effect1] {cardDisplay.card.cardName}: Pronta para invocar Archer ao matar");
     }
 
-    // Efeito 2: Archer 2 (ATK 3, HP 2) - Para ataque de Healer e stuna o ATACANTE
+    // Efeito 2: Archer 2 (ATK 3, HP 3) - Para ataque de Healer e stuna o ATACANTE
     // (ativado via popup). Retorna true se o ataque foi de fato parado — se não
     // foi, o chamador aplica o dano normalmente (antes o dano simplesmente sumia)
     public bool ArcherTier2Effect2_ShieldArrow(CardDisplay attackingCard)
@@ -546,7 +546,7 @@ public class CardEffectSimple : MonoBehaviour
         return true;
     }
 
-    // Efeito 3: Archer 2 (ATK 3, HP 1) - Stuna o atacante ao receber ataque
+    // Efeito 3: Archer 2 (ATK 2, HP 2) - Stuna o atacante ao receber ataque
     void ArcherTier2Effect3_StunOnHit()
     {
         // Este efeito é ativado via popup quando recebe ataque
@@ -577,25 +577,25 @@ public class CardEffectSimple : MonoBehaviour
 
         var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
 
-        // Membros DISTINTOS da tríade: (3/1), (3/3) e (4/2 — só tríade).
+        // Membros DISTINTOS da tríade: (2/2), (3/2) e (2/3 — só tríade).
         // BUGFIX: (a) duplicatas de um membro contavam como membros diferentes;
         // (b) depois de ativada, qualquer arqueiro tier-2 novo re-disparava o
         // bônus (a trava só olhava a flag da carta que ENTROU) — agora, se
         // algum membro em campo já ativou, a tríade está gasta
-        bool has42 = false, has33 = false, has31 = false;
+        bool has23 = false, has32 = false, has22 = false;
         foreach (var ally in allies)
         {
             if (ally == null || ally.card == null) continue;
             if (ally.card.cardClass != CardClass.Arqueiro || ally.card.tier != CardTier.Tier2) continue;
 
-            if (ally.card.attack == 4 && ally.card.health == 2) { if (ally.archerComboActivated) return; has42 = true; }
-            else if (ally.card.attack == 3 && ally.card.health == 3) { if (ally.archerComboActivated) return; has33 = true; }
-            else if (ally.card.attack == 3 && ally.card.health == 1) { if (ally.archerComboActivated) return; has31 = true; }
+            if (ally.card.attack == 2 && ally.card.health == 3) { if (ally.archerComboActivated) return; has23 = true; }
+            else if (ally.card.attack == 3 && ally.card.health == 2) { if (ally.archerComboActivated) return; has32 = true; }
+            else if (ally.card.attack == 2 && ally.card.health == 2) { if (ally.archerComboActivated) return; has22 = true; }
         }
 
         // Se os 3 Archers tier-2 estão em campo, ativa combo:
         // "+5 de ataque a todos" = TODOS os aliados no tabuleiro
-        if (has42 && has33 && has31)
+        if (has23 && has32 && has22)
         {
             foreach (var ally in allies)
             {
@@ -608,9 +608,9 @@ public class CardEffectSimple : MonoBehaviour
                 // a flag é reutilizada pelas tríades de Mago/Tank — marcá-la
                 // em outras cartas bloquearia as outras tríades
                 if (ally.card.cardClass == CardClass.Arqueiro && ally.card.tier == CardTier.Tier2 &&
-                    ((ally.card.attack == 4 && ally.card.health == 2) ||
-                     (ally.card.attack == 3 && ally.card.health == 3) ||
-                     (ally.card.attack == 3 && ally.card.health == 1)))
+                    ((ally.card.attack == 2 && ally.card.health == 3) ||
+                     (ally.card.attack == 3 && ally.card.health == 2) ||
+                     (ally.card.attack == 2 && ally.card.health == 2)))
                 {
                     ally.archerComboActivated = true;
                 }
@@ -631,9 +631,9 @@ public class CardEffectSimple : MonoBehaviour
 
         if (baseAtk == 2 && baseHp == 3)
             ArcherEffect1_SelfDamageForAttack();
-        else if (baseAtk == 1 && baseHp == 2)
-            ArcherEffect2_DamageRow();
         else if (baseAtk == 2 && baseHp == 2)
+            ArcherEffect2_DamageRow();
+        else if (baseAtk == 1 && baseHp == 3)
             ArcherEffect3_CopyIfTankAlly();
         else if (baseAtk == 3 && baseHp == 2)
             ArcherEffect4_TreeDodge();
@@ -765,17 +765,17 @@ public class CardEffectSimple : MonoBehaviour
         int baseAtk = cardDisplay.card.attack;
         int baseHp = cardDisplay.card.health;
 
-        if (baseAtk == 3 && baseHp == 3)
+        if (baseAtk == 2 && baseHp == 5)
             HealerTier4Effect1_PeriodicCure();
-        else if (baseAtk == 4 && baseHp == 3)
+        else if (baseAtk == 2 && baseHp == 4)
             HealerTier4Effect2_GoldOnOpponentTurnEnd();
-        else if (baseAtk == 5 && baseHp == 3)
+        else if (baseAtk == 1 && baseHp == 4)
             HealerTier4Effect3_GrantInvulnerability();
-        else if (baseAtk == 4 && baseHp == 4)
+        else if (baseAtk == 3 && baseHp == 4)
             HealerTier4Effect4_BoostAllWithCombo();
     }
 
-    // Efeito 1: Healer 4 (ATK 3, HP 3) - Cura 4 a cada 2 rounds, ganha 2 ouro se tem Mago
+    // Efeito 1: Healer 4 (ATK 2, HP 5) - Cura 4 a cada 2 rounds, ganha 2 ouro se tem Mago
     void HealerTier4Effect1_PeriodicCure()
     {
         if (cardDisplay == null) return;
@@ -815,7 +815,7 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 2: Healer 4 (ATK 4, HP 3) - Recebe 1 ouro extra ao fim do turno do oponente
+    // Efeito 2: Healer 4 (ATK 2, HP 4) - Recebe 1 ouro extra ao fim do turno do oponente
     void HealerTier4Effect2_GoldOnOpponentTurnEnd()
     {
         if (cardDisplay == null) return;
@@ -837,7 +837,7 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 3: Healer 4 (ATK 5, HP 3) - Concede invunerabilidade a uma carta por 3 rounds
+    // Efeito 3: Healer 4 (ATK 1, HP 4) - Concede invunerabilidade a uma carta por 3 rounds
     void HealerTier4Effect3_GrantInvulnerability()
     {
         if (cardDisplay == null || cardDisplay.healerTier4Effect3Used) return;
@@ -878,7 +878,7 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[HealerTier4Effect3] {cardDisplay.card.cardName}: Concedeu invunerabilidade a {targetAlly.card.cardName} por 3 rounds!");
     }
 
-    // Efeito 4: Healer 4 (ATK 4, HP 4) - +3 todos status a todos aliados se tem Tank, Arqueiro e Mago
+    // Efeito 4: Healer 4 (ATK 3, HP 4) - +3 todos status a todos aliados se tem Tank, Arqueiro e Mago
     void HealerTier4Effect4_BoostAllWithCombo()
     {
         if (cardDisplay == null || cardDisplay.healerTier4Effect4Used) return;
@@ -921,17 +921,17 @@ public class CardEffectSimple : MonoBehaviour
         int baseAtk = cardDisplay.card.attack;
         int baseHp = cardDisplay.card.health;
 
-        if (baseAtk == 3 && baseHp == 3)
+        if (baseAtk == 1 && baseHp == 4)
             HealerTier3Effect1_GoldIfMage();
-        else if (baseAtk == 3 && baseHp == 1)
+        else if (baseAtk == 2 && baseHp == 4)
             HealerTier3Effect2_CureTankOnDamage();
-        else if (baseAtk == 2 && baseHp == 1)
+        else if (baseAtk == 1 && baseHp == 3)
             HealerTier3Effect3_GoldPerHealerAndMage();
-        else if (baseAtk == 1 && baseHp == 2)
+        else if (baseAtk == 2 && baseHp == 3)
             HealerTier3Effect4_GoldPerMage();
     }
 
-    // Efeito 1: Healer 3 (ATK 3, HP 3) - Ganha 2 de ouro se houver Mago em campo
+    // Efeito 1: Healer 3 (ATK 1, HP 4) - Ganha 2 de ouro se houver Mago em campo
     void HealerTier3Effect1_GoldIfMage()
     {
         if (cardDisplay == null || cardDisplay.healerTier3Effect1Used) return;
@@ -958,7 +958,7 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 2: Healer 3 (ATK 3, HP 1) - Cura Tank em 2 sempre que ele recebe dano
+    // Efeito 2: Healer 3 (ATK 2, HP 4) - Cura Tank em 2 sempre que ele recebe dano
     void HealerTier3Effect2_CureTankOnDamage()
     {
         if (cardDisplay == null) return;
@@ -982,7 +982,7 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[HealerTier3Effect2] {cardDisplay.card.cardName}: Curou {damagedTank.card.cardName} em 2 (HP agora: {damagedTank.currentHealth})");
     }
 
-    // Efeito 3: Healer 3 (ATK 2, HP 1) - Ganha 1 de ouro por cada Healer, +1 por cada Mago
+    // Efeito 3: Healer 3 (ATK 1, HP 3) - Ganha 1 de ouro por cada Healer, +1 por cada Mago
     void HealerTier3Effect3_GoldPerHealerAndMage()
     {
         if (cardDisplay == null || cardDisplay.healerTier3Effect3Used) return;
@@ -1020,7 +1020,7 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 4: Healer 3 (ATK 1, HP 2) - Ganha 1 de ouro por cada Mago em campo
+    // Efeito 4: Healer 3 (ATK 2, HP 3) - Ganha 1 de ouro por cada Mago em campo
     void HealerTier3Effect4_GoldPerMage()
     {
         if (cardDisplay == null || cardDisplay.healerTier3Effect4Used) return;
@@ -1058,16 +1058,16 @@ public class CardEffectSimple : MonoBehaviour
         int baseAtk = cardDisplay.card.attack;
         int baseHp = cardDisplay.card.health;
 
-        // Membros da tríade (1/3, 0/3, 2/3): SÓ tríade, sem efeito solo.
+        // Membros da tríade (1/4, 0/4, 0/3): SÓ tríade, sem efeito solo.
         // (Healer 2/1, fora da tríade, mantém o "+vida máxima ao curar".)
-        if (baseAtk == 2 && baseHp == 1)
+        if (baseAtk == 1 && baseHp == 3)
             HealerTier2Effect1_MaxHealthOnHeal();
 
         // Verifica combo das 3 Healers tier-2
         CheckHealerTier2Combo();
     }
 
-    // Efeito 1: Healer 2 (ATK 2, HP 1) - Sempre que um aliado for curado,
+    // Efeito 1: Healer 2 (ATK 1, HP 3) - Sempre que um aliado for curado,
     // aumenta a vida máxima DELE (do aliado curado) em +1.
     // BUGFIX: a versão antiga aumentava a vida máxima da PRÓPRIA Healer 2 e
     // ainda a curava por completo a cada cura de qualquer aliado
@@ -1088,11 +1088,11 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[HealerTier2Effect1] {cardDisplay.card.cardName}: Pronta para aumentar vida máxima ao curar");
     }
 
-    // (Efeito solo do Healer 2 (ATK 1, HP 3) — +2 armadura em Tank — foi
+    // (Efeito solo do Healer 2 (ATK 1, HP 4) — +2 armadura em Tank — foi
     // REMOVIDO: a carta é tríade pura. O gancho antigo em SelectCardFromBoard
     // dava armadura em QUALQUER clique em Tank, até no tank inimigo.)
 
-    // Efeito 3: Healer 2 (ATK 0, HP 3) - +2 dano a todos os Arqueiros
+    // Efeito 3: Healer 2 (ATK 0, HP 4) - +2 dano a todos os Arqueiros
     void HealerTier2Effect3_ArcherDamageBoost()
     {
         BoardManager board = BoardManager.Instance;
@@ -1114,7 +1114,7 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[HealerTier2Effect3] {cardDisplay.card.cardName}: Aumentou +2 dano de {boostedCount} Arqueiro(s)");
     }
 
-    // Efeito 4: Healer 2 (ATK 2, HP 3) - Apenas participa do combo
+    // Efeito 4: Healer 2 (ATK 0, HP 3) - Apenas participa do combo
     void HealerTier2Effect4_ComboOnly()
     {
         Debug.Log($"[HealerTier2Effect4] {cardDisplay.card.cardName}: Pronta para participar do combo");
@@ -1128,23 +1128,23 @@ public class CardEffectSimple : MonoBehaviour
 
         var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
 
-        // Membros DISTINTOS da tríade: (1/3), (0/3) e (2/3 — só tríade).
+        // Membros DISTINTOS da tríade: (1/4), (0/4) e (0/3 — só tríade).
         // BUGFIX: duplicatas não contam como membros diferentes, e se algum
         // membro em campo já ativou, a tríade está gasta (antes qualquer
         // Healer tier-2 novo re-disparava o "ouro + vida da torre no máximo")
-        bool has13 = false, has03 = false, has23 = false;
+        bool has14 = false, has04 = false, has03 = false;
         foreach (var ally in allies)
         {
             if (ally == null || ally.card == null) continue;
             if (ally.card.cardClass != CardClass.Healer || ally.card.tier != CardTier.Tier2) continue;
 
-            if (ally.card.attack == 1 && ally.card.health == 3) { if (ally.healerComboActivated) return; has13 = true; }
+            if (ally.card.attack == 1 && ally.card.health == 4) { if (ally.healerComboActivated) return; has14 = true; }
+            else if (ally.card.attack == 0 && ally.card.health == 4) { if (ally.healerComboActivated) return; has04 = true; }
             else if (ally.card.attack == 0 && ally.card.health == 3) { if (ally.healerComboActivated) return; has03 = true; }
-            else if (ally.card.attack == 2 && ally.card.health == 3) { if (ally.healerComboActivated) return; has23 = true; }
         }
 
         // Se as 3 Healers tier-2 estão em campo, ativa combo
-        if (has13 && has03 && has23)
+        if (has14 && has04 && has03)
         {
             PlayerData player = TurnManager.Instance?.GetPlayer(cardDisplay.ownerPlayerNumber);
             if (player != null)
@@ -1159,9 +1159,9 @@ public class CardEffectSimple : MonoBehaviour
                 {
                     if (ally != null && ally.card.cardClass == CardClass.Healer && ally.card.tier == CardTier.Tier2)
                     {
-                        if ((ally.card.attack == 1 && ally.card.health == 3) ||
-                            (ally.card.attack == 0 && ally.card.health == 3) ||
-                            (ally.card.attack == 2 && ally.card.health == 3))
+                        if ((ally.card.attack == 1 && ally.card.health == 4) ||
+                            (ally.card.attack == 0 && ally.card.health == 4) ||
+                            (ally.card.attack == 0 && ally.card.health == 3))
                         {
                             ally.healerComboActivated = true;
                         }
@@ -1283,17 +1283,17 @@ public class CardEffectSimple : MonoBehaviour
         int baseAtk = cardDisplay.card.attack;
         int baseHp = cardDisplay.card.health;
 
-        if (baseAtk == 7 && baseHp == 4)
+        if (baseAtk == 4 && baseHp == 5)
             MageTier4Effect1_RemoveBonus();
-        else if (baseAtk == 6 && baseHp == 6)
+        else if (baseAtk == 4 && baseHp == 6)
             MageTier4Effect2_BoostOnHealerEnter();
-        else if (baseAtk == 5 && baseHp == 4)
+        else if (baseAtk == 3 && baseHp == 5)
             MageTier4Effect3_DestroyLowerTier();
-        else if (baseAtk == 6 && baseHp == 3)
+        else if (baseAtk == 4 && baseHp == 4)
             MageTier4Effect4_GoldPerRound();
     }
 
-    // Efeito 1: Mage 4 (ATK 7, HP 4) - Remove bônus de um inimigo, pode usar 2 vezes se tem Healer + Arqueiro
+    // Efeito 1: Mage 4 (ATK 4, HP 5) - Remove bônus de um inimigo, pode usar 2 vezes se tem Healer + Arqueiro
     void MageTier4Effect1_RemoveBonus()
     {
         if (cardDisplay == null || cardDisplay.mageTier4Effect1Used) return;
@@ -1371,7 +1371,7 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 2: Mage 4 (ATK 6, HP 6) - Ganha +1 ATK quando Healer entra em campo
+    // Efeito 2: Mage 4 (ATK 4, HP 6) - Ganha +1 ATK quando Healer entra em campo
     void MageTier4Effect2_BoostOnHealerEnter()
     {
         if (cardDisplay == null) return;
@@ -1389,7 +1389,7 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[MageTier4Effect2] {cardDisplay.card.cardName}: Ganhou +1 ATK! Total: {cardDisplay.currentAttack}");
     }
 
-    // Efeito 3: Mage 4 (ATK 5, HP 4) - Destruir inimigo de nível inferior, absorve 50% ataque se tem Tank + Healer + Arqueiro
+    // Efeito 3: Mage 4 (ATK 3, HP 5) - Destruir inimigo de nível inferior, absorve 50% ataque se tem Tank + Healer + Arqueiro
     void MageTier4Effect3_DestroyLowerTier()
     {
         if (cardDisplay == null || cardDisplay.mageTier4Effect3Used) return;
@@ -1456,7 +1456,7 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 4: Mage 4 (ATK 6, HP 3) - Uma vez por round ganha +1 ouro
+    // Efeito 4: Mage 4 (ATK 4, HP 4) - Uma vez por round ganha +1 ouro
     void MageTier4Effect4_GoldPerRound()
     {
         if (cardDisplay == null) return;
@@ -1496,17 +1496,17 @@ public class CardEffectSimple : MonoBehaviour
         int baseAtk = cardDisplay.card.attack;
         int baseHp = cardDisplay.card.health;
 
-        if (baseAtk == 0 && baseHp == 1)
+        if (baseAtk == 1 && baseHp == 3)
             MageTier3Effect1_StealStats();
-        else if (baseAtk == 4 && baseHp == 4)
+        else if (baseAtk == 3 && baseHp == 5)
             MageTier3Effect2_BoostAllWithArcher();
-        else if (baseAtk == 3 && baseHp == 2)
+        else if (baseAtk == 3 && baseHp == 4)
             MageTier3Effect3_FreezeOrDamage();
-        else if (baseAtk == 3 && baseHp == 3)
+        else if (baseAtk == 2 && baseHp == 5)
             MageTier3Effect4_BoostHandCards();
     }
 
-    // Efeito 1: Mage 3 (ATK 0, HP 1) - Rouba todos os status de um inimigo aleatório (inimigo fica com 0)
+    // Efeito 1: Mage 3 (ATK 1, HP 3) - Rouba todos os status de um inimigo aleatório (inimigo fica com 0)
     void MageTier3Effect1_StealStats()
     {
         if (cardDisplay == null || cardDisplay.mageTier3Effect1Used) return;
@@ -1557,7 +1557,7 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 2: Mage 3 (ATK 4, HP 4) - Concede +1 de ataque a todos no campo se houver Arqueiro
+    // Efeito 2: Mage 3 (ATK 3, HP 5) - Concede +1 de ataque a todos no campo se houver Arqueiro
     void MageTier3Effect2_BoostAllWithArcher()
     {
         if (cardDisplay == null || cardDisplay.mageTier3Effect2Used) return;
@@ -1588,7 +1588,7 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 3: Mage 3 (ATK 3, HP 2) - Escolhe congelar OU dano (popup) ou ambos se tiver Healer e Tank
+    // Efeito 3: Mage 3 (ATK 3, HP 4) - Escolhe congelar OU dano (popup) ou ambos se tiver Healer e Tank
     void MageTier3Effect3_FreezeOrDamage()
     {
         // Dispara SÓ pelo contador amarelo (1x por turno). O proc extra na
@@ -1730,7 +1730,7 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 4: Mage 3 (ATK 3, HP 3) - Concede +1 de ataque a todas as cartas aliadas em campo
+    // Efeito 4: Mage 3 (ATK 2, HP 5) - Concede +1 de ataque a todas as cartas aliadas em campo
     void MageTier3Effect4_BoostHandCards()
     {
         if (cardDisplay == null || cardDisplay.mageTier3Effect4Used) return;
@@ -1762,16 +1762,16 @@ public class CardEffectSimple : MonoBehaviour
         int baseAtk = cardDisplay.card.attack;
         int baseHp = cardDisplay.card.health;
 
-        // Membros da tríade (2/3, 3/2, 3/1): SÓ tríade, sem efeito solo.
-        // (Mago 4/3, fora da tríade, mantém o efeito de quebrar armadura.)
-        if (baseAtk == 4 && baseHp == 3)
+        // Membros da tríade (2/4, 2/3, 3/3): SÓ tríade, sem efeito solo.
+        // (Mago 3/4, fora da tríade, mantém o efeito de quebrar armadura.)
+        if (baseAtk == 3 && baseHp == 4)
             MageTier2Effect3_ShieldBreak();
 
         // Verifica combo dos 3 Magos tier-2
         CheckMageTier2Combo();
     }
 
-    // Efeito 1: Mage 2 (ATK 2, HP 3) - +1 ATK quando Healer for atacado
+    // Efeito 1: Mage 2 (ATK 2, HP 4) - +1 ATK quando Healer for atacado
     void MageTier2Effect1_AttackOnHealerHit()
     {
         // Este efeito é ativado via hook quando um Healer é atacado
@@ -1788,10 +1788,10 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[MageTier2Effect1] {cardDisplay.card.cardName}: Ganhou +1 ATK! ATK agora: {cardDisplay.currentAttack}");
     }
 
-    // (Efeito 2 do Mage 2 ATK 3/HP 2 — bola de fogo ao Tank ser atacado — foi
+    // (Efeito 2 do Mage 2 ATK 2/HP 3 — bola de fogo ao Tank ser atacado — foi
     // REMOVIDO: a carta agora tem apenas o efeito de tríade)
 
-    // Efeito 3: Mage 2 (ATK 4, HP 3) - 1 de dano na armadura de 2 inimigos (ao entrar em campo)
+    // Efeito 3: Mage 2 (ATK 3, HP 4) - 1 de dano na armadura de 2 inimigos (ao entrar em campo)
     void MageTier2Effect3_ShieldBreak()
     {
         BoardManager board = BoardManager.Instance;
@@ -1832,7 +1832,7 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 4: Mage 2 (ATK 3, HP 1) - Congela inimigo que ataca Arqueiro
+    // Efeito 4: Mage 2 (ATK 3, HP 3) - Congela inimigo que ataca Arqueiro
     void MageTier2Effect4_FreezeOnArcherHit()
     {
         // Este efeito é ativado via hook quando um Arqueiro é atacado
@@ -1858,23 +1858,23 @@ public class CardEffectSimple : MonoBehaviour
 
         var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
 
-        // Membros DISTINTOS da tríade: (2/3), (3/2) e (3/1).
+        // Membros DISTINTOS da tríade: (2/4), (2/3) e (3/3).
         // BUGFIX: duplicatas não contam, e se algum membro em campo já ativou,
         // a tríade está gasta (antes jogar o Mago 4/3 — ou qualquer cópia —
         // com a tríade fechada invocava OUTRO mago lendário de graça)
-        bool has23m = false, has32m = false, has31m = false;
+        bool has24m = false, has23m = false, has33m = false;
         foreach (var ally in allies)
         {
             if (ally == null || ally.card == null) continue;
             if (ally.card.cardClass != CardClass.Mago || ally.card.tier != CardTier.Tier2) continue;
 
-            if (ally.card.attack == 2 && ally.card.health == 3) { if (ally.archerComboActivated) return; has23m = true; }
-            else if (ally.card.attack == 3 && ally.card.health == 2) { if (ally.archerComboActivated) return; has32m = true; }
-            else if (ally.card.attack == 3 && ally.card.health == 1) { if (ally.archerComboActivated) return; has31m = true; }
+            if (ally.card.attack == 2 && ally.card.health == 4) { if (ally.archerComboActivated) return; has24m = true; }
+            else if (ally.card.attack == 2 && ally.card.health == 3) { if (ally.archerComboActivated) return; has23m = true; }
+            else if (ally.card.attack == 3 && ally.card.health == 3) { if (ally.archerComboActivated) return; has33m = true; }
         }
 
         // Se os 3 Magos tier-2 estão em campo, ativa combo
-        if (has23m && has32m && has31m)
+        if (has24m && has23m && has33m)
         {
             CardManager cardManager = CardManager.Instance;
             if (cardManager != null)
@@ -1886,9 +1886,9 @@ public class CardEffectSimple : MonoBehaviour
                 {
                     if (ally != null && ally.card.cardClass == CardClass.Mago && ally.card.tier == CardTier.Tier2)
                     {
-                        if ((ally.card.attack == 2 && ally.card.health == 3) ||
-                            (ally.card.attack == 3 && ally.card.health == 2) ||
-                            (ally.card.attack == 3 && ally.card.health == 1))
+                        if ((ally.card.attack == 2 && ally.card.health == 4) ||
+                            (ally.card.attack == 2 && ally.card.health == 3) ||
+                            (ally.card.attack == 3 && ally.card.health == 3))
                         {
                             ally.archerComboActivated = true; // Reusa flag
                         }
@@ -1909,13 +1909,13 @@ public class CardEffectSimple : MonoBehaviour
         int baseAtk = cardDisplay.card.attack;
         int baseHp = cardDisplay.card.health;
 
-        if (baseAtk == 2 && baseHp == 2)
+        if (baseAtk == 2 && baseHp == 3)
             MageEffect1_BuffHealerOnDamage();
-        else if (baseAtk == 3 && baseHp == 3)
+        else if (baseAtk == 2 && baseHp == 4)
             MageEffect2_RandomEnemyDamage();
-        else if (baseAtk == 1 && baseHp == 2)
+        else if (baseAtk == 1 && baseHp == 3)
             MageEffect3_FreezeEnemy();
-        else if (baseAtk == 1 && baseHp == 1)
+        else if (baseAtk == 1 && baseHp == 4)
             MageEffect5_DamageAllEnemyMages();
     }
 
@@ -2018,15 +2018,15 @@ public class CardEffectSimple : MonoBehaviour
         int baseAtk = cardDisplay.card.attack;
         int baseHp = cardDisplay.card.health;
 
-        if (baseAtk == 8 && baseHp == 4)
+        if (baseAtk == 5 && baseHp == 5)
             MageTier5Effect1_RandomFreezePerRound();
-        else if (baseAtk == 6 && baseHp == 5)
+        else if (baseAtk == 4 && baseHp == 6)
             MageTier5Effect2_CopyEnemyStats();
-        else if (baseAtk == 7 && baseHp == 5)
+        else if (baseAtk == 5 && baseHp == 6)
             MageTier5Effect3_FireballAndMageBoost();
     }
 
-    // Efeito 1: Mage 5 (ATK 8, HP 4) - Congela um inimigo aleatório por round, duplicado se tem Tank
+    // Efeito 1: Mage 5 (ATK 5, HP 5) - Congela um inimigo aleatório por round, duplicado se tem Tank
     void MageTier5Effect1_RandomFreezePerRound()
     {
         if (cardDisplay == null) return;
@@ -2075,7 +2075,7 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 2: Mage 5 (ATK 6, HP 5) - Copia stats de ataque e vida de um inimigo
+    // Efeito 2: Mage 5 (ATK 4, HP 6) - Copia stats de ataque e vida de um inimigo
     void MageTier5Effect2_CopyEnemyStats()
     {
         if (cardDisplay == null || cardDisplay.mageTier5Effect2Used) return;
@@ -2123,7 +2123,7 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[MageTier5Effect2] {cardDisplay.card.cardName}: Copiou stats de {targetEnemy.card.cardName} (ATK: {targetEnemy.currentAttack}, HP: {targetEnemy.currentHealth})!");
     }
 
-    // Efeito 3: Mage 5 (ATK 7, HP 5) - Causa 5 de dano ao entrar, aumenta ATK de todos Magos ao resetar turno
+    // Efeito 3: Mage 5 (ATK 5, HP 6) - Causa 5 de dano ao entrar, aumenta ATK de todos Magos ao resetar turno
     void MageTier5Effect3_FireballAndMageBoost()
     {
         if (cardDisplay == null) return;
@@ -2157,15 +2157,15 @@ public class CardEffectSimple : MonoBehaviour
         int baseShield = cardDisplay.card.shield;
         int baseHp = cardDisplay.card.health;
 
-        if (baseAtk == 5 && baseShield == 9 && baseHp == 6)
+        if (baseAtk == 3 && baseShield == 7 && baseHp == 8)
             TankTier5Effect1_ShieldOnKill();
-        else if (baseAtk == 2 && baseShield == 6 && baseHp == 8)
+        else if (baseAtk == 3 && baseShield == 6 && baseHp == 9)
             TankTier5Effect2_AttackOnDamageAndPeriodicShield();
-        else if (baseAtk == 4 && baseShield == 5 && baseHp == 10)
+        else if (baseAtk == 3 && baseShield == 6 && baseHp == 10)
             TankTier5Effect3_AttackOnDamageWithBonus();
     }
 
-    // Efeito 1: Tank 5 (ATK 5, Shield 9, HP 6) - Concede armadura a aliados ao matar inimigo
+    // Efeito 1: Tank 5 (ATK 3, Shield 7, HP 8) - Concede armadura a aliados ao matar inimigo
     void TankTier5Effect1_ShieldOnKill()
     {
         if (cardDisplay == null) return;
@@ -2209,7 +2209,7 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 2: Tank 5 (ATK 2, Shield 6, HP 8) - +1 ATK ao receber dano, concede armadura a cada 2 turnos
+    // Efeito 2: Tank 5 (ATK 3, Shield 6, HP 9) - +1 ATK ao receber dano, concede armadura a cada 2 turnos
     void TankTier5Effect2_AttackOnDamageAndPeriodicShield()
     {
         if (cardDisplay == null) return;
@@ -2247,7 +2247,7 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 3: Tank 5 (ATK 4, Shield 5, HP 10) - +1 ATK ao receber dano, +armadura se tem Healer ou Mago
+    // Efeito 3: Tank 5 (ATK 3, Shield 6, HP 10) - +1 ATK ao receber dano, +armadura se tem Healer ou Mago
     void TankTier5Effect3_AttackOnDamageWithBonus()
     {
         if (cardDisplay == null) return;
@@ -2311,17 +2311,17 @@ public class CardEffectSimple : MonoBehaviour
         int baseShield = cardDisplay.card.shield;
         int baseHp = cardDisplay.card.health;
 
-        if (baseAtk == 1 && baseShield == 6 && baseHp == 3)
+        if (baseAtk == 2 && baseShield == 5 && baseHp == 6)
             TankTier4Effect1_BoostWithArcherMage();
-        else if (baseAtk == 2 && baseShield == 6 && baseHp == 5)
+        else if (baseAtk == 2 && baseShield == 6 && baseHp == 6)
             TankTier4Effect2_InterceptOncePerTurn();
-        else if (baseAtk == 2 && baseShield == 3 && baseHp == 5)
+        else if (baseAtk == 2 && baseShield == 5 && baseHp == 7)
             TankTier4Effect3_ArcherDoubleAttack();
-        else if (baseAtk == 5 && baseShield == 10 && baseHp == 10)
+        else if (baseAtk == 3 && baseShield == 6 && baseHp == 7)
             TankTier4Effect4_DamageReductionAndShield();
     }
 
-    // Efeito 1: Tank 4 (ATK 1, Shield 6, HP 3) - +5 HP +2 Shield se tem Arqueiro e Mago
+    // Efeito 1: Tank 4 (ATK 2, Shield 5, HP 6) - +5 HP +2 Shield se tem Arqueiro e Mago
     void TankTier4Effect1_BoostWithArcherMage()
     {
         if (cardDisplay == null || cardDisplay.tankTier4Effect1Used) return;
@@ -2346,7 +2346,7 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 2: Tank 4 (ATK 2, Shield 6, HP 5) - Recebe ataque 1x por turno, 50% menos se tem Healer
+    // Efeito 2: Tank 4 (ATK 2, Shield 6, HP 6) - Recebe ataque 1x por turno, 50% menos se tem Healer
     void TankTier4Effect2_InterceptOncePerTurn()
     {
         if (cardDisplay == null) return;
@@ -2364,7 +2364,7 @@ public class CardEffectSimple : MonoBehaviour
         return hasHealerAlly ? 50 : 0; // Retorna 50% se tem Healer, senão 0%
     }
 
-    // Efeito 3: Tank 4 (ATK 2, Shield 3, HP 5) - Arqueiros atacam 2 vezes se tem 4 classes.
+    // Efeito 3: Tank 4 (ATK 2, Shield 5, HP 7) - Arqueiros atacam 2 vezes se tem 4 classes.
     // AGORA É UMA AURA CONTÍNUA: CardDisplay.CanAttackThisRound consulta
     // HasArcherDoubleAttackAura() a cada ataque. A versão antiga era um one-shot
     // na entrada do tank que só resetava quem JÁ tinha atacado naquele momento —
@@ -2375,7 +2375,7 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[TankTier4Effect3] {cardDisplay.card.cardName}: Aura ativa - com as 4 classes em campo, Arqueiros atacam 2x por turno");
     }
 
-    // Efeito 4: Tank 4 (ATK 5, Shield 10, HP 10) - 50% menos dano se tem Healer+Mago+Arqueiro, aliados +1 armadura por turno
+    // Efeito 4: Tank 4 (ATK 3, Shield 6, HP 7) - 50% menos dano se tem Healer+Mago+Arqueiro, aliados +1 armadura por turno
     void TankTier4Effect4_DamageReductionAndShield()
     {
         if (cardDisplay == null) return;
@@ -2429,17 +2429,17 @@ public class CardEffectSimple : MonoBehaviour
         int baseShield = cardDisplay.card.shield;
         int baseHp = cardDisplay.card.health;
 
-        if (baseAtk == 2 && baseShield == 3 && baseHp == 4)
+        if (baseAtk == 2 && baseShield == 3 && baseHp == 6)
             TankTier3Effect1_BoostHealersEvery2Turns();
-        else if (baseAtk == 3 && baseShield == 2 && baseHp == 4)
+        else if (baseAtk == 2 && baseShield == 3 && baseHp == 5)
             TankTier3Effect2_ReduceDamageAllTanks();
-        else if (baseAtk == 2 && baseShield == 2 && baseHp == 5)
+        else if (baseAtk == 2 && baseShield == 4 && baseHp == 5)
             TankTier3Effect3_BoostShieldPerTank();
-        else if (baseAtk == 2 && baseShield == 2 && baseHp == 6)
+        else if (baseAtk == 2 && baseShield == 4 && baseHp == 6)
             TankTier3Effect4_BoostMagoShield();
     }
 
-    // Efeito 1: Tank 3 (ATK 2, Shield 3, HP 4) - Concede +2 armadura a todos Healers a cada 2 turnos.
+    // Efeito 1: Tank 3 (ATK 2, Shield 3, HP 6) - Concede +2 armadura a todos Healers a cada 2 turnos.
     // Era one-shot (disparava UMA vez, bug); agora é periódico de verdade, dirigido
     // pelo contador amarelo da carta (SetupPeriodicCounter/OnPeriodicCounterExpired)
     void TankTier3Effect1_BoostHealersEvery2Turns()
@@ -2472,7 +2472,7 @@ public class CardEffectSimple : MonoBehaviour
             Debug.Log($"[TankTier3Effect1] {cardDisplay.card.cardName}: Concedeu +2 armadura a {healersBuffed} Healer(s)!");
     }
 
-    // Efeito 2: Tank 3 (ATK 3, Shield 2, HP 4) - Todos Tanks recebem 50% menos dano
+    // Efeito 2: Tank 3 (ATK 2, Shield 3, HP 5) - Todos Tanks recebem 50% menos dano
     void TankTier3Effect2_ReduceDamageAllTanks()
     {
         if (cardDisplay == null) return;
@@ -2488,7 +2488,7 @@ public class CardEffectSimple : MonoBehaviour
         return (originalDamage + 1) / 2;
     }
 
-    // Efeito 3: Tank 3 (ATK 2, Shield 2, HP 5) - Recebe +2 armadura por cada outro Tank em campo
+    // Efeito 3: Tank 3 (ATK 2, Shield 4, HP 5) - Recebe +2 armadura por cada outro Tank em campo
     void TankTier3Effect3_BoostShieldPerTank()
     {
         if (cardDisplay == null || cardDisplay.tankTier3Effect3Used) return;
@@ -2515,7 +2515,7 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 4: Tank 3 (ATK 2, Shield 2, HP 6) - Concede +3 armadura a um Mago à escolha
+    // Efeito 4: Tank 3 (ATK 2, Shield 4, HP 6) - Concede +3 armadura a um Mago à escolha
     void TankTier3Effect4_BoostMagoShield()
     {
         if (cardDisplay == null || cardDisplay.tankTier3Effect4Used) return;
@@ -2566,16 +2566,16 @@ public class CardEffectSimple : MonoBehaviour
         int baseShield = cardDisplay.card.shield;
         int baseHp = cardDisplay.card.health;
 
-        // Membros da tríade (2/1/3, 2/2/2, 0/4/1): SÓ tríade — não interceptam
+        // Membros da tríade (1/2/4, 1/3/3, 0/3/4): SÓ tríade — não interceptam
         // mais ataques. (O Tank 1/3/2, fora da tríade, ainda pode assumir o dano.)
-        if (baseAtk == 1 && baseShield == 3 && baseHp == 2)
+        if (baseAtk == 1 && baseShield == 3 && baseHp == 4)
             TankTier2Effect4_DefendAny();
 
         // Verifica combo dos 3 Tanks tier-2 (exceto o 4º)
         CheckTankTier2Combo();
     }
 
-    // Efeito 1: Tank 2 (ATK 2, Shield 1, HP 3) - Recebe ataque de Healer
+    // Efeito 1: Tank 2 (ATK 1, Shield 2, HP 4) - Recebe ataque de Healer
     void TankTier2Effect1_DefendHealer()
     {
         // Este efeito é ativado via hook quando um Healer é atacado
@@ -2593,7 +2593,7 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[TankTier2Effect1] {cardDisplay.card.cardName}: Assumiu {damage} de dano no lugar de {victim.card.cardName}");
     }
 
-    // Efeito 2: Tank tier 2 (ATK 2, Shield 2, HP 2) - Recebe ataque de Arqueiro
+    // Efeito 2: Tank tier 2 (ATK 1, Shield 3, HP 3) - Recebe ataque de Arqueiro
     void TankTier2Effect2_DefendArcher()
     {
         // Este efeito é ativado via hook quando um Arqueiro é atacado
@@ -2610,7 +2610,7 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[TankTier2Effect2] {cardDisplay.card.cardName}: Assumiu {damage} de dano no lugar de {victim.card.cardName}");
     }
 
-    // Efeito 3: Tank tier 2 (ATK 0, Shield 4, HP 1) - Recebe ataque de Mago
+    // Efeito 3: Tank tier 2 (ATK 0, Shield 3, HP 4) - Recebe ataque de Mago
     void TankTier2Effect3_DefendMago()
     {
         // Este efeito é ativado via hook quando um Mago é atacado
@@ -2627,7 +2627,7 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[TankTier2Effect3] {cardDisplay.card.cardName}: Assumiu {damage} de dano no lugar de {victim.card.cardName}");
     }
 
-    // Efeito 4: Tank tier 2 (ATK 1, Shield 3, HP 2) - Pode receber qualquer ataque
+    // Efeito 4: Tank tier 2 (ATK 1, Shield 3, HP 4) - Pode receber qualquer ataque
     void TankTier2Effect4_DefendAny()
     {
         // Este efeito é ativado via hook quando qualquer aliado é atacado
@@ -2652,24 +2652,24 @@ public class CardEffectSimple : MonoBehaviour
 
         var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
 
-        // Membros DISTINTOS da tríade: (2/1/3), (2/2/2) e (0/4/1) — exclui o
-        // 4º (1/3/2) que defende qualquer um. BUGFIX: duplicatas não contam, e
+        // Membros DISTINTOS da tríade: (1/2/4), (1/3/3) e (0/3/4) — exclui o
+        // 4º (1/3/4) que defende qualquer um. BUGFIX: duplicatas não contam, e
         // se algum membro em campo já ativou, a tríade está gasta (antes cada
         // cópia nova re-disparava o +10 de armadura para todos)
-        bool has213 = false, has222 = false, has041 = false;
+        bool has124 = false, has133 = false, has034 = false;
         foreach (var ally in allies)
         {
             if (ally == null || ally.card == null) continue;
             if (ally.card.cardClass != CardClass.Tank || ally.card.tier != CardTier.Tier2) continue;
 
-            if (ally.card.attack == 2 && ally.card.shield == 1 && ally.card.health == 3) { if (ally.archerComboActivated) return; has213 = true; }
-            else if (ally.card.attack == 2 && ally.card.shield == 2 && ally.card.health == 2) { if (ally.archerComboActivated) return; has222 = true; }
-            else if (ally.card.attack == 0 && ally.card.shield == 4 && ally.card.health == 1) { if (ally.archerComboActivated) return; has041 = true; }
+            if (ally.card.attack == 1 && ally.card.shield == 2 && ally.card.health == 4) { if (ally.archerComboActivated) return; has124 = true; }
+            else if (ally.card.attack == 1 && ally.card.shield == 3 && ally.card.health == 3) { if (ally.archerComboActivated) return; has133 = true; }
+            else if (ally.card.attack == 0 && ally.card.shield == 3 && ally.card.health == 4) { if (ally.archerComboActivated) return; has034 = true; }
         }
 
         // Se os 3 Tanks tier-2 defensores estão em campo, ativa combo:
         // "+10 de armadura a todos" = TODOS os aliados no tabuleiro
-        if (has213 && has222 && has041)
+        if (has124 && has133 && has034)
         {
             foreach (var ally in allies)
             {
@@ -2681,9 +2681,9 @@ public class CardEffectSimple : MonoBehaviour
                 // Trava de "1x por partida" SÓ nos 3 defensores da tríade
                 // (a flag é compartilhada com as tríades de Arqueiro/Mago)
                 if (ally.card.cardClass == CardClass.Tank && ally.card.tier == CardTier.Tier2 &&
-                    ((ally.card.attack == 2 && ally.card.shield == 1 && ally.card.health == 3) ||
-                     (ally.card.attack == 2 && ally.card.shield == 2 && ally.card.health == 2) ||
-                     (ally.card.attack == 0 && ally.card.shield == 4 && ally.card.health == 1)))
+                    ((ally.card.attack == 1 && ally.card.shield == 2 && ally.card.health == 4) ||
+                     (ally.card.attack == 1 && ally.card.shield == 3 && ally.card.health == 3) ||
+                     (ally.card.attack == 0 && ally.card.shield == 3 && ally.card.health == 4)))
                 {
                     ally.archerComboActivated = true; // Reusa flag
                 }
@@ -2703,13 +2703,13 @@ public class CardEffectSimple : MonoBehaviour
         int baseShield = cardDisplay.card.shield;
         int baseHp = cardDisplay.card.health;
 
-        if (baseAtk == 0 && baseShield == 2 && baseHp == 3)
+        if (baseAtk == 0 && baseShield == 2 && baseHp == 4)
             TankEffect1_AttackPerMago();
-        else if (baseAtk == 1 && baseShield == 1 && baseHp == 1)
+        else if (baseAtk == 1 && baseShield == 1 && baseHp == 4)
             TankEffect2_BoostOnHeal();
-        else if (baseAtk == 0 && baseShield == 2 && baseHp == 1)
+        else if (baseAtk == 0 && baseShield == 2 && baseHp == 3)
             TankEffect3_AttackOnHeal();
-        else if (baseAtk == 2 && baseShield == 2 && baseHp == 3)
+        else if (baseAtk == 1 && baseShield == 2 && baseHp == 3)
             TankEffect5_ShieldHandIfMagoOnBoard();
     }
 
@@ -2807,31 +2807,31 @@ public class CardEffectSimple : MonoBehaviour
         if (c.cardClass == CardClass.Healer && c.tier == CardTier.Tier1 && c.attack == 0 && c.health == 3)
             cardDisplay.StartEffectCounter(2, true, true);
 
-        // Healer 4 (ATK 3, HP 3): cura 4 a cada 2 ROUNDS (era código morto — nunca disparava)
-        else if (c.cardClass == CardClass.Healer && c.tier == CardTier.Tier4 && c.attack == 3 && c.health == 3)
+        // Healer 4 (ATK 2, HP 5): cura 4 a cada 2 ROUNDS (era código morto — nunca disparava)
+        else if (c.cardClass == CardClass.Healer && c.tier == CardTier.Tier4 && c.attack == 2 && c.health == 5)
             cardDisplay.StartEffectCounter(2, true, true);
 
-        // Tank 5 (ATK 2, Shield 6, HP 8): +2 armadura a aliado a cada 2 TURNOS
-        else if (c.cardClass == CardClass.Tank && c.tier == CardTier.Tier5 && c.attack == 2 && c.shield == 6 && c.health == 8)
+        // Tank 5 (ATK 3, Shield 6, HP 9): +2 armadura a aliado a cada 2 TURNOS
+        else if (c.cardClass == CardClass.Tank && c.tier == CardTier.Tier5 && c.attack == 3 && c.shield == 6 && c.health == 9)
             cardDisplay.StartEffectCounter(2, false, true);
 
-        // Tank 3 (ATK 2, Shield 3, HP 4): +2 armadura aos Healers a cada 2 TURNOS
-        else if (c.cardClass == CardClass.Tank && c.tier == CardTier.Tier3 && c.attack == 2 && c.shield == 3 && c.health == 4)
+        // Tank 3 (ATK 2, Shield 3, HP 6): +2 armadura aos Healers a cada 2 TURNOS
+        else if (c.cardClass == CardClass.Tank && c.tier == CardTier.Tier3 && c.attack == 2 && c.shield == 3 && c.health == 6)
             cardDisplay.StartEffectCounter(2, false, true);
 
-        // Archer 4 (ATK 6, HP 3): stun em inimigo aleatório a cada 2 TURNOS
+        // Archer 4 (ATK 4, HP 2): stun em inimigo aleatório a cada 2 TURNOS
         // (o primeiro stun sai na entrada em campo, via ArcherTier4Effect2)
-        else if (c.cardClass == CardClass.Arqueiro && c.tier == CardTier.Tier4 && c.attack == 6 && c.health == 3)
+        else if (c.cardClass == CardClass.Arqueiro && c.tier == CardTier.Tier4 && c.attack == 4 && c.health == 2)
             cardDisplay.StartEffectCounter(2, false, true);
 
-        // Mage 4 (ATK 6, HP 3): +1 ouro uma vez por ROUND (era código morto —
+        // Mage 4 (ATK 4, HP 4): +1 ouro uma vez por ROUND (era código morto —
         // o método existia mas nunca era chamado, o ouro nunca chegava)
-        else if (c.cardClass == CardClass.Mago && c.tier == CardTier.Tier4 && c.attack == 6 && c.health == 3)
+        else if (c.cardClass == CardClass.Mago && c.tier == CardTier.Tier4 && c.attack == 4 && c.health == 4)
             cardDisplay.StartEffectCounter(1, true, true);
 
-        // Mage 3 (ATK 3, HP 2): congelar OU causar 1 de dano, uma vez por TURNO
+        // Mage 3 (ATK 3, HP 4): congelar OU causar 1 de dano, uma vez por TURNO
         // (era one-shot por partida; o primeiro uso sai na entrada em campo)
-        else if (c.cardClass == CardClass.Mago && c.tier == CardTier.Tier3 && c.attack == 3 && c.health == 2)
+        else if (c.cardClass == CardClass.Mago && c.tier == CardTier.Tier3 && c.attack == 3 && c.health == 4)
             cardDisplay.StartEffectCounter(1, false, true);
     }
 
@@ -2848,17 +2848,17 @@ public class CardEffectSimple : MonoBehaviour
 
         if (c.cardClass == CardClass.Healer && c.tier == CardTier.Tier1 && c.attack == 0 && c.health == 3)
             HealerEffect1_RandomAllyPeriodicHeal();
-        else if (c.cardClass == CardClass.Healer && c.tier == CardTier.Tier4 && c.attack == 3 && c.health == 3)
+        else if (c.cardClass == CardClass.Healer && c.tier == CardTier.Tier4 && c.attack == 2 && c.health == 5)
             ActivatePeriodicCure();
-        else if (c.cardClass == CardClass.Tank && c.tier == CardTier.Tier5 && c.attack == 2 && c.shield == 6 && c.health == 8)
+        else if (c.cardClass == CardClass.Tank && c.tier == CardTier.Tier5 && c.attack == 3 && c.shield == 6 && c.health == 9)
             ActivatePeriodicShieldTier5Effect2();
-        else if (c.cardClass == CardClass.Tank && c.tier == CardTier.Tier3 && c.attack == 2 && c.shield == 3 && c.health == 4)
+        else if (c.cardClass == CardClass.Tank && c.tier == CardTier.Tier3 && c.attack == 2 && c.shield == 3 && c.health == 6)
             ActivateBoostHealersPeriodic();
-        else if (c.cardClass == CardClass.Arqueiro && c.tier == CardTier.Tier4 && c.attack == 6 && c.health == 3)
+        else if (c.cardClass == CardClass.Arqueiro && c.tier == CardTier.Tier4 && c.attack == 4 && c.health == 2)
             ActivateRandomStun();
-        else if (c.cardClass == CardClass.Mago && c.tier == CardTier.Tier4 && c.attack == 6 && c.health == 3)
+        else if (c.cardClass == CardClass.Mago && c.tier == CardTier.Tier4 && c.attack == 4 && c.health == 4)
             ActivateGoldPerRound();
-        else if (c.cardClass == CardClass.Mago && c.tier == CardTier.Tier3 && c.attack == 3 && c.health == 2)
+        else if (c.cardClass == CardClass.Mago && c.tier == CardTier.Tier3 && c.attack == 3 && c.health == 4)
             ActivateFreezeOrDamagePerTurn();
     }
 }

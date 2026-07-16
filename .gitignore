@@ -21,3 +21,6 @@ Recordings/
 *.svd
 *.pdb
 *.mdb
+
+# Biblioteca de assets de decoração (fora do build; só os curados vão em Resources/decor)
+decor-library/

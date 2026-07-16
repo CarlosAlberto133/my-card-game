@@ -16,8 +16,8 @@ MonoBehaviour:
   cardClass: 0
   tier: 2
   artwork: {fileID: 21300000, guid: a1dd91fffa64c9d47b39be5f9304c57d, type: 3}
-  attack: 2
-  shield: 1
-  health: 3
+  attack: 1
+  shield: 2
+  health: 4
   effectDescription: Carta triade. Caso os outros guerreiros estejam em campo, conceda
     +10 de armadura a todos

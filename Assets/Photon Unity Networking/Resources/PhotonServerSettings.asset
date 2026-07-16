@@ -19,7 +19,7 @@ MonoBehaviour:
   PreferredRegion: 0
   EnabledRegions: -1
   Protocol: 0
-  ServerAddress: 
+  ServerAddress:
   ServerPort: 5055
   VoiceServerPort: 5055
   JoinLobby: 1
@@ -60,4 +60,5 @@ MonoBehaviour:
   - RPC_TargetedAttack
   - RPC_RequestRestart
   - RPC_RestartGame
+  - RPC_SetShopLock
   DisableAutoOpenWizard: 1

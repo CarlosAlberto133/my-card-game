@@ -58,16 +58,30 @@ public static class MatchLogRecorder
         OnLogMessage(message, null, LogType.Log);
     }
 
+    // Devolve o histórico completo como texto (para upload ao banco no fim da
+    // partida). Se passar do limite, mantém o FIM (as linhas mais recentes —
+    // que são as da partida que acabou de terminar).
+    public static string GetFullText(int maxChars = int.MaxValue)
+    {
+        var sb = new System.Text.StringBuilder(entries.Count * 64);
+        foreach (string line in entries)
+            sb.AppendLine(line);
+        if (sb.Length > maxChars)
+            sb.Remove(0, sb.Length - maxChars);
+        return sb.ToString();
+    }
+
     // Salva tudo em um .txt e devolve o caminho do arquivo (null se falhar).
     // extraReport: texto adicional anexado ao fim (ex.: raio-X do estado atual).
-    public static string ExportToFile(string extraReport = null)
+    // filePrefix: nome-base do arquivo (ex.: "partida_finalizada").
+    public static string ExportToFile(string extraReport = null, string filePrefix = "partida")
     {
         try
         {
             string dir = Path.Combine(Application.persistentDataPath, "match-logs");
             Directory.CreateDirectory(dir);
             string file = Path.Combine(dir,
-                $"partida_{System.DateTime.Now:yyyy-MM-dd_HH-mm-ss}.txt");
+                $"{filePrefix}_{System.DateTime.Now:yyyy-MM-dd_HH-mm-ss}.txt");
 
             var sb = new System.Text.StringBuilder(entries.Count * 64);
             sb.AppendLine("===== HISTÓRICO COMPLETO DA PARTIDA =====");

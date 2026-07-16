@@ -16,8 +16,8 @@ MonoBehaviour:
   cardClass: 3
   tier: 3
   artwork: {fileID: 21300000, guid: 11f734d61e3d6154bb06c96411e6a287, type: 3}
-  attack: 4
+  attack: 3
   shield: 0
-  health: 2
+  health: 3
   effectDescription: "Invoque uma \xE1gua para perseguir um inimigo aleat\xF3rio
     por 2 turnos, o inimigo com a aguia n\xE3o pode atacar"

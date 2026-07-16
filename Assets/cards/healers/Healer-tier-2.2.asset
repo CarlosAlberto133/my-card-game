@@ -18,6 +18,6 @@ MonoBehaviour:
   artwork: {fileID: 21300000, guid: b09c8c450819364489522c4935b8668a, type: 3}
   attack: 1
   shield: 0
-  health: 3
+  health: 4
   effectDescription: "Carta triade. Caso tenha os outros healers em campo, restaure
     o m\xE1ximo de ouro e vida da torre"

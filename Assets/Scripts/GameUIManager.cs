@@ -98,6 +98,94 @@ public class GameUIManager : MonoBehaviour
         // engrenagem (MusicManager) — não há mais botões soltos no canto
         CreateShopButton();
         CreateLogsButton();
+        CreateShopLockToggle();
+    }
+
+    // ── Checkbox "Travar loja" (acima do botão Passar a Vez) ─────────────
+    // Marcado: a SUA loja não renova automaticamente na virada do round (o
+    // reset pago continua funcionando). Estado sincronizado por RPC.
+    private GameObject shopLockObj;
+    private UnityEngine.UI.Toggle shopLockToggle;
+
+    void CreateShopLockToggle()
+    {
+        if (endTurnButton == null) return;
+        RectTransform btnRt = endTurnButton.GetComponent<RectTransform>();
+        if (btnRt == null) return;
+
+        shopLockObj = new GameObject("ShopLockToggle",
+            typeof(RectTransform), typeof(Image), typeof(UnityEngine.UI.Toggle));
+        shopLockObj.transform.SetParent(btnRt.parent, false);
+
+        RectTransform rt = shopLockObj.GetComponent<RectTransform>();
+        rt.anchorMin = btnRt.anchorMin;
+        rt.anchorMax = btnRt.anchorMax;
+        rt.pivot = btnRt.pivot;
+        float btnH = btnRt.sizeDelta.y > 1f ? btnRt.sizeDelta.y : 40f;
+        float btnW = btnRt.sizeDelta.x > 1f ? btnRt.sizeDelta.x : 160f;
+        rt.sizeDelta = new Vector2(Mathf.Min(btnW, 220f), 32f);
+        // Logo acima do botão (metades das alturas + folga)
+        rt.anchoredPosition = btnRt.anchoredPosition + new Vector2(0f, (btnH + 32f) * 0.5f + 6f);
+
+        Image bg = shopLockObj.GetComponent<Image>();
+        bg.color = new Color(0.10f, 0.12f, 0.20f, 0.85f);
+
+        // Caixinha + marca
+        GameObject box = new GameObject("Box", typeof(RectTransform), typeof(Image));
+        box.transform.SetParent(shopLockObj.transform, false);
+        RectTransform boxRt = box.GetComponent<RectTransform>();
+        boxRt.anchorMin = new Vector2(0f, 0.5f);
+        boxRt.anchorMax = new Vector2(0f, 0.5f);
+        boxRt.pivot = new Vector2(0f, 0.5f);
+        boxRt.anchoredPosition = new Vector2(6f, 0f);
+        boxRt.sizeDelta = new Vector2(22f, 22f);
+        box.GetComponent<Image>().color = new Color(0.20f, 0.22f, 0.34f, 1f);
+
+        GameObject check = new GameObject("Check", typeof(RectTransform), typeof(Image));
+        check.transform.SetParent(box.transform, false);
+        RectTransform chkRt = check.GetComponent<RectTransform>();
+        chkRt.anchorMin = new Vector2(0.18f, 0.18f);
+        chkRt.anchorMax = new Vector2(0.82f, 0.82f);
+        chkRt.offsetMin = Vector2.zero;
+        chkRt.offsetMax = Vector2.zero;
+        check.GetComponent<Image>().color = new Color(0.96f, 0.77f, 0.32f); // dourado
+
+        // Rótulo
+        GameObject lbl = new GameObject("Label", typeof(RectTransform));
+        lbl.transform.SetParent(shopLockObj.transform, false);
+        RectTransform lblRt = lbl.GetComponent<RectTransform>();
+        lblRt.anchorMin = new Vector2(0f, 0f);
+        lblRt.anchorMax = new Vector2(1f, 1f);
+        lblRt.offsetMin = new Vector2(34f, 0f);
+        lblRt.offsetMax = new Vector2(-4f, 0f);
+        TextMeshProUGUI tmp = lbl.AddComponent<TextMeshProUGUI>();
+        tmp.text = "Travar loja";
+        tmp.fontSize = 16f;
+        tmp.alignment = TextAlignmentOptions.Left;
+        tmp.color = Color.white;
+        tmp.raycastTarget = false;
+
+        shopLockToggle = shopLockObj.GetComponent<UnityEngine.UI.Toggle>();
+        shopLockToggle.targetGraphic = bg;
+        shopLockToggle.graphic = check.GetComponent<Image>();
+        shopLockToggle.isOn = false;
+        shopLockToggle.onValueChanged.AddListener(OnShopLockToggled);
+
+        shopLockObj.SetActive(false); // só aparece com a partida rolando
+    }
+
+    void OnShopLockToggled(bool locked)
+    {
+        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
+        {
+            // Sincronizado: chega aos DOIS clientes na mesma ordem global
+            PhotonGameManager.Instance.SendShopLockRPC(
+                PhotonGameManager.Instance.myPlayerNumber, locked);
+        }
+        else if (CardManager.Instance != null)
+        {
+            CardManager.Instance.SetShopLocked(0, locked); // offline: loja compartilhada
+        }
     }
 
     private TextMeshProUGUI shopButtonText;
@@ -722,7 +810,7 @@ public class GameUIManager : MonoBehaviour
                 : $"   <color={cor}>habilidade recarrega em {c.effectCounter} {unit}</color>");
         }
         else if (c.card.cardClass == CardClass.Healer && c.card.tier == CardTier.Tier1 &&
-                 c.card.attack == 1 && c.card.health == 2)
+                 c.card.attack == 0 && c.card.health == 4)
         {
             sb.AppendLine($"   <color={OK}>anular ataque: PRONTO</color>");
         }
@@ -741,13 +829,13 @@ public class GameUIManager : MonoBehaviour
     {
         sb.AppendLine("<b>Tríades (as 3 em campo ativam o bônus):</b>");
         AppendOneTriad(sb, myCards, "Arqueiros (+5 ATK a todos os aliados)", CardClass.Arqueiro,
-            new int[][] { new[] { 3, 0, 1 }, new[] { 3, 0, 3 }, new[] { 4, 0, 2 } });
+            new int[][] { new[] { 2, 0, 2 }, new[] { 3, 0, 2 }, new[] { 2, 0, 3 } });
         AppendOneTriad(sb, myCards, "Healers (ouro e vida da torre no máximo)", CardClass.Healer,
-            new int[][] { new[] { 1, 0, 3 }, new[] { 0, 0, 3 }, new[] { 2, 0, 3 } });
+            new int[][] { new[] { 1, 0, 4 }, new[] { 0, 0, 4 }, new[] { 0, 0, 3 } });
         AppendOneTriad(sb, myCards, "Magos (invoca Mago Lendário)", CardClass.Mago,
-            new int[][] { new[] { 2, 0, 3 }, new[] { 3, 0, 1 }, new[] { 3, 0, 2 } });
+            new int[][] { new[] { 2, 0, 4 }, new[] { 2, 0, 3 }, new[] { 3, 0, 3 } });
         AppendOneTriad(sb, myCards, "Tanks (+10 armadura a todos os aliados)", CardClass.Tank,
-            new int[][] { new[] { 2, 1, 3 }, new[] { 2, 2, 2 }, new[] { 0, 4, 1 } });
+            new int[][] { new[] { 1, 2, 4 }, new[] { 1, 3, 3 }, new[] { 0, 3, 4 } });
     }
 
     // members: cada item = {ATK, DEF, HP} da carta da tríade
@@ -807,37 +895,37 @@ public class GameUIManager : MonoBehaviour
             if (c == null || c.card == null) continue;
             Card card = c.card;
 
-            // Tank 4 (5/10/10): 50% menos dano + armadura/turno com as 3 classes
+            // Tank 4 (3/6/7): 50% menos dano + armadura/turno com as 3 classes
             if (card.cardClass == CardClass.Tank && card.tier == CardTier.Tier4 &&
-                card.attack == 5 && card.shield == 10 && card.health == 10)
+                card.attack == 3 && card.shield == 6 && card.health == 7)
             {
                 any = true;
-                sb.AppendLine(ComboLine("Tank 4 (5/10/10) — 50% menos dano + armadura/turno",
+                sb.AppendLine(ComboLine("Tank 4 (3/6/7) — 50% menos dano + armadura/turno",
                     Missing(hasHealer, "Healer", hasMage, "Mago", hasArcher, "Arqueiro"), false));
             }
-            // Tank 4 (1/6/3): +5 HP +2 DEF com Arqueiro e Mago (1x)
+            // Tank 4 (2/5/6): +5 HP +2 DEF com Arqueiro e Mago (1x)
             else if (card.cardClass == CardClass.Tank && card.tier == CardTier.Tier4 &&
-                     card.attack == 1 && card.shield == 6 && card.health == 3)
+                     card.attack == 2 && card.shield == 5 && card.health == 6)
             {
                 any = true;
-                sb.AppendLine(ComboLine("Tank 4 (1/6/3) — +5 HP e +2 DEF",
+                sb.AppendLine(ComboLine("Tank 4 (2/5/6) — +5 HP e +2 DEF",
                     Missing(hasArcher, "Arqueiro", hasMage, "Mago"), c.tankTier4Effect1Used));
             }
-            // Tank 4 (2/3/5): Arqueiros atacam 2x com as 4 classes (aura contínua)
+            // Tank 4 (2/5/7): Arqueiros atacam 2x com as 4 classes (aura contínua)
             else if (card.cardClass == CardClass.Tank && card.tier == CardTier.Tier4 &&
-                     card.attack == 2 && card.shield == 3 && card.health == 5)
+                     card.attack == 2 && card.shield == 5 && card.health == 7)
             {
                 any = true;
-                sb.AppendLine(ComboLine("Tank 4 (2/3/5) — Arqueiros atacam 2x (enquanto houver as 4 classes)",
+                sb.AppendLine(ComboLine("Tank 4 (2/5/7) — Arqueiros atacam 2x (enquanto houver as 4 classes)",
                     Missing(hasTank, "Tank", hasHealer, "Healer", hasMage, "Mago", hasArcher, "Arqueiro"),
                     false));
             }
-            // Healer 4 (4/4): +3 em todos os status com Tank+Arqueiro+Mago (1x)
+            // Healer 4 (3/4): +3 em todos os status com Tank+Arqueiro+Mago (1x)
             else if (card.cardClass == CardClass.Healer && card.tier == CardTier.Tier4 &&
-                     card.attack == 4 && card.health == 4)
+                     card.attack == 3 && card.health == 4)
             {
                 any = true;
-                sb.AppendLine(ComboLine("Healer 4 (4/4) — +3 todos os status dos aliados",
+                sb.AppendLine(ComboLine("Healer 4 (3/4) — +3 todos os status dos aliados",
                     Missing(hasTank, "Tank", hasArcher, "Arqueiro", hasMage, "Mago"), c.healerTier4Effect4Used));
             }
         }
@@ -879,6 +967,10 @@ public class GameUIManager : MonoBehaviour
     public void QuitGame()
     {
         Debug.Log("[GameUIManager] Saindo do jogo...");
+
+        // Se fechar no meio de uma partida, grava o log pendente (sobe no próximo
+        // boot). Pós-partida (tela de vitória) já foi salvo — aqui é no-op.
+        MatchReporter.SaveAbandonedNow();
 
         // Desconecta do Photon antes de fechar (avisa o oponente)
         if (PhotonNetwork.connected)
@@ -983,6 +1075,16 @@ public class GameUIManager : MonoBehaviour
         {
             // Botão "Reset Store" aparece sempre
             resetStoreButton.gameObject.SetActive(true);
+        }
+
+        // Checkbox "Travar loja": só com a partida rolando; ao voltar pro lobby
+        // (revanche), desmarca — as travas são zeradas no reinício
+        if (shopLockObj != null)
+        {
+            bool playing = TurnManager.Instance.gameState == GameState.Playing;
+            if (shopLockObj.activeSelf != playing) shopLockObj.SetActive(playing);
+            if (!playing && shopLockToggle != null && shopLockToggle.isOn)
+                shopLockToggle.SetIsOnWithoutNotify(false);
         }
     }
 
@@ -1122,6 +1224,10 @@ public class GameUIManager : MonoBehaviour
         victoryOverlay.transform.SetAsLastSibling(); // fica por cima de tudo
 
         Debug.Log($"Tela de vitória mostrada. Vencedor: Jogador {winnerPlayerNumber}");
+
+        // Sobe a partida (duração/rounds/mapa/log) pra conta logada no launcher.
+        // Fora do lockstep: HTTP depois da partida decidida; sem login, não faz nada.
+        MatchReporter.ReportMatchEnd(winnerPlayerNumber);
     }
 
     public void HideVictoryScreen()

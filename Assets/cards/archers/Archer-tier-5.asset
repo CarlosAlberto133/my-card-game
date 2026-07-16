@@ -16,7 +16,7 @@ MonoBehaviour:
   cardClass: 3
   tier: 5
   artwork: {fileID: 21300000, guid: 8b28a66a52bfcf64582a3465a3789edb, type: 3}
-  attack: 8
+  attack: 6
   shield: 0
   health: 3
   effectDescription: causa dano duplicado se atacar um tank

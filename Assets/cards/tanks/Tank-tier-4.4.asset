@@ -18,6 +18,6 @@ MonoBehaviour:
   artwork: {fileID: 21300000, guid: 38f648b08f29f514c9dcf2118c28e033, type: 3}
   attack: 2
   shield: 6
-  health: 5
+  health: 6
   effectDescription: 1 vez por turno recebe o ataque no lugar da outra carta atacado,
     se houver um healer em campo, receba 50% a menos

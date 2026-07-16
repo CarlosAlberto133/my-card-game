@@ -16,8 +16,8 @@ MonoBehaviour:
   cardClass: 0
   tier: 4
   artwork: {fileID: 21300000, guid: 7ed945f75f9259c4bbb387ba7dd4fcac, type: 3}
-  attack: 1
-  shield: 6
-  health: 3
+  attack: 2
+  shield: 5
+  health: 6
   effectDescription: Se houver um arqueiro e um mago no tabuleiro, receba +5 de vida
     e 2 de armadura

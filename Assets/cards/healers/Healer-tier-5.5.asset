@@ -16,8 +16,8 @@ MonoBehaviour:
   cardClass: 2
   tier: 5
   artwork: {fileID: 21300000, guid: a832c3abf38a3704b80647cc6dc18f6e, type: 3}
-  attack: 6
+  attack: 2
   shield: 0
-  health: 3
+  health: 7
   effectDescription: "Enquanto est\xE1 carta estiver em campo cure todos os seu aliados
     em 2 de vida e escudo"

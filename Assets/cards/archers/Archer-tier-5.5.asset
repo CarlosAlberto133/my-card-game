@@ -16,8 +16,8 @@ MonoBehaviour:
   cardClass: 3
   tier: 5
   artwork: {fileID: 0}
-  attack: 10
+  attack: 6
   shield: 0
-  health: 5
+  health: 4
   effectDescription: Ao entrar em campo, retire 2 de armadura de todos os inimigos.
     Ignore armadura do inimigo ao atacar caso tenha um tanque em campo

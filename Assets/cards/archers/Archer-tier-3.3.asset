@@ -16,7 +16,7 @@ MonoBehaviour:
   cardClass: 3
   tier: 3
   artwork: {fileID: 21300000, guid: a49ae7d233ac4c347aea2d04fb950b35, type: 3}
-  attack: 5
+  attack: 4
   shield: 0
-  health: 3
+  health: 2
   effectDescription: "Caso t enha um mago em campo, fa\xE7a uma c\xF3pia de si"

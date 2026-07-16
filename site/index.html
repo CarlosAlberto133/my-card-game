@@ -97,17 +97,30 @@
     margin: 0 0 14px;
   }
 
-  /* ---------- Nav ---------- */
+  /* ---------- Nav (fixa no topo) ---------- */
   nav {
-    position: relative;
-    z-index: 3;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(21, 16, 10, 0.82);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav-inner {
     display: flex;
     align-items: center;
     justify-content: space-between;
     max-width: var(--maxw);
     margin: 0 auto;
-    padding: 20px 24px;
+    padding: 14px 24px;
+    gap: 12px;
   }
+  .user-chip { display:inline-flex; align-items:center; gap:8px; font-size:14px; color:var(--ink); background:var(--bg-2); border:1px solid var(--line-2); border-radius:999px; padding:4px 13px 4px 5px; }
+  .user-chip img { width:26px; height:26px; border-radius:50%; object-fit:cover; }
+  .user-chip .role { font-family:var(--mono); font-size:10px; letter-spacing:0.06em; color:var(--gold); }
+  .btn-google { color:#1a1405; background:#fff; border:1px solid rgba(0,0,0,0.1); }
+  .btn-google svg { width:16px; height:16px; }
   .brand { display: flex; align-items: center; gap: 11px; font-family: var(--display); font-weight: 800; letter-spacing: 0.02em; font-size: 18px; }
   .brand .glyph { width: 24px; height: 24px; flex: none; }
   .brand b { color: var(--gold); font-weight: 800; }
@@ -337,18 +350,27 @@
 <div class="table-glow"></div>
 
 <nav>
-  <div class="brand">
-    <svg class="glyph" viewBox="0 0 24 24"><rect x="3.2" y="3.2" width="17.6" height="17.6" rx="4.4" fill="#f5c451"/><circle cx="8" cy="8" r="1.7" fill="#1a1405"/><circle cx="16" cy="8" r="1.7" fill="#1a1405"/><circle cx="12" cy="12" r="1.7" fill="#1a1405"/><circle cx="8" cy="16" r="1.7" fill="#1a1405"/><circle cx="16" cy="16" r="1.7" fill="#1a1405"/></svg>
-    CARD<b>GAME</b>
-  </div>
-  <div class="nav-links">
-    <a href="#como">Como jogar</a>
-    <a href="#classes">Classes</a>
-    <a href="#instalar">Instalar</a>
-    <a class="btn btn-gold" href="https://github.com/CarlosAlberto133/card-game-releases/raw/main/launcher.zip" download>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
-      Baixar
-    </a>
+  <div class="nav-inner">
+    <div class="brand">
+      <svg class="glyph" viewBox="0 0 24 24"><rect x="3.2" y="3.2" width="17.6" height="17.6" rx="4.4" fill="#f5c451"/><circle cx="8" cy="8" r="1.7" fill="#1a1405"/><circle cx="16" cy="8" r="1.7" fill="#1a1405"/><circle cx="12" cy="12" r="1.7" fill="#1a1405"/><circle cx="8" cy="16" r="1.7" fill="#1a1405"/><circle cx="16" cy="16" r="1.7" fill="#1a1405"/></svg>
+      CARD<b>GAME</b>
+    </div>
+    <div class="nav-links">
+      <a href="#como">Como jogar</a>
+      <a href="#classes">Classes</a>
+      <a href="/forum">Novidades</a>
+      <a href="#instalar">Instalar</a>
+      <button id="loginBtn" class="btn btn-google" style="display:none">
+        <svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.5 30.2 0 24 0 14.6 0 6.4 5.4 2.6 13.3l7.8 6C12.2 13.2 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.2-.4-4.7H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4 6.9-10 6.9-17.3z"/><path fill="#FBBC05" d="M10.4 28.3c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.8-6C.9 16.2 0 20 0 24s.9 7.8 2.6 11l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.2 0 11.5-2 15.3-5.5l-7.5-5.8c-2 1.4-4.7 2.3-7.8 2.3-6.4 0-11.8-3.7-13.7-9l-7.8 6.1C6.4 42.6 14.6 48 24 48z"/></svg>
+        Entrar
+      </button>
+      <span id="userChip" class="user-chip" style="display:none"><img id="userAvatar" alt="" /><span id="userName"></span></span>
+      <button id="logoutBtn" class="btn btn-ghost" style="display:none">Sair</button>
+      <a class="btn btn-gold" href="https://github.com/CarlosAlberto133/card-game-releases/raw/main/launcher.zip" download>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/></svg>
+        Baixar
+      </a>
+    </div>
   </div>
 </nav>
 
@@ -660,4 +682,61 @@
     });
   });
 })();
+</script>
+
+<script type="module">
+// Login com Google na landing (mesma sessão do fórum — Supabase guarda no
+// localStorage, então logar aqui reflete lá e vice-versa)
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+const SUPABASE_URL = 'https://zutdbgltjphsbakeeoda.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_sIC5NDivItmQ_IuVOmWSdQ_LnyaSSOO';
+const ADMIN_EMAIL = 'carlos1995.dev@gmail.com';
+const supa = createClient(SUPABASE_URL, SUPABASE_KEY);
+const $ = (id) => document.getElementById(id);
+let user = null;
+
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+function updateUI() {
+  const logged = !!user;
+  const admin = logged && user.email && user.email.toLowerCase() === ADMIN_EMAIL;
+  $('loginBtn').style.display = logged ? 'none' : '';
+  $('logoutBtn').style.display = logged ? '' : 'none';
+  const chip = $('userChip');
+  if (logged) {
+    const m = user.user_metadata || {};
+    const name = m.full_name || m.name || user.email || 'Você';
+    const av = m.avatar_url || m.picture || '';
+    $('userName').innerHTML = esc(name) + (admin ? ' <span class="role">admin</span>' : '');
+    const img = $('userAvatar');
+    if (av) { img.src = av; img.style.display = ''; } else { img.style.display = 'none'; }
+    chip.style.display = '';
+  } else {
+    chip.style.display = 'none';
+  }
+}
+
+async function upsertProfile() {
+  if (!user) return;
+  const m = user.user_metadata || {};
+  try {
+    const { error } = await supa.from('profiles').upsert({
+      id: user.id, email: user.email,
+      full_name: m.full_name || m.name || null,
+      avatar_url: m.avatar_url || m.picture || null,
+      last_login: new Date().toISOString(),
+    }, { onConflict: 'id' });
+    if (error) console.warn('[profiles]', error.message);
+  } catch (e) { console.warn('[profiles]', e); }
+}
+
+$('loginBtn').onclick = async () => {
+  await supa.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + '/' } });
+};
+$('logoutBtn').onclick = async () => { await supa.auth.signOut(); };
+
+function apply(session) { user = session ? session.user : null; updateUI(); if (user) upsertProfile(); }
+supa.auth.onAuthStateChange((_e, session) => apply(session));
+(async () => { try { const { data } = await supa.auth.getSession(); apply(data.session); } catch (e) { apply(null); } })();
 </script>

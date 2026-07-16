@@ -16,9 +16,9 @@ MonoBehaviour:
   cardClass: 1
   tier: 4
   artwork: {fileID: 21300000, guid: ac9712c622a15144f921ee28d3a1b325, type: 3}
-  attack: 7
+  attack: 4
   shield: 0
-  health: 4
+  health: 5
   effectDescription: "Escolha um monstro inimigo e retire todos os status b\xF4nus
     dele. Caso tenha um healer e um arqueiro em campo, pode jogar o feiti\xE7o mais
     1 vez"

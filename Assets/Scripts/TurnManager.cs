@@ -22,6 +22,10 @@ public class TurnManager : MonoBehaviour
     public bool player1Ready = false;
     public bool player2Ready = false;
 
+    // Momento em que a partida começou (para calcular a duração no upload
+    // da partida — MatchReporter). 0 = ainda não começou.
+    public float matchStartRealtime = 0f;
+
     void Awake()
     {
         if (Instance == null)
@@ -163,6 +167,10 @@ public class TurnManager : MonoBehaviour
         currentRound = 1;
         currentPlayerNumber = 1;
 
+        // Marca o início (duração da partida) e libera o upload do fim dela
+        matchStartRealtime = Time.realtimeSinceStartup;
+        MatchReporter.ResetForNewMatch();
+
         // Resetar flags de ready
         player1Ready = false;
         player2Ready = false;
@@ -252,7 +260,7 @@ public class TurnManager : MonoBehaviour
         // (o outro sintoma de "não consigo mover nada"). Turno/round/ouro/loja
         // precisam avançar SEMPRE, nos dois clientes.
 
-        // Healer tier-4 (ATK 4, HP 3): ganhar ouro quando o turno do OPONENTE acaba
+        // Healer tier-4 (ATK 2, HP 4): ganhar ouro quando o turno do OPONENTE acaba
         try { ActivateHealerTier4OpponentTurnEnd(previousPlayer); }
         catch (System.Exception e) { Debug.LogError($"[EndTurn] HealerTier4: {e}"); }
 
@@ -260,23 +268,23 @@ public class TurnManager : MonoBehaviour
         // (previousPlayer). Antes rodavam para os DOIS jogadores em todo fim de
         // turno = frequência dobrada e "efeito do inimigo ativando no meu turno"
 
-        // Tank 4 tier-4 (ATK 5, Shield 10, HP 10): +1 armadura a aliados por turno
+        // Tank 4 tier-4 (ATK 3, Shield 6, HP 7): +1 armadura a aliados por turno
         try { ActivateTankTier4Effect4Periodic(previousPlayer); }
         catch (System.Exception e) { Debug.LogError($"[EndTurn] TankTier4E4: {e}"); }
 
-        // Healer 5 tier-5 (ATK 6, HP 3): cura todos aliados a cada turno
+        // Healer 5 tier-5 (ATK 2, HP 7): cura todos aliados a cada turno
         try { ActivateHealerTier5Effect2Periodic(previousPlayer); }
         catch (System.Exception e) { Debug.LogError($"[EndTurn] HealerTier5E2: {e}"); }
 
-        // Mage 5 tier-5 (ATK 8, HP 4): congela inimigo aleatório uma vez por round
+        // Mage 5 tier-5 (ATK 5, HP 5): congela inimigo aleatório uma vez por round
         try { ActivateMageTier5Effect1Periodic(); }
         catch (System.Exception e) { Debug.LogError($"[EndTurn] MageTier5E1: {e}"); }
 
-        // Mage 5 tier-5 (ATK 7, HP 5): aumenta ATK de todos Magos ao resetar turno
+        // Mage 5 tier-5 (ATK 5, HP 6): aumenta ATK de todos Magos ao resetar turno
         try { ActivateMageTier5Effect3Periodic(previousPlayer); }
         catch (System.Exception e) { Debug.LogError($"[EndTurn] MageTier5E3: {e}"); }
 
-        // (Tank 5 ATK 2/Sh 6/HP 8 agora é dirigido pelo contador da carta — sem hook)
+        // (Tank 5 ATK 3/Sh 6/HP 9 agora é dirigido pelo contador da carta — sem hook)
 
         // Tique central: durações de status (congelada/stun/águia/invulnerável),
         // contadores de efeito periódico e resets por turno
@@ -488,7 +496,7 @@ public class TurnManager : MonoBehaviour
         }
     }
 
-    // Healer 4 (ATK 4, HP 3): "Receba 1 ouro sempre que o turno do OPONENTE acabar".
+    // Healer 4 (ATK 2, HP 4): "Receba 1 ouro sempre que o turno do OPONENTE acabar".
     // O beneficiário é o jogador que NÃO passou a vez (antes estava invertido:
     // dava ouro a quem acabou o próprio turno)
     void ActivateHealerTier4OpponentTurnEnd(int endedTurnPlayer)
@@ -500,11 +508,11 @@ public class TurnManager : MonoBehaviour
         var beneficiaryCards = board.GetCardsByOwner(beneficiary);
         if (beneficiaryCards.Count == 0) return;
 
-        // Procura por Healer 4 (ATK 4, HP 3) no campo de quem NÃO jogou
+        // Procura por Healer 4 (ATK 2, HP 4) no campo de quem NÃO jogou
         foreach (var card in beneficiaryCards)
         {
             if (card != null && card.card != null && card.card.cardClass == CardClass.Healer &&
-                card.card.attack == 4 && card.card.health == 3 && card.card.tier == CardTier.Tier4)
+                card.card.attack == 2 && card.card.health == 4 && card.card.tier == CardTier.Tier4)
             {
                 if (!DuplicateEffectGate.TryActivate(card)) continue;
                 CardEffectSimple effect = card.GetComponent<CardEffectSimple>();
@@ -521,7 +529,7 @@ public class TurnManager : MonoBehaviour
         BoardManager board = BoardManager.Instance;
         if (board == null) return;
 
-        // Só os Tank 4 (5/10/10) de quem acabou de jogar o turno
+        // Só os Tank 4 (3/6/7) de quem acabou de jogar o turno
         for (int playerNum = ownerPlayer; playerNum <= ownerPlayer; playerNum++)
         {
             var playerAllies = board.GetCardsByOwner(playerNum);
@@ -530,7 +538,7 @@ public class TurnManager : MonoBehaviour
             foreach (var card in playerAllies)
             {
                 if (card != null && card.card != null && card.card.cardClass == CardClass.Tank &&
-                    card.card.attack == 5 && card.card.shield == 10 && card.card.health == 10 &&
+                    card.card.attack == 3 && card.card.shield == 6 && card.card.health == 7 &&
                     card.card.tier == CardTier.Tier4)
                 {
                     if (!DuplicateEffectGate.TryActivate(card)) continue;
@@ -549,7 +557,7 @@ public class TurnManager : MonoBehaviour
         BoardManager board = BoardManager.Instance;
         if (board == null) return;
 
-        // Só os Healer 5 (6/3) de quem acabou de jogar o turno
+        // Só os Healer 5 (2/7) de quem acabou de jogar o turno
         for (int playerNum = ownerPlayer; playerNum <= ownerPlayer; playerNum++)
         {
             var playerAllies = board.GetCardsByOwner(playerNum);
@@ -558,7 +566,7 @@ public class TurnManager : MonoBehaviour
             foreach (var card in playerAllies)
             {
                 if (card != null && card.card != null && card.card.cardClass == CardClass.Healer &&
-                    card.card.attack == 6 && card.card.health == 3 &&
+                    card.card.attack == 2 && card.card.health == 7 &&
                     card.card.tier == CardTier.Tier5)
                 {
                     if (!DuplicateEffectGate.TryActivate(card)) continue;
@@ -577,7 +585,7 @@ public class TurnManager : MonoBehaviour
         BoardManager board = BoardManager.Instance;
         if (board == null) return;
 
-        // Procura por Mage 5 tier-5 (ATK 8, HP 4) em ambos os jogadores
+        // Procura por Mage 5 tier-5 (ATK 5, HP 5) em ambos os jogadores
         for (int playerNum = 1; playerNum <= 2; playerNum++)
         {
             var playerAllies = board.GetCardsByOwner(playerNum);
@@ -586,7 +594,7 @@ public class TurnManager : MonoBehaviour
             foreach (var card in playerAllies)
             {
                 if (card != null && card.card != null && card.card.cardClass == CardClass.Mago &&
-                    card.card.attack == 8 && card.card.health == 4 &&
+                    card.card.attack == 5 && card.card.health == 5 &&
                     card.card.tier == CardTier.Tier5)
                 {
                     // Verifica se já foi usado neste round
@@ -610,7 +618,7 @@ public class TurnManager : MonoBehaviour
         BoardManager board = BoardManager.Instance;
         if (board == null) return;
 
-        // Só os Mage 5 (7/5) de quem acabou de jogar o turno
+        // Só os Mage 5 (5/6) de quem acabou de jogar o turno
         for (int playerNum = ownerPlayer; playerNum <= ownerPlayer; playerNum++)
         {
             var playerAllies = board.GetCardsByOwner(playerNum);
@@ -619,7 +627,7 @@ public class TurnManager : MonoBehaviour
             foreach (var card in playerAllies)
             {
                 if (card != null && card.card != null && card.card.cardClass == CardClass.Mago &&
-                    card.card.attack == 7 && card.card.health == 5 &&
+                    card.card.attack == 5 && card.card.health == 6 &&
                     card.card.tier == CardTier.Tier5)
                 {
                     if (!DuplicateEffectGate.TryActivate(card)) continue;

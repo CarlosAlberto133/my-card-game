@@ -12,6 +12,12 @@
 $RepoOwner = "CarlosAlberto133"        # seu usuario do GitHub
 $RepoName  = "card-game-releases"      # repositorio PUBLICO so para as builds
 $AssetName = "card-game.zip"           # nome do .zip que voce sobe em cada release
+
+# Login com Google (Supabase) — a sessao vai para session.json e o JOGO a usa
+# para salvar as partidas/logs na conta do jogador
+$SupabaseUrl  = "https://zutdbgltjphsbakeeoda.supabase.co"
+$SupabaseKey  = "sb_publishable_sIC5NDivItmQ_IuVOmWSdQ_LnyaSSOO"
+$AuthPort     = 53682                  # porta local que recebe o retorno do Google
 # -----------------------------------------------------------------
 
 # GitHub exige TLS 1.2 (o PowerShell antigo usa 1.0 por padrao e falharia)
@@ -28,6 +34,7 @@ $GameDir     = Join-Path $InstallRoot "game"
 $VersionFile = Join-Path $InstallRoot "installed.txt"
 $ZipTemp     = Join-Path $InstallRoot "update.zip"
 $LogFile     = Join-Path $InstallRoot "launcher.log"
+$SessionFile = Join-Path $InstallRoot "session.json"   # sessao do login (o jogo le daqui)
 
 if (-not (Test-Path $InstallRoot)) { New-Item -ItemType Directory -Path $InstallRoot | Out-Null }
 
@@ -60,12 +67,19 @@ $script:webClient   = $null
 $script:timer       = $null   # PRECISA ser script: — variavel local da funcao
 $script:installDone = $false  # nao existe mais quando o evento Tick dispara!
 
+# Login com Google
+$script:authListener = $null
+$script:authCtxTask  = $null
+$script:authTimer    = $null
+$script:pkceVerifier = $null
+$script:authDeadline = $null
+
 # ============================================================
 #  Janela
 # ============================================================
 $form = New-Object System.Windows.Forms.Form
 $form.Text            = "Card Game"
-$form.Size            = New-Object System.Drawing.Size(440, 220)
+$form.Size            = New-Object System.Drawing.Size(440, 316)
 $form.StartPosition   = "CenterScreen"
 $form.FormBorderStyle = "FixedSingle"
 $form.MaximizeBox     = $false
@@ -108,6 +122,27 @@ $playBtn.BackColor = [System.Drawing.Color]::FromArgb(70, 110, 220)
 $playBtn.ForeColor = [System.Drawing.Color]::White
 $playBtn.Enabled   = $false
 $form.Controls.Add($playBtn)
+
+# ---------- Área de login (Google) ----------
+$userLabel = New-Object System.Windows.Forms.Label
+$userLabel.Text      = "Voce nao esta logado. Entre para salvar suas partidas!"
+$userLabel.Font      = New-Object System.Drawing.Font("Segoe UI", 9)
+$userLabel.ForeColor = [System.Drawing.Color]::FromArgb(180, 190, 220)
+$userLabel.AutoSize  = $false
+$userLabel.TextAlign = "MiddleCenter"
+$userLabel.Size      = New-Object System.Drawing.Size(410, 22)
+$userLabel.Location  = New-Object System.Drawing.Point(8, 182)
+$form.Controls.Add($userLabel)
+
+$authBtn = New-Object System.Windows.Forms.Button
+$authBtn.Text      = "Entrar com Google"
+$authBtn.Font      = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
+$authBtn.Size      = New-Object System.Drawing.Size(390, 36)
+$authBtn.Location  = New-Object System.Drawing.Point(20, 210)
+$authBtn.FlatStyle = "Flat"
+$authBtn.BackColor = [System.Drawing.Color]::White
+$authBtn.ForeColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+$form.Controls.Add($authBtn)
 
 # ============================================================
 #  Funcoes
@@ -220,6 +255,135 @@ function Start-Download {
     $script:timer.Start()
 }
 
+# ============================================================
+#  Login com Google (Supabase, fluxo PKCE + navegador)
+# ============================================================
+
+function Get-Session {
+    if (-not (Test-Path $SessionFile)) { return $null }
+    try { return (Get-Content $SessionFile -Raw | ConvertFrom-Json) } catch { return $null }
+}
+
+function Update-AuthUI {
+    $s = Get-Session
+    if ($s -and $s.email) {
+        $who = if ($s.name) { "$($s.name) ($($s.email))" } else { $s.email }
+        $userLabel.Text      = "Logado: $who"
+        $userLabel.ForeColor = [System.Drawing.Color]::FromArgb(120, 220, 160)
+        $authBtn.Text        = "Sair da conta"
+    } else {
+        $userLabel.Text      = "Voce nao esta logado. Entre para salvar suas partidas!"
+        $userLabel.ForeColor = [System.Drawing.Color]::FromArgb(180, 190, 220)
+        $authBtn.Text        = "Entrar com Google"
+    }
+}
+
+function Stop-AuthFlow {
+    if ($script:authTimer)    { try { $script:authTimer.Stop() } catch {} ; $script:authTimer = $null }
+    if ($script:authListener) { try { $script:authListener.Stop(); $script:authListener.Close() } catch {} ; $script:authListener = $null }
+    $script:authCtxTask = $null
+    $authBtn.Enabled = $true
+}
+
+function Start-GoogleLogin {
+    # PKCE: verifier aleatorio + challenge = base64url(SHA256(verifier))
+    $chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    $script:pkceVerifier = -join (1..64 | ForEach-Object { $chars[(Get-Random -Maximum $chars.Length)] })
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $hash = $sha.ComputeHash([System.Text.Encoding]::ASCII.GetBytes($script:pkceVerifier))
+    $challenge = [Convert]::ToBase64String($hash).TrimEnd('=').Replace('+','-').Replace('/','_')
+
+    # Servidor local que recebe o retorno do Google
+    try {
+        $script:authListener = New-Object System.Net.HttpListener
+        $script:authListener.Prefixes.Add("http://localhost:$AuthPort/")
+        $script:authListener.Start()
+    } catch {
+        Write-Log "Login: porta $AuthPort ocupada: $($_.Exception.Message)"
+        $userLabel.Text = "Erro: porta de login ocupada. Feche e tente de novo."
+        return
+    }
+    $script:authCtxTask  = $script:authListener.GetContextAsync()
+    $script:authDeadline = (Get-Date).AddMinutes(3)
+
+    # Abre o navegador na tela de login do Google (via Supabase)
+    $redirect = [uri]::EscapeDataString("http://localhost:$AuthPort/callback")
+    $url = "$SupabaseUrl/auth/v1/authorize?provider=google&redirect_to=$redirect" +
+           "&code_challenge=$challenge&code_challenge_method=s256"
+    Start-Process $url
+    Write-Log "Login: navegador aberto, aguardando retorno na porta $AuthPort"
+
+    $authBtn.Enabled = $false
+    $userLabel.Text  = "Aguardando login no navegador..."
+
+    $script:authTimer = New-Object System.Windows.Forms.Timer
+    $script:authTimer.Interval = 250
+    $script:authTimer.add_Tick({
+        if ((Get-Date) -gt $script:authDeadline) {
+            Write-Log "Login: tempo esgotado"
+            Stop-AuthFlow
+            Update-AuthUI
+            return
+        }
+        if ($script:authCtxTask -eq $null -or -not $script:authCtxTask.IsCompleted) { return }
+
+        $script:authTimer.Stop()
+        try {
+            $ctx  = $script:authCtxTask.Result
+            $code = $ctx.Request.QueryString["code"]
+
+            # Resposta simpatica no navegador
+            $html = "<html><body style='font-family:Segoe UI;background:#15100a;color:#f3e8d3;text-align:center;padding-top:80px'>" +
+                    "<h2>Login concluido!</h2><p>Pode fechar esta aba e voltar ao launcher.</p></body></html>"
+            $buf = [System.Text.Encoding]::UTF8.GetBytes($html)
+            $ctx.Response.ContentType = "text/html; charset=utf-8"
+            $ctx.Response.OutputStream.Write($buf, 0, $buf.Length)
+            $ctx.Response.Close()
+
+            if (-not $code) { throw "retorno sem codigo (login cancelado?)" }
+
+            # Troca o codigo pelos tokens (PKCE — sem segredo embutido)
+            $body = (@{ auth_code = $code; code_verifier = $script:pkceVerifier } | ConvertTo-Json -Compress)
+            $tok = Invoke-RestMethod -Uri "$SupabaseUrl/auth/v1/token?grant_type=pkce" -Method Post `
+                     -ContentType "application/json" -Headers @{ apikey = $SupabaseKey } -Body $body
+
+            $name = $null
+            if ($tok.user.user_metadata) {
+                if ($tok.user.user_metadata.full_name) { $name = $tok.user.user_metadata.full_name }
+                elseif ($tok.user.user_metadata.name)  { $name = $tok.user.user_metadata.name }
+            }
+            $session = @{
+                access_token  = $tok.access_token
+                refresh_token = $tok.refresh_token
+                user_id       = $tok.user.id
+                email         = $tok.user.email
+                name          = $name
+                expires_at    = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() + [long]$tok.expires_in
+            }
+            ($session | ConvertTo-Json -Compress) | Set-Content -Path $SessionFile -Encoding UTF8
+            Write-Log "Login OK: $($tok.user.email)"
+
+            # Registra/atualiza o perfil no banco (nao-fatal se falhar)
+            try {
+                $avatar = $null
+                if ($tok.user.user_metadata -and $tok.user.user_metadata.avatar_url) { $avatar = $tok.user.user_metadata.avatar_url }
+                $profile = (@{ id = $tok.user.id; email = $tok.user.email; full_name = $name;
+                               avatar_url = $avatar; last_login = (Get-Date).ToUniversalTime().ToString("o") } | ConvertTo-Json -Compress)
+                Invoke-RestMethod -Uri "$SupabaseUrl/rest/v1/profiles" -Method Post -ContentType "application/json" `
+                    -Headers @{ apikey = $SupabaseKey; Authorization = "Bearer $($tok.access_token)"; Prefer = "resolution=merge-duplicates" } `
+                    -Body ([System.Text.Encoding]::UTF8.GetBytes($profile)) | Out-Null
+            } catch { Write-Log "Perfil: upsert falhou (nao-fatal): $($_.Exception.Message)" }
+        } catch {
+            Write-Log "Login falhou: $($_.Exception.Message)"
+            $userLabel.Text = "Login falhou. Tente novamente."
+        } finally {
+            Stop-AuthFlow
+            Update-AuthUI
+        }
+    })
+    $script:authTimer.Start()
+}
+
 # Consulta a release mais recente e decide se precisa baixar
 function Check-Updates {
     try {
@@ -270,8 +434,21 @@ $playBtn.add_Click({
     }
 })
 
-$form.add_Shown({ $form.Activate(); Check-Updates })
+$authBtn.add_Click({
+    $s = Get-Session
+    if ($s -and $s.email) {
+        # Sair da conta: apaga a sessao local (o jogo para de enviar partidas)
+        Remove-Item $SessionFile -Force -ErrorAction SilentlyContinue
+        Write-Log "Logout: sessao removida"
+        Update-AuthUI
+    } else {
+        Start-GoogleLogin
+    }
+})
+
+$form.add_Shown({ $form.Activate(); Update-AuthUI; Check-Updates })
 
 [System.Windows.Forms.Application]::EnableVisualStyles()
 [void]$form.ShowDialog()
+Stop-AuthFlow   # encerra o servidor local de login se ainda estiver aberto
 $mutex.ReleaseMutex()

@@ -930,6 +930,15 @@ public class GameManager : MonoBehaviour
 
     public void StartFreezeSelection(CardDisplay mageCard)
     {
+        // Carta do BOT (modo treino): o bot escolhe o alvo sozinho e envia pelo
+        // mesmo RPC_EffectTarget — sem isso, o efeito nunca resolveria (não há
+        // outro cliente para escolher)
+        if (BotMode.IsBot(mageCard.ownerPlayerNumber))
+        {
+            BotController.AutoChooseFreezeTarget(mageCard);
+            return;
+        }
+
         // Em multiplayer, só o dono do Mago escolhe o alvo (a escolha chega por RPC)
         if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null &&
             mageCard.ownerPlayerNumber != PhotonGameManager.Instance.myPlayerNumber)
@@ -1064,6 +1073,13 @@ public class GameManager : MonoBehaviour
     public void StartEffectTargetSelection(CardDisplay sourceCard, int effectType,
         List<CardDisplay> candidates, string prompt)
     {
+        // Carta do BOT (modo treino): escolhe o alvo sozinho via RPC_EffectTarget
+        if (BotMode.IsBot(sourceCard.ownerPlayerNumber))
+        {
+            BotController.AutoChooseEffectTarget(sourceCard, effectType, candidates);
+            return;
+        }
+
         // Em multiplayer, só o dono da carta escolhe (a escolha chega por RPC)
         if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null &&
             sourceCard.ownerPlayerNumber != PhotonGameManager.Instance.myPlayerNumber)
@@ -1260,6 +1276,13 @@ public class GameManager : MonoBehaviour
 
     public void StartShieldBreakSelection(CardDisplay mageCard)
     {
+        // Carta do BOT (modo treino): escolhe os alvos sozinho via RPC_EffectTarget
+        if (BotMode.IsBot(mageCard.ownerPlayerNumber))
+        {
+            BotController.AutoChooseShieldBreakTargets(mageCard);
+            return;
+        }
+
         // Em multiplayer, só o dono do Mago escolhe os alvos (as escolhas chegam por RPC)
         if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null &&
             mageCard.ownerPlayerNumber != PhotonGameManager.Instance.myPlayerNumber)

@@ -81,6 +81,12 @@ public class CardTile : MonoBehaviour
 
     void OnMouseDown()
     {
+        // Clique sobre a UI (botões, popups): a UI consome o clique — não
+        // posiciona carta em tile que esteja atrás de um botão
+        if (UnityEngine.EventSystems.EventSystem.current != null &&
+            UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
+            return;
+
         // Se há uma carta selecionada, tenta colocar neste tile
         if (GameManager.Instance != null && GameManager.Instance.HasSelectedCard())
         {

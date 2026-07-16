@@ -31,6 +31,13 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
     {
         turnManager = TurnManager.Instance;
 
+        // Modo Treino: cria o controlador do bot (joga como P2 pelos mesmos RPCs)
+        if (BotMode.Enabled && BotController.Instance == null)
+        {
+            gameObject.AddComponent<BotController>();
+            Debug.Log("[PhotonGame] Modo Treino: BotController criado (bot = Jogador 2)");
+        }
+
         // Debug: verificar conexão Photon
         DebugPhotonStatus();
 
@@ -300,6 +307,12 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
                 Instance.SendEffectDecisionRPC(id, true);
             }
         }
+        else if (BotMode.IsBot(deciderPlayerNumber))
+        {
+            // Modo Treino: o bot decide sozinho (sempre ativa o efeito), com uma
+            // pausa curta para o jogador ver o que está acontecendo
+            Instance.StartCoroutine(Instance.BotDecisionRoutine(id));
+        }
         else
         {
             // Avisa quem está ESPERANDO: sem isso o jogador "saía batendo" sem
@@ -310,6 +323,13 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
             }
             Debug.Log($"[PhotonGame] Aguardando decisão do oponente (id {id}): {message}");
         }
+    }
+
+    // Decisão automática do bot (modo treino): aceita o efeito após um instante
+    System.Collections.IEnumerator BotDecisionRoutine(int decisionId)
+    {
+        yield return new WaitForSeconds(0.8f);
+        SendEffectDecisionRPC(decisionId, true);
     }
 
     void SendEffectDecisionRPC(int decisionId, bool accepted)
@@ -524,6 +544,31 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
         }
     }
 
+    // ========== TRAVAR LOJA (checkbox — não renovar na virada do round) ==========
+
+    // AllViaServer: o PRÓPRIO remetente também recebe via servidor, garantindo a
+    // MESMA ordem global do RPC_EndTurn nos dois clientes. Com PhotonTargets.All
+    // o remetente aplicaria na hora e o oponente depois — se um EndTurn chegasse
+    // no meio, um cliente renovava a loja e o outro não (desync do pool).
+    public void SendShopLockRPC(int playerNumber, bool locked)
+    {
+        if (!PhotonNetwork.connected) return;
+        PhotonView pv = GetComponent<PhotonView>();
+        if (pv != null)
+        {
+            pv.RPC("RPC_SetShopLock", PhotonTargets.AllViaServer, playerNumber, locked);
+            Debug.Log($"[PhotonGame] Enviado RPC: Travar loja P{playerNumber} = {locked}");
+        }
+    }
+
+    [PunRPC]
+    public void RPC_SetShopLock(int playerNumber, bool locked)
+    {
+        Debug.Log($"[PhotonGame] RPC_SetShopLock: P{playerNumber} -> {locked}");
+        if (CardManager.Instance != null)
+            CardManager.Instance.SetShopLocked(playerNumber, locked);
+    }
+
     // ========== REINÍCIO DE PARTIDA (Jogar Novamente) ==========
 
     // Botão "Jogar Novamente": qualquer jogador pode pedir. O Master gera a NOVA
@@ -583,6 +628,23 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
 
         if (TurnManager.Instance != null)
             TurnManager.Instance.RestartGame();
+    }
+
+    // ── Desconexões no meio da partida → salva como "abandonada" ─────────
+    // (callbacks mágicos do PUN; só reage se a partida estiver rolando)
+
+    // O OPONENTE caiu/saiu: este cliente ainda está online → upload normal
+    void OnPhotonPlayerDisconnected(PhotonPlayer other)
+    {
+        if (TurnManager.Instance != null && TurnManager.Instance.gameState == GameState.Playing)
+            MatchReporter.ReportMatchAbandoned();
+    }
+
+    // EU perdi a conexão: o upload provavelmente falha e vira log pendente
+    void OnDisconnectedFromPhoton()
+    {
+        if (TurnManager.Instance != null && TurnManager.Instance.gameState == GameState.Playing)
+            MatchReporter.ReportMatchAbandoned();
     }
 
     // Sincroniza a seed aleatória para ambos os jogadores

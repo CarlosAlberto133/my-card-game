@@ -27,6 +27,24 @@ public class CardManager : MonoBehaviour
         new List<GameObject>(), new List<GameObject>(), new List<GameObject>()
     };
     private int[] shopSpawnCounts = new int[3]; // Spawns por loja (deriva seed única por spawn)
+
+    // Loja TRAVADA (checkbox "Travar loja"): não renova automaticamente na
+    // virada do round; o reset pago continua funcionando. SINCRONIZADO via RPC:
+    // os 2 clientes pulam a MESMA loja, então o consumo do pool e os contadores
+    // de seed continuam idênticos (lockstep intacto).
+    private bool[] shopLocked = new bool[3];
+
+    public void SetShopLocked(int shopNumber, bool locked)
+    {
+        if (shopNumber < 0 || shopNumber > 2) return;
+        shopLocked[shopNumber] = locked;
+        Debug.Log($"[CardManager] Loja {shopNumber} {(locked ? "TRAVADA (não renova no round)" : "destravada (volta a renovar)")}");
+    }
+
+    public bool IsShopLocked(int shopNumber)
+    {
+        return shopNumber >= 0 && shopNumber <= 2 && shopLocked[shopNumber];
+    }
     private Vector3 currentSpawnPosition;
     private bool verticalLayout = false; // Se true, cartas ficam uma abaixo da outra
 
@@ -117,13 +135,17 @@ public class CardManager : MonoBehaviour
         if (UsePerPlayerShops())
         {
             // Ordem FIXA (P1 depois P2): os dois clientes consomem o pool de cartas
-            // na mesma sequência, então as duas lojas saem idênticas nos dois lados
-            SpawnShopForPlayer(1);
-            SpawnShopForPlayer(2);
+            // na mesma sequência, então as duas lojas saem idênticas nos dois lados.
+            // Loja travada é PULADA (nos 2 clientes igualmente — flag sincronizada)
+            if (!shopLocked[1]) SpawnShopForPlayer(1);
+            else Debug.Log("[CardManager] Loja P1 travada — não renovou");
+            if (!shopLocked[2]) SpawnShopForPlayer(2);
+            else Debug.Log("[CardManager] Loja P2 travada — não renovou");
         }
         else
         {
-            SpawnShopForPlayer(0);
+            if (!shopLocked[0]) SpawnShopForPlayer(0);
+            else Debug.Log("[CardManager] Loja travada — não renovou");
         }
     }
 
@@ -341,6 +363,7 @@ public class CardManager : MonoBehaviour
     {
         DestroyAllCards();
         shopSpawnCounts = new int[3];
+        shopLocked = new bool[3]; // revanche começa com as lojas destravadas
         currentSpawnPosition = centerPosition;
         verticalLayout = false;
     }
@@ -448,7 +471,7 @@ public class CardManager : MonoBehaviour
         return cardDisplay;
     }
 
-    // Invoca um Archer aleatório (tier 1-4) quando um Archer 2 (ATK 3, HP 3) mata inimigo
+    // Invoca um Archer aleatório (tier 1-4) quando um Archer 2 (ATK 3, HP 2) mata inimigo
     public void InvokeRandomArcher(int ownerPlayerNumber, CardTile nearTile)
     {
         CardPool cardPool = FindObjectOfType<CardPool>();

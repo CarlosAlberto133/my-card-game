@@ -102,6 +102,119 @@ public static class TabletopEnvironment
         mug.transform.position = center + new Vector3(33f, top + 0.9f, 20f);
         mug.transform.localScale = new Vector3(1.7f, 0.9f, 1.7f);
         FinishDecor(mug, new Color(0.50f, 0.34f, 0.18f), GetWoodTexture());
+
+        // ═══ Props do KayKit Dungeon Pack (CC0) — posições FIXAS, visual puro ═══
+        Vector3 upW = Vector3.up;
+
+        // Tochas acesas nos 4 cantos da moldura, com luz de fogo tremulando
+        Vector2[] torchSpots =
+        {
+            new Vector2(-(half + 4f),  half + 4f), new Vector2(half + 4f,  half + 4f),
+            new Vector2(-(half + 4f), -(half + 4f)), new Vector2(half + 4f, -(half + 4f)),
+        };
+        foreach (Vector2 t in torchSpots)
+        {
+            Vector3 basePos = center + new Vector3(t.x, top, t.y);
+            DecorProps.Place(root.transform, "torch_lit", basePos, 7.5f, upW,
+                center - basePos);
+            FlickerLight.Attach(root.transform, basePos + upW * 7f,
+                new Color(1f, 0.62f, 0.25f), 2.3f, 24f);
+        }
+
+        // Estandartes nas cores dos jogadores: AZUL no lado do P1 (-z),
+        // VERMELHO no lado do P2 (+z) — fora das mãos (|x| > 20)
+        DecorProps.Place(root.transform, "banner_shield_blue",
+            center + new Vector3(-33f, top, -26f), 9f, upW, new Vector3(1f, 0f, 0.4f));
+        DecorProps.Place(root.transform, "banner_patternA_blue",
+            center + new Vector3(33f, top, -26f), 9f, upW, new Vector3(-1f, 0f, 0.4f));
+        DecorProps.Place(root.transform, "banner_shield_red",
+            center + new Vector3(-33f, top, 26f), 9f, upW, new Vector3(1f, 0f, -0.4f));
+        DecorProps.Place(root.transform, "banner_patternA_red",
+            center + new Vector3(33f, top, 26f), 9f, upW, new Vector3(-1f, 0f, -0.4f));
+
+        // Tesouro perto da coluna da loja (tema "compras"): baú de ouro + moedas
+        DecorProps.Place(root.transform, "chest_gold",
+            center + new Vector3(-35f, top, 8f), 4.5f, upW, Vector3.right);
+        DecorProps.Place(root.transform, "coin_stack_large",
+            center + new Vector3(-34.5f, top, 3f), 2f, upW, Vector3.right);
+        DecorProps.Place(root.transform, "coin_stack_medium",
+            center + new Vector3(-33.5f, top, 12.5f), 1.5f, upW, Vector3.right);
+
+        // Cantinho de taverna (lado direito, perto da caneca e dos livros)
+        DecorProps.Place(root.transform, "keg_decorated",
+            center + new Vector3(37f, top, 26f), 5f, upW, -Vector3.right);
+        DecorProps.Place(root.transform, "barrel_large_decorated",
+            center + new Vector3(41f, top, 21f), 5f, upW, -Vector3.right);
+        DecorProps.Place(root.transform, "bottle_A_labeled_green",
+            center + new Vector3(33f, top, 24f), 2.2f, upW, -Vector3.right);
+        DecorProps.Place(root.transform, "plate_stack",
+            center + new Vector3(30f, top, 27f), 1.4f, upW, -Vector3.right);
+
+        // Troféu de armas dourado + vela tripla perto dos livros do mestre
+        DecorProps.Place(root.transform, "sword_shield_gold",
+            center + new Vector3(-37f, top, -14f), 5f, upW, Vector3.right);
+        DecorProps.Place(root.transform, "candle_triple",
+            center + new Vector3(-29f, top, -35f), 2.6f, upW, Vector3.right);
+        FlickerLight.Attach(root.transform, center + new Vector3(-29f, top + 3f, -35f),
+            new Color(1f, 0.6f, 0.2f), 1.4f, 18f);
+
+        // ── Aventureiros do KayKit assistindo da beirada ESQUERDA ─────────
+        // (perto do tesouro; miniaturas viradas para o tabuleiro)
+        DecorProps.PlaceChar(root.transform, "Knight", "knight_texture",
+            center + new Vector3(-38.5f, top, -8f), 6f, upW, Vector3.right);
+        DecorProps.PlaceChar(root.transform, "Rogue", "rogue_texture",
+            center + new Vector3(-39.5f, top, 0f), 5.6f, upW, Vector3.right);
+        DecorProps.PlaceChar(root.transform, "Barbarian", "barbarian_texture",
+            center + new Vector3(-38.5f, top, 17f), 5.8f, upW, Vector3.right);
+
+        // ── Os 4 heróis assistindo a partida da beirada direita da mesa ──
+        // (miniaturas pequenas fora do campo, viradas para o tabuleiro)
+        DecorProps.PlaceHero(root.transform, "Models/personagem_tank",
+            center + new Vector3(38f, top, -13f), 6f, upW, -Vector3.right, true);
+        DecorProps.PlaceHero(root.transform, "Models/personagem_mago",
+            center + new Vector3(40f, top, -5f), 5.6f, upW, -Vector3.right, true);
+        DecorProps.PlaceHero(root.transform, "Models/personagem_healer",
+            center + new Vector3(40f, top, 3f), 5.6f, upW, -Vector3.right, true);
+        DecorProps.PlaceHero(root.transform, "Models/personagem_arqueiro",
+            center + new Vector3(38f, top, 11f), 5.6f, upW, -Vector3.right, true);
+
+        // ── "Vagalumes" dourados nas bordas (efeito de vida na mesa) ──────
+        System.Random flyRng = new System.Random(seed * 13 + 7);
+        for (int i = 0; i < 12; i++)
+        {
+            // Só nas laterais/cantos (nunca sobre o campo de jogo)
+            float side = flyRng.Next(2) == 0 ? -1f : 1f;
+            float flyX = side * (26f + (float)flyRng.NextDouble() * 16f);
+            float flyZ = ((float)flyRng.NextDouble() * 2f - 1f) * 34f;
+            float flyY = 2f + (float)flyRng.NextDouble() * 7f;
+            float flyS = 0.10f + (float)flyRng.NextDouble() * 0.15f;
+
+            GameObject fly = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            fly.name = "Firefly";
+            fly.transform.SetParent(root.transform, false);
+            fly.transform.position = center + new Vector3(flyX, top + flyY, flyZ);
+            fly.transform.localScale = Vector3.one * flyS;
+            FinishGlow(fly, new Color(1f, 0.8f, 0.35f, 0.8f));
+        }
+    }
+
+    // Material Unlit brilhante (vagalumes) — não depende de luz
+    static void FinishGlow(GameObject go, Color color)
+    {
+        Collider col = go.GetComponent<Collider>();
+        if (col != null) Object.Destroy(col);
+
+        Renderer r = go.GetComponent<Renderer>();
+        if (r == null) return;
+
+        Shader shader = Shader.Find("Universal Render Pipeline/Unlit")
+                     ?? Shader.Find("Sprites/Default");
+        if (shader == null) return;
+
+        Material mat = new Material(shader);
+        mat.color = color;
+        if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
+        r.material = mat;
     }
 
     // ── Miniaturas ────────────────────────────────────────────────────────

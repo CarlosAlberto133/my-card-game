@@ -16,8 +16,8 @@ MonoBehaviour:
   cardClass: 2
   tier: 3
   artwork: {fileID: 21300000, guid: 8e45cae2680c39540bc94c76f28b3f19, type: 3}
-  attack: 2
+  attack: 1
   shield: 0
-  health: 1
+  health: 3
   effectDescription: Ganhe 1 de ouro por cada Healer em campo, ganhe 1 a mais por
     cada mago

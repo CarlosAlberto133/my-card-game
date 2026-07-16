@@ -16,8 +16,8 @@ MonoBehaviour:
   cardClass: 0
   tier: 5
   artwork: {fileID: 21300000, guid: f5e53fac344f3b545b4bf9e535a43de8, type: 3}
-  attack: 4
-  shield: 5
+  attack: 3
+  shield: 6
   health: 10
   effectDescription: Sempre que esta carta sofrer dano, ela aumenta o seu ataque
     em +1, ganha atmadura se houver um healer ou um mago em campo

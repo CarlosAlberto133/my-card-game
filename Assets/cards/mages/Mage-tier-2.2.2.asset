@@ -16,8 +16,8 @@ MonoBehaviour:
   cardClass: 1
   tier: 2
   artwork: {fileID: 21300000, guid: 3a7a7f7f85d2f5f4aaec58cef7d12e61, type: 3}
-  attack: 4
+  attack: 3
   shield: 0
-  health: 3
+  health: 4
   effectDescription: Se houver um tanque em campo, cause 1 de dano na armadura de
     2 inimigos a sua escolha

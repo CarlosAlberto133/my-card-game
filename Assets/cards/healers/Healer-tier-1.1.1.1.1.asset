@@ -16,7 +16,7 @@ MonoBehaviour:
   cardClass: 2
   tier: 1
   artwork: {fileID: 21300000, guid: 42ba009e86c05a848b8718405e0dc5ef, type: 3}
-  attack: 5
-  shield: 2
-  health: 4
+  attack: 2
+  shield: 0
+  health: 3
   effectDescription: Healer maneiro

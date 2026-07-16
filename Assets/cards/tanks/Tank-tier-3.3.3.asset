@@ -17,6 +17,6 @@ MonoBehaviour:
   tier: 3
   artwork: {fileID: 21300000, guid: 003c21556a52ab94db87b18227cb0ef5, type: 3}
   attack: 2
-  shield: 2
+  shield: 4
   health: 5
   effectDescription: Receba +2 de armadura para cada outro tank em campo

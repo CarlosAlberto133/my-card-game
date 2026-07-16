@@ -16,8 +16,8 @@ MonoBehaviour:
   cardClass: 1
   tier: 5
   artwork: {fileID: 21300000, guid: 33c14a46701ee964c8116f4c5af55914, type: 3}
-  attack: 6
+  attack: 4
   shield: 0
-  health: 5
+  health: 6
   effectDescription: Uma vez por partida pode escolher uma carta inimiga no campo
     e copiar seus status de ataque e vida

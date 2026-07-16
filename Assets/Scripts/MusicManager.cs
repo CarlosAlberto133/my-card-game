@@ -401,6 +401,9 @@ public class MusicManager : MonoBehaviour
     {
         if (settingsModal != null) settingsModal.SetActive(false);
         Debug.Log("[MusicManager] Saindo da partida, voltando ao lobby...");
+        // Salva a partida abandonada ANTES de sair (o upload sobrevive à troca
+        // de cena — MatchReporter é DontDestroyOnLoad)
+        MatchReporter.ReportMatchAbandoned();
         if (PhotonNetwork.inRoom) PhotonNetwork.LeaveRoom();
         SceneManager.LoadScene("Lobby");
     }
@@ -409,6 +412,8 @@ public class MusicManager : MonoBehaviour
     void OnQuitGame()
     {
         Debug.Log("[MusicManager] Fechando o jogo...");
+        // Grava o log pendente ANTES de desconectar/fechar (sobe no próximo boot)
+        MatchReporter.SaveAbandonedNow();
         if (PhotonNetwork.connected) PhotonNetwork.Disconnect();
 #if UNITY_EDITOR
         UnityEditor.EditorApplication.isPlaying = false;

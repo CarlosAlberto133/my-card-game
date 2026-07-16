@@ -16,7 +16,7 @@ MonoBehaviour:
   cardClass: 2
   tier: 4
   artwork: {fileID: 21300000, guid: 74bc2002ed86dbf43965ec2762aaf767, type: 3}
-  attack: 5
+  attack: 1
   shield: 0
-  health: 3
+  health: 4
   effectDescription: Conceda invunerabilidade a uma carta por 3 rounds
