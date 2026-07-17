@@ -111,6 +111,53 @@ public static class DecorProps
         return go;
     }
 
+    // Peça esticada ao longo de um eixo (muretas/troncos na borda do tabuleiro):
+    // escala UNIFORME até spanLength no eixo "along", base apoiada em basePos.
+    // O eixo longo do modelo é desconhecido — testa as duas orientações e fica
+    // com a que deixa a peça mais comprida ao longo de "along".
+    public static GameObject PlaceSpan(Transform parent, string model, Vector3 basePos,
+        Vector3 up, Vector3 along, float spanLength)
+    {
+        GameObject prefab = Resources.Load<GameObject>("decor/kaykit/" + model);
+        if (prefab == null)
+        {
+            Debug.LogWarning($"[DecorProps] Modelo não encontrado: {model}");
+            return null;
+        }
+
+        GameObject go = Object.Instantiate(prefab, parent);
+        go.name = "Span_" + model;
+
+        foreach (Collider c in go.GetComponentsInChildren<Collider>(true))
+            Object.Destroy(c);
+
+        Material mat = GetMaterial();
+        if (mat != null)
+        {
+            foreach (Renderer r in go.GetComponentsInChildren<Renderer>(true))
+                r.sharedMaterial = mat;
+        }
+
+        Vector3 a = along.normalized;
+        Quaternion rotA = Quaternion.LookRotation(a, up);
+        Quaternion rotB = Quaternion.LookRotation(Vector3.Cross(up, a), up);
+        go.transform.rotation = rotA;
+        float lenA = SizeAlong(BoundsOf(go), a);
+        go.transform.rotation = rotB;
+        float lenB = SizeAlong(BoundsOf(go), a);
+        if (lenA > lenB) go.transform.rotation = rotA;
+
+        Bounds b = BoundsOf(go);
+        float len = SizeAlong(b, a);
+        if (len > 0.0001f)
+            go.transform.localScale = go.transform.localScale * (spanLength / len);
+
+        b = BoundsOf(go);
+        float h = SizeAlong(b, up);
+        go.transform.position += basePos - (b.center - up * (h * 0.5f));
+        return go;
+    }
+
     static GameObject PlaceFrom(Transform parent, string resourcePath, Material mat,
         Vector3 basePos, float targetHeight, Vector3 up, Vector3 lookDir)
     {

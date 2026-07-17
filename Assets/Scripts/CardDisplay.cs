@@ -298,8 +298,34 @@ public class CardDisplay : MonoBehaviour
         return false;
     }
 
+    // ── Helpers de POSIÇÃO dos efeitos de Tank (balanceamento de efeitos) ──
+    // Tanks que ficavam parados na retaguarda "trabalhando de longe" agora
+    // precisam se posicionar: guarda exige estar COLADO no protegido e as
+    // auras exigem o tank na LINHA DE FRENTE (fora das 2 fileiras de trás).
+
+    // Colado = até 1 casa de distância (as 8 casas em volta contam)
+    public static bool IsNextTo(CardDisplay a, CardDisplay b)
+    {
+        if (a == null || b == null || a.currentTile == null || b.currentTile == null) return false;
+        return Mathf.Abs(a.currentTile.row - b.currentTile.row) <= 1 &&
+               Mathf.Abs(a.currentTile.column - b.currentTile.column) <= 1;
+    }
+
+    // Linha de frente = fora das 2 fileiras de casa do dono (P1 marcha das
+    // fileiras baixas para as altas; P2 o contrário — ver TryAttackTower)
+    public static bool IsOnFrontLines(CardDisplay c)
+    {
+        if (c == null || c.currentTile == null || BoardManager.Instance == null) return false;
+        int rows = BoardManager.Instance.rows;
+        return c.ownerPlayerNumber == 1
+            ? c.currentTile.row >= 2
+            : c.currentTile.row <= rows - 3;
+    }
+
     // Aura do Tank 4 (ATK 2, Shield 5, HP 7): verdadeiro se o dono tem um
-    // desses tanks E as 4 classes em campo (o próprio tank conta como Tank)
+    // desses tanks NA LINHA DE FRENTE e as 4 classes em campo (o próprio tank
+    // conta como Tank). O estandarte precisa marchar na frente do exército —
+    // um Tank 4 parado na retaguarda não inspira ninguém.
     bool HasArcherDoubleAttackAura()
     {
         BoardManager board = BoardManager.Instance;
@@ -316,11 +342,23 @@ public class CardDisplay : MonoBehaviour
             {
                 hasTank = true;
                 if (c.card.attack == 2 && c.card.shield == 5 && c.card.health == 7 &&
-                    c.card.tier == CardTier.Tier4)
+                    c.card.tier == CardTier.Tier4 && IsOnFrontLines(c))
                     hasTank4 = true;
             }
         }
         return hasTank4 && hasArcher && hasMage && hasHealer && hasTank;
+    }
+
+    // "Enjoo de invocação" (cópia do Archer 4 ao matar): a carta recém-criada
+    // pode ANDAR, mas só ataca quando a vez voltar para o dono no próximo
+    // round. Consome também o ataque extra da aura do Tank 4 (senão a aura
+    // driblava o bloqueio). Corta o snowball de limpar o tabuleiro num turno.
+    public void BlockAttackThisRound()
+    {
+        if (TurnManager.Instance == null) return;
+        int round = TurnManager.Instance.currentRound;
+        lastAttackedRound = round;
+        extraAttackUsedRound = round;
     }
 
     // Marca o ataque desta carta no round atual. Se já tinha atacado (2º
@@ -1791,7 +1829,7 @@ public class CardDisplay : MonoBehaviour
             }
         }
 
-        int cost = card.GetGoldCost();
+        int cost = DiscountedCost(card, currentPlayer);
 
         // Verifica se o jogador tem ouro suficiente
         if (!freeBuy && !currentPlayer.HasEnoughGold(cost))
@@ -1853,7 +1891,7 @@ public class CardDisplay : MonoBehaviour
         // Deduz o ouro e marca a compra do turno. Compra grátis (Healer 5): não
         // gasta ouro nem consome o limite de compras — decisão idêntica nos dois
         // clientes, pois freePurchases só muda dentro de RPCs
-        int cost = card.GetGoldCost();
+        int cost = DiscountedCost(card, buyer);
         if (buyer.freePurchases > 0)
         {
             buyer.freePurchases--;
@@ -1885,6 +1923,28 @@ public class CardDisplay : MonoBehaviour
                 SetFaceDown(true);
             }
         }
+    }
+
+    // Healer 3 (ATK 2, HP 3): enquanto ela estiver em campo, a PRIMEIRA compra
+    // do turno do dono custa 2 a menos (mínimo 0). Determinístico nos 2
+    // clientes: tabuleiro e cardsBoughtThisTurn são espelhados, e a compra
+    // executa via RPC. Cópias não acumulam (o desconto é um só).
+    public static int DiscountedCost(Card card, PlayerData buyer)
+    {
+        int cost = card != null ? card.GetGoldCost() : 0;
+        if (buyer == null || BoardManager.Instance == null) return cost;
+        if (buyer.cardsBoughtThisTurn > 0) return cost; // só a 1ª compra
+
+        foreach (var ally in BoardManager.Instance.GetCardsByOwner(buyer.playerNumber))
+        {
+            if (ally != null && ally.card != null && ally.card.cardClass == CardClass.Healer &&
+                ally.card.tier == CardTier.Tier3 && ally.card.attack == 2 && ally.card.health == 3)
+            {
+                Debug.Log($"[HealerTier3Effect4] Desconto de 2 na 1ª compra do turno ({cost} → {Mathf.Max(0, cost - 2)})");
+                return Mathf.Max(0, cost - 2);
+            }
+        }
+        return cost;
     }
 
     // Busca o HandManager correto para o jogador
@@ -2301,6 +2361,10 @@ public class CardDisplay : MonoBehaviour
                         ally.card.attack == 2 && ally.card.shield == 6 && ally.card.health == 6 &&
                         ally.card.tier == CardTier.Tier4)
                     {
+                        // Guarda-costas de verdade: só intercepta se estiver
+                        // COLADO na carta atacada (até 1 casa) — parado na
+                        // retaguarda ele não alcança o golpe
+                        if (!IsNextTo(ally, this)) continue;
                         if (!DuplicateEffectGate.TryActivate(ally)) continue;
                         // Verifica se pode interceptar (1x por turno)
                         if (TurnManager.Instance != null &&
@@ -2507,7 +2571,7 @@ public class CardDisplay : MonoBehaviour
             ApplyMageEffect();
         }
 
-        // Healer 3 (2/4): cura o Tank em 2 DEPOIS do dano aplicado
+        // Healer 3 (2/4): cura o Tank em 3 DEPOIS do dano aplicado
         TriggerHealerCureOnTankDamaged();
 
         // Verifica se a carta morreu (o atacante volta ao campo para os
@@ -2519,7 +2583,7 @@ public class CardDisplay : MonoBehaviour
         }
     }
 
-    // Healer 3 (ATK 2, HP 4): "sempre que um tanque receber dano, cure em 2".
+    // Healer 3 (ATK 2, HP 4): "sempre que um tanque receber dano, cure em 3".
     // Roda DEPOIS do dano ser aplicado de verdade (antes rodava antes do dano:
     // num tank de vida cheia a cura era 100% desperdiçada)
     public void TriggerHealerCureOnTankDamaged()
@@ -2585,7 +2649,8 @@ public class CardDisplay : MonoBehaviour
         Debug.Log($"[TreeDefense] {card.cardName} ativou o efeito! Esquivando dano neste turno.");
     }
 
-    // Tank tier 2 (ATK 1, Shield 3, HP 4): pode assumir o dano de qualquer aliado atacado.
+    // Tank tier 2 (ATK 1, Shield 3, HP 4): pode assumir o dano de um aliado
+    // ADJACENTE atacado (até 1 casa — escolta tem que andar junto do time).
     // O dono escolhe via popup sincronizado. Retorna true se a decisão ficou pendente.
     bool TryTankAssumeAnyDamage(int damage, CardDisplay attacker)
     {
@@ -2602,6 +2667,8 @@ public class CardDisplay : MonoBehaviour
             if (ally != null && ally != this && ally.card.cardClass == CardClass.Tank &&
                 ally.card.attack == 1 && ally.card.shield == 3 && ally.card.health == 4)
             {
+                // Precisa estar COLADO no aliado atacado para se jogar na frente
+                if (!IsNextTo(ally, this)) continue;
                 if (!DuplicateEffectGate.TryActivate(ally)) continue;
                 CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
                 if (effect == null) continue;
@@ -2643,6 +2710,9 @@ public class CardDisplay : MonoBehaviour
                     ally.card.attack == 2 && ally.card.shield == 3 && ally.card.health == 5 &&
                     ally.card.tier == CardTier.Tier3)
                 {
+                    // A aura só emana da LINHA DE FRENTE (fora das 2 fileiras
+                    // de casa) — o tank capitão precisa liderar o avanço
+                    if (!IsOnFrontLines(ally)) continue;
                     if (!DuplicateEffectGate.TryActivate(ally)) continue;
                     CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
                     if (effect != null)

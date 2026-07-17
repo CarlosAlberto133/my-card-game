@@ -19,5 +19,6 @@ MonoBehaviour:
   attack: 5
   shield: 0
   health: 2
-  effectDescription: "Sempre que voc\xEA matar um alvo, fa\xE7a uma c\xF3pia de si
-    mesma. Caso tenha um tanque em campo, se movimente novamente"
+  effectDescription: "Sempre que matar um alvo, cria uma c\xF3pia de si mesma. A
+    c\xF3pia pode andar, mas s\xF3 ataca no pr\xF3ximo round. Com um tanque em campo,
+    se movimenta novamente"

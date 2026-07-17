@@ -19,5 +19,5 @@ MonoBehaviour:
   attack: 2
   shield: 0
   health: 5
-  effectDescription: "Cure 4 de vida a cada 2 rounds um aliado. Se estiver com um
-    mago em campo, ganhe 2 de ouro ao realizar essa a\xE7\xE3o"
+  effectDescription: Todo round cura 3 no aliado mais ferido. Se estiver com um
+    mago em campo, ganha 1 de ouro junto

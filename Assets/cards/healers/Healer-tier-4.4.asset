@@ -19,4 +19,5 @@ MonoBehaviour:
   attack: 2
   shield: 0
   health: 4
-  effectDescription: Receba 1 a mais de ouro sempre que o turno do oponente acabar
+  effectDescription: Receba 1 a mais de ouro sempre que o turno do oponente acabar.
+    Com o ouro cheio, cura 2 no aliado mais ferido

@@ -330,13 +330,16 @@ public class CardEffectSimple : MonoBehaviour
         BoardManager board = BoardManager.Instance;
         if (board == null) return;
 
-        // Cria uma cópia
+        // Cria uma cópia. A cópia nasce SEM ataque neste round (pode andar; só
+        // ataca quando a vez voltar para o dono) — freio no snowball: cada
+        // geração de cópias precisa esperar um round para entrar no combate
         var emptyTile = board.FindAdjacentEmptyTile(cardDisplay.currentTile, cardDisplay.ownerPlayerNumber);
         if (emptyTile != null)
         {
             CardDisplay copy = cardDisplay.SpawnCardCopy(emptyTile);
+            if (copy != null) copy.BlockAttackThisRound();
             FloatingTextFX.ShowAboveCard(cardDisplay, "CÓPIA!", FloatingTextFX.EffectColor, 4.5f);
-            Debug.Log($"[ArcherTier4Effect3] {cardDisplay.card.cardName}: Criou uma cópia!");
+            Debug.Log($"[ArcherTier4Effect3] {cardDisplay.card.cardName}: Criou uma cópia (ataca só no próximo round)!");
         }
 
         // Se tem Tank aliado, pode se mover novamente
@@ -775,13 +778,15 @@ public class CardEffectSimple : MonoBehaviour
             HealerTier4Effect4_BoostAllWithCombo();
     }
 
-    // Efeito 1: Healer 4 (ATK 2, HP 5) - Cura 4 a cada 2 rounds, ganha 2 ouro se tem Mago
+    // Efeito 1: Healer 4 (ATK 2, HP 5) - Cura 3 no MAIS FERIDO todo round,
+    // +1 ouro se tem Mago (era cura 4 em aleatório a cada 2 rounds: sumia da
+    // partida e ainda sorteava aliado de vida cheia)
     void HealerTier4Effect1_PeriodicCure()
     {
         if (cardDisplay == null) return;
 
-        // Este efeito é ativado via CheckPeriodicEffects a cada 2 rounds
-        Debug.Log($"[HealerTier4Effect1] {cardDisplay.card.cardName}: Pronta para curar aliados a cada 2 rounds");
+        // Este efeito é ativado via contador periódico a cada round
+        Debug.Log($"[HealerTier4Effect1] {cardDisplay.card.cardName}: Pronta para curar o aliado mais ferido todo round");
     }
 
     public void ActivatePeriodicCure()
@@ -791,26 +796,23 @@ public class CardEffectSimple : MonoBehaviour
         BoardManager board = BoardManager.Instance;
         if (board == null) return;
 
-        var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
-        if (allies.Count == 0) return;
-
-        // Cura um aliado aleatório
-        CardDisplay targetAlly = allies[Random.Range(0, allies.Count)];
+        // Cura o aliado mais ferido (sem sorteio — nunca desperdiça)
+        CardDisplay targetAlly = MostWoundedAlly();
         if (targetAlly != null)
         {
-            targetAlly.Heal(4, cardDisplay);
-            Debug.Log($"[HealerTier4Effect1] {cardDisplay.card.cardName}: Curou {targetAlly.card.cardName} em 4!");
+            targetAlly.Heal(3, cardDisplay);
+            Debug.Log($"[HealerTier4Effect1] {cardDisplay.card.cardName}: Curou {targetAlly.card.cardName} (o mais ferido) em 3!");
+        }
 
-            // Se tem Mago aliado, ganha 2 de ouro
-            if (board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Mago))
+        // Se tem Mago aliado, ganha 1 de ouro (o proc agora é todo round)
+        if (board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Mago))
+        {
+            PlayerData player = TurnManager.Instance.GetPlayer(cardDisplay.ownerPlayerNumber);
+            if (player != null)
             {
-                PlayerData player = TurnManager.Instance.GetPlayer(cardDisplay.ownerPlayerNumber);
-                if (player != null)
-                {
-                    player.AddGold(2);
-                    FloatingTextFX.ShowAboveCard(cardDisplay, "+2 ouro", FloatingTextFX.GoldColor);
-                    Debug.Log($"[HealerTier4Effect1] {cardDisplay.card.cardName}: Tem Mago aliado - ganhou 2 de ouro!");
-                }
+                player.AddGold(1);
+                FloatingTextFX.ShowAboveCard(cardDisplay, "+1 ouro", FloatingTextFX.GoldColor);
+                Debug.Log($"[HealerTier4Effect1] {cardDisplay.card.cardName}: Tem Mago aliado - ganhou 1 de ouro!");
             }
         }
     }
@@ -829,12 +831,25 @@ public class CardEffectSimple : MonoBehaviour
         if (cardDisplay == null) return;
 
         PlayerData player = TurnManager.Instance.GetPlayer(cardDisplay.ownerPlayerNumber);
-        if (player != null)
+        if (player == null) return;
+
+        // Ouro no teto (10): o efeito não desperdiça — vira cura 2 no aliado
+        // mais ferido (antes o "+1 ouro" simplesmente evaporava)
+        if (player.gold >= 10)
         {
-            player.AddGold(1);
-            FloatingTextFX.ShowAboveCard(cardDisplay, "+1 ouro", FloatingTextFX.GoldColor);
-            Debug.Log($"[HealerTier4Effect2] {cardDisplay.card.cardName}: Ganhou 1 ouro ao fim do turno do oponente!");
+            CardDisplay wounded = MostWoundedAlly();
+            if (wounded != null)
+            {
+                EffectProjectileFX.Launch(cardDisplay, wounded, EffectProjectileFX.HealGreen);
+                wounded.Heal(2, cardDisplay);
+                Debug.Log($"[HealerTier4Effect2] {cardDisplay.card.cardName}: Ouro cheio - curou {wounded.card.cardName} em 2!");
+            }
+            return;
         }
+
+        player.AddGold(1);
+        FloatingTextFX.ShowAboveCard(cardDisplay, "+1 ouro", FloatingTextFX.GoldColor);
+        Debug.Log($"[HealerTier4Effect2] {cardDisplay.card.cardName}: Ganhou 1 ouro ao fim do turno do oponente!");
     }
 
     // Efeito 3: Healer 4 (ATK 1, HP 4) - Concede invunerabilidade a uma carta por 3 rounds
@@ -931,7 +946,8 @@ public class CardEffectSimple : MonoBehaviour
             HealerTier3Effect4_GoldPerMage();
     }
 
-    // Efeito 1: Healer 3 (ATK 1, HP 4) - Ganha 2 de ouro se houver Mago em campo
+    // Efeito 1: Healer 3 (ATK 1, HP 4) - Ganha 2 de ouro se houver Mago em
+    // campo; SEM Mago, cura 2 no aliado mais ferido (o efeito nunca é "nada")
     void HealerTier3Effect1_GoldIfMage()
     {
         if (cardDisplay == null || cardDisplay.healerTier3Effect1Used) return;
@@ -954,11 +970,23 @@ public class CardEffectSimple : MonoBehaviour
         }
         else
         {
-            Debug.Log($"[HealerTier3Effect1] {cardDisplay.card.cardName}: Nenhum mago aliado - efeito não ativado");
+            CardDisplay wounded = MostWoundedAlly();
+            if (wounded != null)
+            {
+                EffectProjectileFX.Launch(cardDisplay, wounded, EffectProjectileFX.HealGreen);
+                wounded.Heal(2, cardDisplay);
+                Debug.Log($"[HealerTier3Effect1] {cardDisplay.card.cardName}: Sem Mago - curou {wounded.card.cardName} em 2!");
+            }
+            else
+            {
+                Debug.Log($"[HealerTier3Effect1] {cardDisplay.card.cardName}: Sem Mago e ninguém ferido - nada a fazer");
+            }
+            cardDisplay.healerTier3Effect1Used = true;
         }
     }
 
-    // Efeito 2: Healer 3 (ATK 2, HP 4) - Cura Tank em 2 sempre que ele recebe dano
+    // Efeito 2: Healer 3 (ATK 2, HP 4) - Cura Tank em 3 sempre que ele recebe
+    // dano (era 2 — pouco para a régua de dano da v3.9)
     void HealerTier3Effect2_CureTankOnDamage()
     {
         if (cardDisplay == null) return;
@@ -972,14 +1000,14 @@ public class CardEffectSimple : MonoBehaviour
         if (cardDisplay == null || damagedTank == null) return;
 
         EffectProjectileFX.Launch(cardDisplay, damagedTank, EffectProjectileFX.HealGreen);
-        // Cura +2 sem NUNCA reduzir (mesma regra do Heal): um tank buffado
+        // Cura +3 sem NUNCA reduzir (mesma regra do Heal): um tank buffado
         // acima do máximo base não perde vida ao ser curado
         int tankMaxHp = damagedTank.card.health + damagedTank.maxHealthBonus;
         damagedTank.currentHealth = Mathf.Max(damagedTank.currentHealth,
-            Mathf.Min(damagedTank.currentHealth + 2, tankMaxHp));
+            Mathf.Min(damagedTank.currentHealth + 3, tankMaxHp));
 
         damagedTank.UpdateDisplay();
-        Debug.Log($"[HealerTier3Effect2] {cardDisplay.card.cardName}: Curou {damagedTank.card.cardName} em 2 (HP agora: {damagedTank.currentHealth})");
+        Debug.Log($"[HealerTier3Effect2] {cardDisplay.card.cardName}: Curou {damagedTank.card.cardName} em 3 (HP agora: {damagedTank.currentHealth})");
     }
 
     // Efeito 3: Healer 3 (ATK 1, HP 3) - Ganha 1 de ouro por cada Healer, +1 por cada Mago
@@ -1020,34 +1048,16 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 4: Healer 3 (ATK 2, HP 3) - Ganha 1 de ouro por cada Mago em campo
+    // Efeito 4: Healer 3 (ATK 2, HP 3) - Enquanto estiver em campo, a PRIMEIRA
+    // compra do turno do dono custa 2 a menos. (Era "+1 ouro por Mago", uma
+    // vez só — com o teto de 10 de ouro, virava efeito nulo no meio do jogo.)
+    // A mecânica vive em CardDisplay.DiscountedCost — aqui só o anúncio.
     void HealerTier3Effect4_GoldPerMage()
     {
-        if (cardDisplay == null || cardDisplay.healerTier3Effect4Used) return;
+        if (cardDisplay == null) return;
 
-        BoardManager board = BoardManager.Instance;
-        if (board == null) return;
-
-        int mageCount = 0;
-
-        var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
-        foreach (var ally in allies)
-        {
-            if (ally != null && ally.card.cardClass == CardClass.Mago)
-                mageCount++;
-        }
-
-        if (mageCount > 0)
-        {
-            PlayerData player = TurnManager.Instance.GetPlayer(cardDisplay.ownerPlayerNumber);
-            if (player != null)
-            {
-                player.AddGold(mageCount);
-                cardDisplay.healerTier3Effect4Used = true;
-                FloatingTextFX.ShowAboveCard(cardDisplay, $"+{mageCount} ouro", FloatingTextFX.GoldColor);
-                Debug.Log($"[HealerTier3Effect4] {cardDisplay.card.cardName}: Ganhou {mageCount} de ouro ({mageCount} Magos em campo)!");
-            }
-        }
+        FloatingTextFX.ShowAboveCard(cardDisplay, "LOJA -2!", FloatingTextFX.GoldColor, 4.2f);
+        Debug.Log($"[HealerTier3Effect4] {cardDisplay.card.cardName}: 1ª compra de cada turno custa 2 a menos enquanto ela estiver em campo");
     }
 
     // ===== HEALER TIER-2 =====
@@ -1190,27 +1200,45 @@ public class CardEffectSimple : MonoBehaviour
         // Efeitos 3 e 4 são ativados em outras situações (não ao entrar em campo)
     }
 
-    // Efeito 1: Cura 2 HP a um aliado aleatório a cada 2 rounds
+    // Aliado MAIS FERIDO do dono (maior vida faltando até o máximo, contando
+    // bônus de vida máxima). Null se ninguém está ferido. Determinístico: a
+    // lista tem a mesma ordem nos dois clientes, sem sorteio nenhum.
+    CardDisplay MostWoundedAlly()
+    {
+        BoardManager board = BoardManager.Instance;
+        if (board == null || cardDisplay == null) return null;
+
+        CardDisplay best = null;
+        int bestMissing = 0;
+        foreach (var ally in board.GetCardsByOwner(cardDisplay.ownerPlayerNumber))
+        {
+            if (ally == null || ally.card == null || ally.currentHealth <= 0) continue;
+            int maxHp = ally.card.health + ally.maxHealthBonus;
+            int missing = maxHp - ally.currentHealth;
+            if (missing > bestMissing)
+            {
+                bestMissing = missing;
+                best = ally;
+            }
+        }
+        return best;
+    }
+
+    // Efeito 1: Cura 3 HP no aliado MAIS FERIDO a cada 2 rounds (era cura 2 em
+    // aliado aleatório — sorteava mal e curava pouco para a régua v3.9)
     void HealerEffect1_RandomAllyPeriodicHeal()
     {
         if (cardDisplay == null) return;
 
-        BoardManager board = BoardManager.Instance;
-        if (board == null) return;
+        CardDisplay targetAlly = MostWoundedAlly();
+        if (targetAlly == null)
+        {
+            Debug.Log($"[HealerEffect1] {cardDisplay.card.cardName}: Ninguém ferido — cura guardada");
+            return;
+        }
 
-        var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
-        if (allies.Count == 0) return;
-
-        // Prioriza aliados FERIDOS (curar quem está de vida cheia parecia
-        // "efeito que nunca faz nada"). Determinístico: a lista tem a mesma
-        // ordem nos dois clientes e o Random já foi semeado pelo RPC
-        var injured = allies.FindAll(c => c != null && c.currentHealth < c.card.health);
-        var pool = injured.Count > 0 ? injured : allies;
-
-        CardDisplay targetAlly = pool[Random.Range(0, pool.Count)];
-        targetAlly.Heal(2, cardDisplay);
-
-        Debug.Log($"[HealerEffect1] {cardDisplay.card.cardName}: Curou {targetAlly.card.cardName} por 2 HP");
+        targetAlly.Heal(3, cardDisplay);
+        Debug.Log($"[HealerEffect1] {cardDisplay.card.cardName}: Curou {targetAlly.card.cardName} (o mais ferido) por 3 HP");
     }
 
     // Efeito 2: Ao entrar em campo, cura 2 HP em todos os aliados (apenas 1 vez)
@@ -2402,22 +2430,26 @@ public class CardEffectSimple : MonoBehaviour
 
         if (!TankTier4Effect4_HasCombo()) return;
 
-        // Dá +1 armadura a todos os aliados
+        // Dá +1 armadura aos aliados ADJACENTES (até 1 casa): a proteção emana
+        // de perto — quem quiser armadura marcha em formação com o Tank
         BoardManager board = BoardManager.Instance;
         if (board == null) return;
 
+        int granted = 0;
         var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
         foreach (var ally in allies)
         {
             // "As DEMAIS cartas recebem 1 de armadura" — o próprio tank fica de fora
-            if (ally != null && ally != cardDisplay)
+            if (ally != null && ally != cardDisplay && CardDisplay.IsNextTo(ally, cardDisplay))
             {
                 ally.currentShield += 1;
                 ally.UpdateDisplay();
+                granted++;
             }
         }
 
-        Debug.Log($"[TankTier4Effect4] {cardDisplay.card.cardName}: Aliados ganharam +1 armadura este turno!");
+        if (granted > 0)
+            Debug.Log($"[TankTier4Effect4] {cardDisplay.card.cardName}: {granted} aliado(s) adjacente(s) ganharam +1 armadura este turno!");
     }
 
     // ===== TANK TIER-3 =====
@@ -2627,7 +2659,8 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[TankTier2Effect3] {cardDisplay.card.cardName}: Assumiu {damage} de dano no lugar de {victim.card.cardName}");
     }
 
-    // Efeito 4: Tank tier 2 (ATK 1, Shield 3, HP 4) - Pode receber qualquer ataque
+    // Efeito 4: Tank tier 2 (ATK 1, Shield 3, HP 4) - Pode receber o ataque de
+    // um aliado ADJACENTE (a adjacência é checada no CardDisplay antes do popup)
     void TankTier2Effect4_DefendAny()
     {
         // Este efeito é ativado via hook quando qualquer aliado é atacado
@@ -2640,6 +2673,15 @@ public class CardEffectSimple : MonoBehaviour
 
         // O Tank recebe o dano no lugar do aliado (com as próprias defesas)
         cardDisplay.TakeRedirectedDamage(damage, attacker);
+
+        // Recompensa da escolta: sobreviveu ao golpe assumido → +1 armadura
+        // ("apanhar é o combo dele")
+        if (cardDisplay.currentHealth > 0)
+        {
+            cardDisplay.currentShield += 1;
+            cardDisplay.UpdateDisplay();
+            FloatingTextFX.ShowAboveCard(cardDisplay, "+1 armadura", FloatingTextFX.EffectColor);
+        }
 
         Debug.Log($"[TankTier2Effect4] {cardDisplay.card.cardName}: Assumiu {damage} de dano no lugar de {victim.card.cardName}");
     }
@@ -2807,9 +2849,9 @@ public class CardEffectSimple : MonoBehaviour
         if (c.cardClass == CardClass.Healer && c.tier == CardTier.Tier1 && c.attack == 0 && c.health == 3)
             cardDisplay.StartEffectCounter(2, true, true);
 
-        // Healer 4 (ATK 2, HP 5): cura 4 a cada 2 ROUNDS (era código morto — nunca disparava)
+        // Healer 4 (ATK 2, HP 5): cura 3 no mais ferido TODO round
         else if (c.cardClass == CardClass.Healer && c.tier == CardTier.Tier4 && c.attack == 2 && c.health == 5)
-            cardDisplay.StartEffectCounter(2, true, true);
+            cardDisplay.StartEffectCounter(1, true, true);
 
         // Tank 5 (ATK 3, Shield 6, HP 9): +2 armadura a aliado a cada 2 TURNOS
         else if (c.cardClass == CardClass.Tank && c.tier == CardTier.Tier5 && c.attack == 3 && c.shield == 6 && c.health == 9)

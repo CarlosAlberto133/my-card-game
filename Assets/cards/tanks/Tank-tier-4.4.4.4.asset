@@ -20,5 +20,5 @@ MonoBehaviour:
   shield: 6
   health: 7
   effectDescription: Enquanto houver no tabuleiro healer, magos e arqueiros, esta
-    carta recebe 50% a menos de dano, as demais cartas recebem 1 de armadura por
-    turno
+    carta recebe 50% a menos de dano e os aliados adjacentes recebem 1 de armadura
+    por turno

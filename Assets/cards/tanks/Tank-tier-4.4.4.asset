@@ -19,5 +19,5 @@ MonoBehaviour:
   attack: 2
   shield: 5
   health: 7
-  effectDescription: Se houver as 4 classes em campo, arqueiros podem atacar 2 vezes
-    por turno
+  effectDescription: Se houver as 4 classes em campo e este tank estiver na linha
+    de frente (fora das 2 fileiras de casa), arqueiros podem atacar 2 vezes por turno

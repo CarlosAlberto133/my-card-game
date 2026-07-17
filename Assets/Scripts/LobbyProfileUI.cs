@@ -178,6 +178,14 @@ public static class LobbyProfileUI
 
             nameText.text = string.IsNullOrEmpty(stats.playerName) ? "Jogador" : stats.playerName;
 
+            if (stats.sessionExpired)
+            {
+                SetAll("—", vMatches, vWins, vLosses, vAbandoned, vTime, vRate);
+                if (footer != null)
+                    footer.text = "Sua sessão expirou.\nEntre de novo com Google pelo launcher.";
+                return;
+            }
+
             if (!stats.statsLoaded)
             {
                 SetAll("—", vMatches, vWins, vLosses, vAbandoned, vTime, vRate);

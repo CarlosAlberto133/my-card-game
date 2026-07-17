@@ -1,12 +1,14 @@
 using UnityEngine;
 
-public enum BoardTheme { Space = 0, Tabletop = 1 }
+public enum BoardTheme { Space = 0, Tabletop = 1, Forest = 2 }
 
-// Decide e aplica a temática visual da cena de jogo: ESPAÇO (a original) ou
-// MESA DE RPG (medieval — tabuleiro sobre uma mesa de madeira com miniaturas).
+// Decide e aplica a temática visual da cena de jogo: ESPAÇO (a original),
+// MESA DE RPG (medieval — tabuleiro sobre uma mesa de madeira com miniaturas)
+// ou FLORESTA (clareira com chão de terra cercada de árvores).
 // O ANFITRIÃO escolhe o mapa nos checkboxes da sala (padrão: Mesa de RPG); a
-// escolha viaja aos dois clientes pela room property "theme" (0=Espaço, 1=Mesa),
-// então os dois veem o MESMO cenário. Offline usa o padrão (Mesa de RPG).
+// escolha viaja aos dois clientes pela room property "theme" (0=Espaço,
+// 1=Mesa, 2=Floresta), então os dois veem o MESMO cenário. Offline usa o
+// padrão (Mesa de RPG).
 //
 // IMPORTANTE (lockstep): nada aqui usa UnityEngine.Random. A decoração usa
 // System.Random próprio (com a seed da partida — mesas idênticas nos 2 lados);
@@ -59,11 +61,14 @@ public class BoardThemeManager : MonoBehaviour
             // ela alimenta o System.Random da decoração, idêntica nos 2 lados
             if (themeSeed == 0) return;
 
-            // Mapa escolhido pelo anfitrião na sala (0 = Espaço, 1 = Mesa de RPG).
-            // Sem a property (build antigo/caso raro): padrão Mesa de RPG.
+            // Mapa escolhido pelo anfitrião na sala (0 = Espaço, 1 = Mesa de
+            // RPG, 2 = Floresta). Sem a property (build antigo): Mesa de RPG.
             object t = PhotonNetwork.room != null && PhotonNetwork.room.CustomProperties != null
                 ? PhotonNetwork.room.CustomProperties["theme"] : null;
-            theme = (t is int ti && ti == 0) ? BoardTheme.Space : BoardTheme.Tabletop;
+            int ti2 = t is int ? (int)t : 1;
+            theme = ti2 == 0 ? BoardTheme.Space
+                  : ti2 == 2 ? BoardTheme.Forest
+                  : BoardTheme.Tabletop;
         }
         else
         {
@@ -84,21 +89,31 @@ public class BoardThemeManager : MonoBehaviour
         // Derruba a decoração anterior (troca de temática num reinício)
         SpaceBackground.Clear();
         TabletopEnvironment.Clear();
+        ForestEnvironment.Clear();
+        RemoveAdoptedFloor();
 
         if (theme == BoardTheme.Space)
         {
-            // Pedra escura espacial (as cores originais do BoardManager).
-            // Remove as peças de pedra de um eventual tema Mesa anterior
-            RemoveStoneFloor();
+            // Pedra escura espacial (as cores originais do BoardManager)
             RetintTiles(new Color(0.30f, 0.33f, 0.43f), new Color(0.22f, 0.25f, 0.34f));
             SpaceBackground.Ensure();
+        }
+        else if (theme == BoardTheme.Forest)
+        {
+            // Casas de PEDRA lisas iguais às da Mesa de RPG (pedido do Carlos
+            // — as de terra liam mal), com xadrez de MAIS contraste que o da
+            // Mesa (na grama o campo se perdia; junto com a cordilheira de
+            // pedras, a grade fica óbvia)
+            RetintTiles(new Color(1.00f, 0.97f, 0.86f), new Color(0.70f, 0.68f, 0.52f));
+            BuildBoardFloor(themeSeed, false);
+            ForestEnvironment.Build(themeSeed);
         }
         else
         {
             // Casas de PEDRA de verdade (peças do KayKit Dungeon) sobre a mesa,
             // em tons quentes alternados (xadrez sutil mantém a grade legível)
             RetintTiles(new Color(1.00f, 0.97f, 0.92f), new Color(0.78f, 0.76f, 0.72f));
-            BuildStoneFloor(themeSeed);
+            BuildBoardFloor(themeSeed, false);
             TabletopEnvironment.Build(themeSeed);
         }
     }
@@ -119,10 +134,11 @@ public class BoardThemeManager : MonoBehaviour
         }
     }
 
-    // Troca o visual de cada casa pelo ladrilho de pedra do KayKit. Variedade
-    // determinística pela seed (rachados/mato — idênticos nos 2 clientes);
-    // clique e destaques continuam no CardTile, que agora tinge a peça.
-    static void BuildStoneFloor(int seed)
+    // Troca o visual de cada casa por uma peça real do KayKit — PEDRA (Mesa de
+    // RPG) ou TERRA (Floresta). Variedade determinística pela seed (rachados/
+    // mato — idênticos nos 2 clientes); clique e destaques continuam no
+    // CardTile, que agora tinge a peça.
+    static void BuildBoardFloor(int seed, bool dirt)
     {
         BoardManager board = BoardManager.Instance;
         if (board == null) return;
@@ -136,15 +152,24 @@ public class BoardThemeManager : MonoBehaviour
                 CardTile tile = board.GetTile(row, col);
                 if (tile == null) continue;
 
-                // Maioria lisa; algumas rachadas/com mato para o chão ter vida
                 double roll = rng.NextDouble();
                 string model;
-                if (roll < 0.07) model = "floor_tile_small_broken_A";
-                else if (roll < 0.13) model = "floor_tile_small_broken_B";
-                else if (roll < 0.20) model = "floor_tile_small_weeds_A";
-                else if (roll < 0.26) model = "floor_tile_small_weeds_B";
-                else if (roll < 0.31) model = "floor_tile_small_decorated";
-                else model = "floor_tile_small";
+                if (dirt)
+                {
+                    // Terra batida: variantes lisas + algumas com matinho
+                    if (roll < 0.15) model = "floor_dirt_small_weeds";
+                    else if (roll < 0.36) model = "floor_dirt_small_B";
+                    else if (roll < 0.57) model = "floor_dirt_small_C";
+                    else if (roll < 0.78) model = "floor_dirt_small_D";
+                    else model = "floor_dirt_small_A";
+                }
+                else
+                {
+                    // SÓ a peça LISA (pedido do Carlos): as variantes broken/
+                    // weeds/decorated liam como "tile estranho/sumido" no
+                    // tabuleiro. A variedade fica por conta do giro aleatório
+                    model = "floor_tile_small";
+                }
 
                 float yRot = 90f * rng.Next(4); // giro aleatório (quebra a repetição)
 
@@ -156,10 +181,10 @@ public class BoardThemeManager : MonoBehaviour
                     tile.AdoptVisual(piece, pieceRenderer);
             }
         }
-        Debug.Log("[BoardTheme] Casas de pedra do KayKit aplicadas ao tabuleiro");
+        Debug.Log($"[BoardTheme] Casas de {(dirt ? "terra" : "pedra")} do KayKit aplicadas");
     }
 
-    static void RemoveStoneFloor()
+    static void RemoveAdoptedFloor()
     {
         BoardManager board = BoardManager.Instance;
         if (board == null) return;

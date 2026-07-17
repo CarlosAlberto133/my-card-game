@@ -19,5 +19,5 @@ MonoBehaviour:
   attack: 2
   shield: 6
   health: 6
-  effectDescription: 1 vez por turno recebe o ataque no lugar da outra carta atacado,
-    se houver um healer em campo, receba 50% a menos
+  effectDescription: 1 vez por turno recebe o ataque no lugar de um aliado adjacente.
+    Se houver um healer em campo, recebe 50% a menos

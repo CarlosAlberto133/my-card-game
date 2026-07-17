@@ -44,12 +44,12 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
 
         if (!PhotonNetwork.connected)
         {
-            // gameVersion separa builds incompatíveis no matchmaking. "3.9" =
-            // rebalanceamento geral de status das 80 cartas (identidade de
-            // classe: tank tanque, arqueiro vidro, healer suporte). "3.8" =
-            // travar loja + partidas/logs no Supabase.
+            // gameVersion separa builds incompatíveis no matchmaking. "4.0" =
+            // balanceamento de EFEITOS (guarda/auras de Tank por posição,
+            // curas maiores no mais ferido, desconto de loja da Healer).
+            // "3.9" = rebalanceamento geral de status das 80 cartas.
             // Builds antigos simulariam outro resultado → desync.
-            PhotonNetwork.ConnectUsingSettings("3.9");
+            PhotonNetwork.ConnectUsingSettings("4.0");
             Debug.Log("[Lobby] Conectando ao Photon...");
         }
         else if (PhotonNetwork.inRoom)
@@ -277,17 +277,27 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         botButtonRef = botButton;
     }
 
-    // Inicia uma partida offline contra o bot: liga o offlineMode do Photon
-    // (os mesmos RPCs executam localmente — o jogo não percebe diferença) e
-    // carrega a cena da partida direto, sem sala online
+    // Abre o popup do treino (dificuldade + mapa); a escolha da dificuldade
+    // inicia a partida offline: liga o offlineMode do Photon (os mesmos RPCs
+    // executam localmente — o jogo não percebe diferença) e carrega a cena
+    // da partida direto, sem sala online
+    int botMapTheme = 1; // mapa escolhido no popup (padrão Mesa de RPG)
+
     void StartTrainingVsBot()
     {
         if (loadingGame || startingBotMode) return;
-        startingBotMode = true;
-        BotMode.Enabled = true;
 
-        ui.Toast("Preparando o treino contra o bot...");
-        StartCoroutine(BotModeRoutine());
+        ui.ShowBotSetup((difficulty, mapTheme) =>
+        {
+            if (loadingGame || startingBotMode) return;
+            startingBotMode = true;
+            BotMode.Enabled = true;
+            BotMode.Difficulty = difficulty;
+            botMapTheme = mapTheme;
+
+            ui.Toast("Preparando o treino contra o bot...");
+            StartCoroutine(BotModeRoutine());
+        });
     }
 
     System.Collections.IEnumerator BotModeRoutine()
@@ -310,10 +320,10 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         options.MaxPlayers = 2;
         PhotonNetwork.CreateRoom("Treino vs Bot", options, null);
 
-        // Mapa: mesmo padrão do multiplayer (Mesa de RPG). A sala offline aceita
-        // room properties normalmente — a cena do jogo lê "theme" como sempre
+        // Mapa: o escolhido no popup do treino. A sala offline aceita room
+        // properties normalmente — a cena do jogo lê "theme" como sempre
         Hashtable props = new Hashtable();
-        props["theme"] = ui != null ? ui.SelectedMapTheme : 1;
+        props["theme"] = botMapTheme;
         if (PhotonNetwork.room != null) PhotonNetwork.room.SetCustomProperties(props);
 
         LoadGameScene();

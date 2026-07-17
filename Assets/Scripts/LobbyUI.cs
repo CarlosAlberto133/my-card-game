@@ -24,17 +24,31 @@ public class LobbyUI
     private GameObject hostPanel;
     private GameObject guestPanel;
     private GameObject listPanel;
+    private GameObject botPanel;
+
+    // Popup do treino: mapa escolhido + callback (dificuldade, mapa)
+    private Toggle botMapTable;
+    private Toggle botMapForest;
+    private Toggle botMapSpace;
+    private Action<int, int> onBotStart;
 
     private TMP_Text hostTitle;
     private TMP_Text hostStatus;
     private Button startButton;
     private Toggle mapTableToggle;
+    private Toggle mapForestToggle;
     private Toggle mapSpaceToggle;
 
-    // Mapa escolhido pelo anfitrião: 1 = Mesa de RPG (padrão), 0 = Espaço
+    // Mapa escolhido pelo anfitrião: 1 = Mesa de RPG (padrão), 2 = Floresta,
+    // 0 = Espaço (mesmos códigos da room property "theme")
     public int SelectedMapTheme
     {
-        get { return (mapSpaceToggle != null && mapSpaceToggle.isOn) ? 0 : 1; }
+        get
+        {
+            if (mapSpaceToggle != null && mapSpaceToggle.isOn) return 0;
+            if (mapForestToggle != null && mapForestToggle.isOn) return 2;
+            return 1;
+        }
     }
     private TMP_Text guestTitle;
     private Transform listContent;
@@ -65,6 +79,7 @@ public class LobbyUI
         BuildHostPanel();
         BuildGuestPanel();
         BuildListPanel();
+        BuildBotPanel();
 
         // Toast de status (fora do overlay, sempre visível na base da tela)
         GameObject toastGO = MakeText(root, "LobbyToast", "", 17, Gold, TextAlignmentOptions.Center);
@@ -100,20 +115,14 @@ public class LobbyUI
         // Escolha do mapa (só o anfitrião vê este painel). Padrão: Mesa de RPG.
         MakeText(hostPanel.transform, "MapLabel", "Mapa da partida:", 17, TextMuted,
             TextAlignmentOptions.Center, new Vector2(0f, 38f), new Vector2(500f, 26f));
-        mapTableToggle = MakeCheckbox(hostPanel.transform, "Mesa de RPG", new Vector2(-118f, 4f), true);
-        mapSpaceToggle = MakeCheckbox(hostPanel.transform, "Espaço", new Vector2(118f, 4f), false);
+        mapTableToggle = MakeCheckbox(hostPanel.transform, "Mesa de RPG", new Vector2(-172f, 4f), true, 160f);
+        mapForestToggle = MakeCheckbox(hostPanel.transform, "Floresta", new Vector2(-2f, 4f), false, 140f);
+        mapSpaceToggle = MakeCheckbox(hostPanel.transform, "Espaço", new Vector2(150f, 4f), false, 130f);
 
         // Comportamento de "rádio": sempre exatamente UM mapa marcado
-        mapTableToggle.onValueChanged.AddListener(on =>
-        {
-            if (on) mapSpaceToggle.SetIsOnWithoutNotify(false);
-            else if (!mapSpaceToggle.isOn) mapTableToggle.SetIsOnWithoutNotify(true);
-        });
-        mapSpaceToggle.onValueChanged.AddListener(on =>
-        {
-            if (on) mapTableToggle.SetIsOnWithoutNotify(false);
-            else if (!mapTableToggle.isOn) mapSpaceToggle.SetIsOnWithoutNotify(true);
-        });
+        WireMapRadio(mapTableToggle, mapForestToggle, mapSpaceToggle);
+        WireMapRadio(mapForestToggle, mapTableToggle, mapSpaceToggle);
+        WireMapRadio(mapSpaceToggle, mapTableToggle, mapForestToggle);
 
         startButton = MakeButton(hostPanel.transform, "Iniciar Partida", new Vector2(0f, -74f),
             new Vector2(260f, 56f), Gold, GoldTextDark, 21, null);
@@ -170,7 +179,62 @@ public class LobbyUI
             new Vector2(220f, 44f), Slate, TextLight, 17, CloseList);
     }
 
+    // Popup do "Treinar vs Bot": escolha de dificuldade (clique inicia) e mapa
+    void BuildBotPanel()
+    {
+        botPanel = MakePanel(560f, 430f);
+
+        TMP_Text title = MakeText(botPanel.transform, "Title", "Treinar vs Bot", 30, Gold,
+            TextAlignmentOptions.Center, new Vector2(0f, 168f), new Vector2(520f, 42f)).GetComponent<TMP_Text>();
+        title.fontStyle = FontStyles.Bold;
+
+        MakeImage(botPanel.transform, "Divider", new Vector2(480f, 2f), PanelBorder)
+            .GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 138f);
+
+        MakeText(botPanel.transform, "DiffLabel", "Escolha a dificuldade para começar:", 17, TextMuted,
+            TextAlignmentOptions.Center, new Vector2(0f, 104f), new Vector2(520f, 26f));
+
+        MakeButton(botPanel.transform, "Fácil", new Vector2(-180f, 56f),
+            new Vector2(150f, 54f), Slate, Green, 20, () => StartBot(0));
+        MakeButton(botPanel.transform, "Médio", new Vector2(0f, 56f),
+            new Vector2(150f, 54f), Gold, GoldTextDark, 20, () => StartBot(1));
+        MakeButton(botPanel.transform, "Difícil", new Vector2(180f, 56f),
+            new Vector2(150f, 54f), new Color(0.52f, 0.18f, 0.14f), TextLight, 20, () => StartBot(2));
+
+        MakeText(botPanel.transform, "DiffHint",
+            "Fácil: distraído  ·  Médio: tático  ·  Difícil: planeja tríades e defende", 14, TextMuted,
+            TextAlignmentOptions.Center, new Vector2(0f, 14f), new Vector2(520f, 24f));
+
+        MakeText(botPanel.transform, "MapLabel", "Mapa do treino:", 17, TextMuted,
+            TextAlignmentOptions.Center, new Vector2(0f, -34f), new Vector2(520f, 26f));
+        botMapTable = MakeCheckbox(botPanel.transform, "Mesa de RPG", new Vector2(-172f, -68f), true, 160f);
+        botMapForest = MakeCheckbox(botPanel.transform, "Floresta", new Vector2(-2f, -68f), false, 140f);
+        botMapSpace = MakeCheckbox(botPanel.transform, "Espaço", new Vector2(150f, -68f), false, 130f);
+        WireMapRadio(botMapTable, botMapForest, botMapSpace);
+        WireMapRadio(botMapForest, botMapTable, botMapSpace);
+        WireMapRadio(botMapSpace, botMapTable, botMapForest);
+
+        MakeButton(botPanel.transform, "Voltar", new Vector2(0f, -158f),
+            new Vector2(220f, 44f), Slate, TextLight, 17, () => HideAll());
+    }
+
+    void StartBot(int difficulty)
+    {
+        int map = (botMapSpace != null && botMapSpace.isOn) ? 0
+                : (botMapForest != null && botMapForest.isOn) ? 2 : 1;
+        HideAll();
+        if (onBotStart != null) onBotStart(difficulty, map);
+    }
+
     // ================== API PARA O MANAGER ==================
+
+    public void ShowBotSetup(Action<int, int> onStart)
+    {
+        HideAll();
+        onBotStart = onStart;
+        overlay.SetActive(true);
+        botPanel.transform.parent.gameObject.SetActive(true);
+    }
 
     public void ShowHostRoom(string roomName, Action onStart, Action onLeave)
     {
@@ -255,6 +319,7 @@ public class LobbyUI
         hostPanel.transform.parent.gameObject.SetActive(false);
         guestPanel.transform.parent.gameObject.SetActive(false);
         listPanel.transform.parent.gameObject.SetActive(false);
+        if (botPanel != null) botPanel.transform.parent.gameObject.SetActive(false);
     }
 
     public void Toast(string message)
@@ -322,14 +387,32 @@ public class LobbyUI
         return go;
     }
 
+    // Liga um toggle do grupo de mapas aos outros dois (comportamento de rádio:
+    // marcar um desmarca os demais; desmarcar o único marcado o re-marca)
+    void WireMapRadio(Toggle self, Toggle other1, Toggle other2)
+    {
+        self.onValueChanged.AddListener(on =>
+        {
+            if (on)
+            {
+                other1.SetIsOnWithoutNotify(false);
+                other2.SetIsOnWithoutNotify(false);
+            }
+            else if (!other1.isOn && !other2.isOn)
+            {
+                self.SetIsOnWithoutNotify(true);
+            }
+        });
+    }
+
     // Checkbox no estilo do lobby: caixinha + marca dourada + rótulo à direita
-    Toggle MakeCheckbox(Transform parent, string label, Vector2 position, bool startOn)
+    Toggle MakeCheckbox(Transform parent, string label, Vector2 position, bool startOn, float width = 210f)
     {
         GameObject go = new GameObject("Chk_" + label, typeof(RectTransform), typeof(Image), typeof(Toggle));
         go.transform.SetParent(parent, false);
         RectTransform rt = go.GetComponent<RectTransform>();
         rt.anchoredPosition = position;
-        rt.sizeDelta = new Vector2(210f, 34f);
+        rt.sizeDelta = new Vector2(width, 34f);
 
         // Fundo invisível: área de clique confortável (o Image recebe o raycast)
         Image bg = go.GetComponent<Image>();
@@ -344,8 +427,10 @@ public class LobbyUI
 
         GameObject check = MakeImage(box.transform, "Check", new Vector2(16f, 16f), Gold);
 
+        // Rótulo logo à direita da caixinha (posição relativa à largura do toggle)
+        float labelW = width - 44f;
         MakeText(go.transform, "Label", label, 17, TextLight, TextAlignmentOptions.Left,
-            new Vector2(24f, 0f), new Vector2(165f, 30f));
+            new Vector2(-width / 2f + 36f + labelW / 2f, 0f), new Vector2(labelW, 30f));
 
         Toggle toggle = go.GetComponent<Toggle>();
         toggle.targetGraphic = bg;

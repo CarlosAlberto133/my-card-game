@@ -19,4 +19,5 @@ MonoBehaviour:
   attack: 1
   shield: 3
   health: 4
-  effectDescription: Pode assumir o dano caso qualquer carta seja atacada
+  effectDescription: Pode assumir o dano de um aliado adjacente que for atacado.
+    Ao assumir e sobreviver, ganha +1 de armadura

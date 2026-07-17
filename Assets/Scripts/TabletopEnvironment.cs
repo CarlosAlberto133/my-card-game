@@ -43,24 +43,40 @@ public static class TabletopEnvironment
         // ── Tampo da mesa ─────────────────────────────────────────────────
         // Grande o bastante para loja (x -27.5) e mãos (z ±29.5) ficarem sobre
         // ela. Topo em y = -0.15 (logo abaixo dos tiles, que estão em y = 0).
+        // A textura REPETE (tiling) — esticada uma vez só sobre 112 unidades
+        // ela virava um borrão; repetida, cada tábua fica nítida.
         GameObject slab = MakeBox("TableTop", center + new Vector3(0f, -1.65f, 0f),
-            new Vector3(112f, 3f, 90f), new Color(0.42f, 0.28f, 0.16f), GetWoodTexture());
+            new Vector3(112f, 3f, 90f), new Color(0.52f, 0.36f, 0.21f), GetWoodTexture());
+        SetTextureTiling(slab, 5f, 4f);
 
-        // ── Moldura do campo (borda de madeira escura em volta dos tiles) ──
-        // Tabuleiro 7x7 = 45.6 de lado (meia-largura 22.8). Moldura de 2 de
-        // espessura colada na borda, topo em y = 0.15.
-        Color frameColor = new Color(0.28f, 0.17f, 0.09f);
-        float half = 22.8f, th = 2f, fh = 0.6f, fy = -0.15f;
-        MakeBox("FrameN", center + new Vector3(0f, fy, half + th / 2f),
-            new Vector3(2f * (half + th), fh, th), frameColor, GetWoodTexture());
-        MakeBox("FrameS", center + new Vector3(0f, fy, -(half + th / 2f)),
-            new Vector3(2f * (half + th), fh, th), frameColor, GetWoodTexture());
-        MakeBox("FrameE", center + new Vector3(half + th / 2f, fy, 0f),
-            new Vector3(th, fh, 2f * half), frameColor, GetWoodTexture());
-        MakeBox("FrameW", center + new Vector3(-(half + th / 2f), fy, 0f),
-            new Vector3(th, fh, 2f * half), frameColor, GetWoodTexture());
+        // ── Moldura do campo: mureta de pedra do KayKit em volta dos tiles ──
+        // Tabuleiro 7x7 = 45.6 de lado (meia-largura 22.8). Segmentos de mureta
+        // ao longo de cada lado + coluna baixa em cada canto (combina com as
+        // casas de pedra do campo).
+        float half = 22.8f, th = 2f;
+        float top = -0.15f; // Altura do tampo (base das miniaturas e da mureta)
 
-        float top = -0.15f; // Altura do tampo (base das miniaturas)
+        float frameHalf = half + th / 2f;          // linha central da mureta
+        int segs = 8;                              // segmentos por lado
+        float segLen = (2f * frameHalf) / segs;    // ~6.2 → mureta baixa (~1.5)
+        for (int i = 0; i < segs; i++)
+        {
+            float t = -frameHalf + segLen * (i + 0.5f);
+            DecorProps.PlaceSpan(root.transform, "barrier",
+                center + new Vector3(t, top, frameHalf), Vector3.up, Vector3.right, segLen);
+            DecorProps.PlaceSpan(root.transform, "barrier",
+                center + new Vector3(t, top, -frameHalf), Vector3.up, Vector3.right, segLen);
+            DecorProps.PlaceSpan(root.transform, "barrier",
+                center + new Vector3(frameHalf, top, t), Vector3.up, Vector3.forward, segLen);
+            DecorProps.PlaceSpan(root.transform, "barrier",
+                center + new Vector3(-frameHalf, top, t), Vector3.up, Vector3.forward, segLen);
+        }
+        // Colunas nos 4 cantos amarram os dois lados da mureta
+        for (int sx = -1; sx <= 1; sx += 2)
+            for (int sz = -1; sz <= 1; sz += 2)
+                DecorProps.Place(root.transform, "barrier_column",
+                    center + new Vector3(sx * frameHalf, top, sz * frameHalf),
+                    2.4f, Vector3.up, new Vector3(-sx, 0f, -sz));
 
         // ── Árvores em miniatura (KayKit Forest, CC0) ─────────────────────
         // Posições seguras: fora do campo, da coluna da loja (x≈-27.5, |z|<22)
@@ -289,28 +305,69 @@ public static class TabletopEnvironment
         r.material = mat;
     }
 
-    // Textura de madeira procedural: veios horizontais (Perlin alongado no X),
-    // clara o bastante para a cor do material dominar
+    // Textura de madeira procedural em TÁBUAS (512px, com mipmaps): cada faixa
+    // horizontal é uma tábua com tom próprio, veios alongados e emendas escuras
+    // (horizontais entre tábuas + verticais desencontradas). Clara o bastante
+    // para a cor do material dominar. Feita para repetir (wrap = Repeat).
     static Texture2D GetWoodTexture()
     {
         if (woodTexture != null) return woodTexture;
 
-        const int size = 128;
-        woodTexture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        const int size = 512;
+        const int plankH = 64;               // 8 tábuas por repetição
+        woodTexture = new Texture2D(size, size, TextureFormat.RGBA32, true);
+        woodTexture.wrapMode = TextureWrapMode.Repeat;
+        woodTexture.filterMode = FilterMode.Trilinear;
+
+        // Tom e deslocamento de cada tábua — fixos (visual puro, sempre igual)
+        System.Random rng = new System.Random(4217);
+        int planks = size / plankH;
+        float[] tone = new float[planks];
+        int[] seamX = new int[planks];
+        float[] grainOff = new float[planks];
+        for (int p = 0; p < planks; p++)
+        {
+            tone[p] = 0.88f + 0.12f * (float)rng.NextDouble();
+            seamX[p] = rng.Next(size);       // emenda vertical desencontrada
+            grainOff[p] = (float)rng.NextDouble() * 100f;
+        }
 
         for (int y = 0; y < size; y++)
         {
+            int p = y / plankH;
+            int yIn = y % plankH;
             for (int x = 0; x < size; x++)
             {
-                // Veios: ruído esticado no X + ondulação fina
-                float n1 = Mathf.PerlinNoise(x * 0.02f, y * 0.35f);
-                float n2 = Mathf.PerlinNoise(x * 0.15f + 51f, y * 0.05f + 17f);
-                float v = 0.70f + 0.22f * n1 + 0.08f * n2;
-                woodTexture.SetPixel(x, y, new Color(v, v * 0.96f, v * 0.90f, 1f));
+                // Veios: ruído bem esticado no X + granulado fino, por tábua
+                float n1 = Mathf.PerlinNoise(x * 0.013f + grainOff[p], y * 0.16f);
+                float n2 = Mathf.PerlinNoise(x * 0.11f + 51f + grainOff[p], y * 0.07f + 17f);
+                float v = tone[p] * (0.74f + 0.19f * n1 + 0.07f * n2);
+
+                // Emenda horizontal entre tábuas (2px escuros + 1px de brilho)
+                if (yIn <= 1) v *= 0.55f;
+                else if (yIn == 2) v = Mathf.Min(1f, v * 1.12f);
+                else if (yIn == plankH - 1) v *= 0.72f;
+
+                // Emenda vertical da tábua (topo de tábua desencontrado)
+                int dx = Mathf.Abs(x - seamX[p]);
+                dx = Mathf.Min(dx, size - dx); // distância com wrap
+                if (dx <= 1) v *= 0.60f;
+
+                woodTexture.SetPixel(x, y, new Color(v, v * 0.95f, v * 0.88f, 1f));
             }
         }
 
-        woodTexture.Apply();
+        woodTexture.Apply(true);
         return woodTexture;
+    }
+
+    // Repetição da textura no material (URP Lit usa _BaseMap)
+    static void SetTextureTiling(GameObject go, float tilesX, float tilesY)
+    {
+        Renderer r = go != null ? go.GetComponent<Renderer>() : null;
+        if (r == null) return;
+        r.material.mainTextureScale = new Vector2(tilesX, tilesY);
+        if (r.material.HasProperty("_BaseMap"))
+            r.material.SetTextureScale("_BaseMap", new Vector2(tilesX, tilesY));
     }
 }

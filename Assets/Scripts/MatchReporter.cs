@@ -161,20 +161,39 @@ public class MatchReporter : MonoBehaviour
         return row;
     }
 
-    // ── Upload: refresh do token → .txt do log no STORAGE → linha na tabela ──
-    // O log NÃO vai mais como texto na tabela: sobe como ARQUIVO .txt no bucket
-    // "match-logs" (Storage) e a tabela guarda só o caminho (log_path).
+    // ── Sessão: renovação ÚNICA e só quando precisa ──────────────────────
+    // O refresh token do Supabase ROTACIONA a cada renovação (o antigo morre).
+    // Renovar em fluxos concorrentes (upload pendente no boot + perfil do
+    // lobby + envio de partida) fazia dois fluxos usarem/salvarem tokens fora
+    // de ordem → o Supabase revogava a família inteira e o session.json
+    // ficava órfão ("refresh_token_not_found" para sempre, até relogar).
+    // Regras: (1) single-flight — só UMA renovação por vez, os demais esperam
+    // e releem o session.json salvo; (2) access_token ainda válido (>60s) =
+    // NÃO renova (zero rotação na maioria dos fluxos).
+    static bool refreshingToken = false;
+    static bool sessionInvalid = false; // refresh 400: só relogando no launcher
 
-    IEnumerator SendMatch(MatchRow row, string logText, bool isPending)
+    IEnumerator EnsureFreshSession(Action<SessionData> onDone)
     {
+        // Outra renovação em andamento: espera e usa o resultado gravado
+        while (refreshingToken) yield return null;
+
         SessionData session = LoadSession();
-        if (session == null || string.IsNullOrEmpty(session.refresh_token))
-            yield break; // não logado (pendente: mantém pra quando logar)
+        if (session == null || string.IsNullOrEmpty(session.refresh_token) || sessionInvalid)
+        {
+            if (onDone != null) onDone(null);
+            yield break;
+        }
 
-        // Pendente de OUTRA conta que não a logada agora: descarta
-        if (isPending && session.user_id != row.user_id) { DeletePending(); yield break; }
+        // Token atual ainda vale: usa direto, sem rotacionar nada
+        long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        if (!string.IsNullOrEmpty(session.access_token) && session.expires_at - now > 60)
+        {
+            if (onDone != null) onDone(session);
+            yield break;
+        }
 
-        // 1) Renova o token
+        refreshingToken = true;
         string refreshBody = "{\"refresh_token\":\"" + session.refresh_token + "\"}";
         using (UnityWebRequest req = MakeJsonPost(
             SupabaseUrl + "/auth/v1/token?grant_type=refresh_token", refreshBody, null))
@@ -182,16 +201,52 @@ public class MatchReporter : MonoBehaviour
             yield return req.SendWebRequest();
             if (req.result != UnityWebRequest.Result.Success)
             {
-                Debug.LogWarning($"[MatchReporter] Falha ao renovar sessão ({req.responseCode}).");
-                if (!isPending) WritePending(row, logText); // retry no próximo boot
+                // 400 = token revogado/rotacionado fora daqui — insistir não
+                // resolve e ainda pioraria; o jogador precisa relogar
+                if (req.responseCode == 400) sessionInvalid = true;
+                Debug.LogWarning($"[MatchReporter] Falha ao renovar sessão ({req.responseCode}): {req.downloadHandler.text}");
+                refreshingToken = false;
+                if (onDone != null) onDone(null);
                 yield break;
             }
+
             RefreshResponse fresh = JsonUtility.FromJson<RefreshResponse>(req.downloadHandler.text);
-            if (fresh == null || string.IsNullOrEmpty(fresh.access_token)) yield break;
+            if (fresh == null || string.IsNullOrEmpty(fresh.access_token))
+            {
+                refreshingToken = false;
+                if (onDone != null) onDone(null);
+                yield break;
+            }
+
             session.access_token = fresh.access_token;
             if (!string.IsNullOrEmpty(fresh.refresh_token)) session.refresh_token = fresh.refresh_token;
             session.expires_at = DateTimeOffset.UtcNow.ToUnixTimeSeconds() + fresh.expires_in;
-            SaveSession(session);
+            SaveSession(session); // grava ANTES de liberar o lock (quem espera relê)
+        }
+        refreshingToken = false;
+        if (onDone != null) onDone(session);
+    }
+
+    // ── Upload: refresh do token → .txt do log no STORAGE → linha na tabela ──
+    // O log NÃO vai mais como texto na tabela: sobe como ARQUIVO .txt no bucket
+    // "match-logs" (Storage) e a tabela guarda só o caminho (log_path).
+
+    IEnumerator SendMatch(MatchRow row, string logText, bool isPending)
+    {
+        SessionData pre = LoadSession();
+        if (pre == null || string.IsNullOrEmpty(pre.refresh_token))
+            yield break; // não logado (pendente: mantém pra quando logar)
+
+        // Pendente de OUTRA conta que não a logada agora: descarta
+        if (isPending && pre.user_id != row.user_id) { DeletePending(); yield break; }
+
+        // 1) Garante sessão válida (renovação única/preguiçosa)
+        SessionData session = null;
+        yield return EnsureFreshSession(s => session = s);
+        if (session == null)
+        {
+            if (!isPending) WritePending(row, logText); // sobe quando relogar/no próximo boot
+            yield break;
         }
 
         row.user_id = session.user_id; // garante que bate com o token (RLS)
@@ -298,8 +353,9 @@ public class MatchReporter : MonoBehaviour
     [Serializable]
     public class PlayerStats
     {
-        public bool loggedIn;     // Há sessão do launcher (session.json)
-        public bool statsLoaded;  // A busca no Supabase deu certo
+        public bool loggedIn;       // Há sessão do launcher (session.json)
+        public bool sessionExpired; // Sessão órfã (refresh 400) — relogar no launcher
+        public bool statsLoaded;    // A busca no Supabase deu certo
         public string playerName;
         public int total, wins, losses, abandoned, totalSeconds;
     }
@@ -320,38 +376,26 @@ public class MatchReporter : MonoBehaviour
     {
         var stats = new PlayerStats();
 
-        SessionData session = LoadSession();
-        if (session == null || string.IsNullOrEmpty(session.refresh_token))
+        SessionData pre = LoadSession();
+        if (pre == null || string.IsNullOrEmpty(pre.refresh_token))
         {
             if (onDone != null) onDone(stats); // não logado
             yield break;
         }
 
         stats.loggedIn = true;
-        stats.playerName = !string.IsNullOrEmpty(session.name) ? session.name : session.email;
+        stats.playerName = !string.IsNullOrEmpty(pre.name) ? pre.name : pre.email;
 
-        // Renova o token (mesmo fluxo do SendMatch — o access_token salvo expira)
-        string refreshBody = "{\"refresh_token\":\"" + session.refresh_token + "\"}";
-        using (UnityWebRequest req = MakeJsonPost(
-            SupabaseUrl + "/auth/v1/token?grant_type=refresh_token", refreshBody, null))
+        // Sessão válida via caminho ÚNICO (single-flight + renovação preguiçosa
+        // — antes o perfil e o upload pendente do boot renovavam AO MESMO TEMPO
+        // e a rotação dupla revogava a família de tokens no Supabase)
+        SessionData session = null;
+        yield return EnsureFreshSession(s => session = s);
+        if (session == null)
         {
-            yield return req.SendWebRequest();
-            if (req.result != UnityWebRequest.Result.Success)
-            {
-                Debug.LogWarning($"[MatchReporter] Perfil: falha ao renovar sessão ({req.responseCode}).");
-                if (onDone != null) onDone(stats); // mostra ao menos o nome
-                yield break;
-            }
-            RefreshResponse fresh = JsonUtility.FromJson<RefreshResponse>(req.downloadHandler.text);
-            if (fresh == null || string.IsNullOrEmpty(fresh.access_token))
-            {
-                if (onDone != null) onDone(stats);
-                yield break;
-            }
-            session.access_token = fresh.access_token;
-            if (!string.IsNullOrEmpty(fresh.refresh_token)) session.refresh_token = fresh.refresh_token;
-            session.expires_at = DateTimeOffset.UtcNow.ToUnixTimeSeconds() + fresh.expires_in;
-            SaveSession(session);
+            stats.sessionExpired = sessionInvalid;
+            if (onDone != null) onDone(stats); // mostra ao menos o nome
+            yield break;
         }
 
         // Busca só as colunas necessárias das partidas do próprio usuário (RLS)
