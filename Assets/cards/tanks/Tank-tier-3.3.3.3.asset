@@ -18,5 +18,5 @@ MonoBehaviour:
   artwork: {fileID: 21300000, guid: 3ba23d963ad9863489f4c2d70e1a6178, type: 3}
   attack: 2
   shield: 4
-  health: 6
+  health: 7
   effectDescription: Ao entrar em campo, conceda +3 de armadura a um mago a sua escolha

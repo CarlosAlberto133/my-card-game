@@ -42,6 +42,9 @@ public class GameManager : MonoBehaviour
 
     void Update()
     {
+        // Escolha de torre aberta: nenhuma ação de jogo (teclas/cliques)
+        if (TowerSelectUI.IsOpen) return;
+
         // ESC cancela seleção de alvo de efeito (congelar / quebrar armadura / alvo genérico)
         if (UnityEngine.InputSystem.Keyboard.current != null &&
             UnityEngine.InputSystem.Keyboard.current.escapeKey.wasPressedThisFrame)
@@ -402,6 +405,8 @@ public class GameManager : MonoBehaviour
         cardDisplay.isInHand = false;
         cardDisplay.isOnBoard = true;
         cardDisplay.currentTile = tile;
+        MatchStatsTracker.RecordPlayed(cardDisplay); // telemetria: carta jogada
+        TowerSystem.OnCardPlaced(cardDisplay); // torres: Estandarte/auras/Emboscada
 
         // Em campo a carta é pública: remove o verso (mão do oponente)
         cardDisplay.SetFaceDown(false);
@@ -576,6 +581,8 @@ public class GameManager : MonoBehaviour
         selectedCardDisplay.isInHand = false;
         selectedCardDisplay.isOnBoard = true;
         selectedCardDisplay.currentTile = tile; // Armazena referência do tile
+        MatchStatsTracker.RecordPlayed(selectedCardDisplay); // telemetria: carta jogada
+        TowerSystem.OnCardPlaced(selectedCardDisplay); // torres: Estandarte/auras/Emboscada
 
         // Atualiza o visual (borda do dono + figura 3D da classe sobre a carta)
         selectedCardDisplay.UpdateDisplay();
@@ -907,6 +914,9 @@ public class GameManager : MonoBehaviour
 
         targetPlayer.TakeDamage(damage);
 
+        // Torres: gatilhos de "torre tomou dano" (Represália / Ressurgimento)
+        TowerSystem.OnTowerDamaged(targetPlayerNumber, attackerDisplay);
+
         // Marca que atacou neste round (ou consome o 2º ataque da aura do Tank 4)
         attackerDisplay.MarkAttackUsed();
 
@@ -1009,7 +1019,7 @@ public class GameManager : MonoBehaviour
 
         // Congela o inimigo
         EffectProjectileFX.Launch(mageFreezingCard, targetCard, EffectProjectileFX.Ice);
-        targetCard.Freeze();
+        targetCard.Freeze(false, mageFreezingCard);
         isWaitingForFreezeTarget = false;
         mageFreezingCard = null;
 
@@ -1039,7 +1049,7 @@ public class GameManager : MonoBehaviour
             case 1: // Congelar (Mage 1)
                 if (source != null)
                     EffectProjectileFX.Launch(source, target, EffectProjectileFX.Ice);
-                target.Freeze();
+                target.Freeze(false, source);
                 Debug.Log($"[GameManager] {target.card.cardName} foi congelada!");
                 break;
 

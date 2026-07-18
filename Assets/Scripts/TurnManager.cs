@@ -170,6 +170,12 @@ public class TurnManager : MonoBehaviour
         // Marca o início (duração da partida) e libera o upload do fim dela
         matchStartRealtime = Time.realtimeSinceStartup;
         MatchReporter.ResetForNewMatch();
+        MatchLogRecorder.MarkRound(1); // marcador para o report recortar o round
+
+        // Sistema de torres: zera o estado e abre a tela de escolha (bloqueia
+        // o input do jogo até os DOIS jogadores confirmarem a torre)
+        TowerSystem.ResetForMatch();
+        TowerSelectUI.Open();
 
         // Resetar flags de ready
         player1Ready = false;
@@ -300,6 +306,12 @@ public class TurnManager : MonoBehaviour
         if (roundCompleted)
         {
             currentRound++;
+            MatchLogRecorder.MarkRound(currentRound); // marcador p/ recorte do report
+
+            // Torres: efeitos periódicos + janela da loja mágica (roda dentro
+            // do RPC de fim de turno — idêntico nos dois clientes)
+            try { TowerSystem.OnRoundChanged(currentRound); }
+            catch (System.Exception e) { Debug.LogError($"[EndTurn] TowerSystem: {e}"); }
             Debug.Log($"Round {currentRound} iniciado!");
 
             // Checa efeitos periódicos das cartas (como heal do healer a cada 2 rounds)
@@ -529,7 +541,7 @@ public class TurnManager : MonoBehaviour
         BoardManager board = BoardManager.Instance;
         if (board == null) return;
 
-        // Só os Tank 4 (3/6/7) de quem acabou de jogar o turno
+        // Só os Tank 4 (3/7/8) de quem acabou de jogar o turno
         for (int playerNum = ownerPlayer; playerNum <= ownerPlayer; playerNum++)
         {
             var playerAllies = board.GetCardsByOwner(playerNum);
@@ -538,7 +550,7 @@ public class TurnManager : MonoBehaviour
             foreach (var card in playerAllies)
             {
                 if (card != null && card.card != null && card.card.cardClass == CardClass.Tank &&
-                    card.card.attack == 3 && card.card.shield == 6 && card.card.health == 7 &&
+                    card.card.attack == 3 && card.card.shield == 7 && card.card.health == 8 &&
                     card.card.tier == CardTier.Tier4)
                 {
                     if (!DuplicateEffectGate.TryActivate(card)) continue;

@@ -11,6 +11,11 @@ using Hashtable = ExitGames.Client.Photon.Hashtable;
 // - Fechar Jogo  -> sai do aplicativo
 public class PhotonLobbyManager : UnityEngine.MonoBehaviour
 {
+    // Versão do jogo — separa builds incompatíveis no matchmaking do Photon E
+    // marca a telemetria de balanceamento (card_stats). Subir a cada mudança
+    // de simulação. "4.1" = rebalance das 4 classes (tanks/arqueiros/healers/magos).
+    public const string GameVersion = "4.1";
+
     public Button createRoomButton;
     public Button joinRoomButton;
     public RoomListPanel roomListPanel; // legado (painel antigo da cena; não é mais usado)
@@ -24,6 +29,7 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
     private bool startingBotMode = false;
     private Button quitButtonRef;
     private Button botButtonRef;
+    private Button howToButtonRef;
 
     void Start()
     {
@@ -44,12 +50,14 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
 
         if (!PhotonNetwork.connected)
         {
-            // gameVersion separa builds incompatíveis no matchmaking. "4.0" =
-            // balanceamento de EFEITOS (guarda/auras de Tank por posição,
-            // curas maiores no mais ferido, desconto de loja da Healer).
-            // "3.9" = rebalanceamento geral de status das 80 cartas.
-            // Builds antigos simulariam outro resultado → desync.
-            PhotonNetwork.ConnectUsingSettings("4.0");
+            // gameVersion separa builds incompatíveis no matchmaking. "4.1" =
+            // rebalance dos Tanks (+1 vida todos, +1 escudo T4/T5, statlines
+            // novas), aura de ataque duplo com cooldown de round, guarda só
+            // protege quem está ao lado/atrás (e protege tanks), 50% de
+            // redução não acumula, e delay de 2 turnos no Mage 3.
+            // "4.0" = balanceamento de efeitos. Builds antigos simulariam
+            // outro resultado → desync.
+            PhotonNetwork.ConnectUsingSettings(GameVersion);
             Debug.Log("[Lobby] Conectando ao Photon...");
         }
         else if (PhotonNetwork.inRoom)
@@ -66,6 +74,7 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         // desenha por cima, e os popups precisam cobrir os botões
         CreateQuitButton();
         CreateBotTrainingButton();
+        CreateHowToPlayButton();
 
         // Constrói os popups (ficam ocultos até serem usados)
         Canvas canvas = createRoomButton != null
@@ -141,6 +150,34 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         Application.Quit();
     }
 
+    // Botão "Como Jogar" — clone do Create Room, abre a tela de regras
+    void CreateHowToPlayButton()
+    {
+        if (createRoomButton == null) return;
+
+        GameObject clone = Instantiate(createRoomButton.gameObject, createRoomButton.transform.parent);
+        clone.name = "HowToPlayButton";
+        clone.transform.SetSiblingIndex(createRoomButton.transform.GetSiblingIndex() + 1);
+
+        TMP_Text tmpLabel = clone.GetComponentInChildren<TMP_Text>();
+        if (tmpLabel != null) tmpLabel.text = "Como Jogar";
+        else { Text legacy = clone.GetComponentInChildren<Text>(); if (legacy != null) legacy.text = "Como Jogar"; }
+
+        Button b = clone.GetComponent<Button>();
+        b.interactable = true; // funciona sem conexão
+        b.onClick.RemoveAllListeners();
+        b.onClick.AddListener(ShowHowToPlay);
+        howToButtonRef = b;
+    }
+
+    void ShowHowToPlay()
+    {
+        Canvas canvas = createRoomButton != null
+            ? createRoomButton.GetComponentInParent<Canvas>()
+            : FindObjectOfType<Canvas>();
+        HowToPlayUI.Show(canvas);
+    }
+
     // Monta a coluna do menu no tema taverna: uma tabuleta de madeira atrás e
     // os 4 botões (Criar Sala em dourado; os demais em madeira escura) com
     // cantos arredondados, moldura dourada e realce ao passar o mouse.
@@ -162,8 +199,9 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         brt.anchorMin = baseRt.anchorMin;
         brt.anchorMax = baseRt.anchorMax;
         brt.pivot = baseRt.pivot;
-        brt.anchoredPosition = basePos + new Vector2(0f, -gap * 1.5f);
-        brt.sizeDelta = new Vector2(btnSize.x + 64f, gap * 3f + btnSize.y + 60f);
+        // 5 botões agora (Criar / Procurar / Treinar / Como Jogar / Fechar)
+        brt.anchoredPosition = basePos + new Vector2(0f, -gap * 2f);
+        brt.sizeDelta = new Vector2(btnSize.x + 64f, gap * 4f + btnSize.y + 60f);
         Image boardImg = board.GetComponent<Image>();
         LobbySprites.MakeRounded(boardImg, new Color(0.10f, 0.07f, 0.045f, 0.90f));
         boardImg.raycastTarget = false;
@@ -172,7 +210,8 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         StyleMenuButton(createRoomButton, "Criar Sala", true, basePos, btnSize, baseRt);
         StyleMenuButton(joinRoomButton, "Procurar Salas", false, basePos + new Vector2(0f, -gap), btnSize, baseRt);
         StyleMenuButton(botButtonRef, "Treinar vs Bot", false, basePos + new Vector2(0f, -gap * 2f), btnSize, baseRt);
-        StyleMenuButton(quitButtonRef, "Fechar Jogo", false, basePos + new Vector2(0f, -gap * 3f), btnSize, baseRt);
+        StyleMenuButton(howToButtonRef, "Como Jogar", false, basePos + new Vector2(0f, -gap * 3f), btnSize, baseRt);
+        StyleMenuButton(quitButtonRef, "Fechar Jogo", false, basePos + new Vector2(0f, -gap * 4f), btnSize, baseRt);
     }
 
     // Reconstrói o visual de um botão: sprite arredondado, moldura dourada,

@@ -17,7 +17,8 @@ MonoBehaviour:
   tier: 4
   artwork: {fileID: 21300000, guid: 38f648b08f29f514c9dcf2118c28e033, type: 3}
   attack: 2
-  shield: 6
-  health: 6
-  effectDescription: 1 vez por turno recebe o ataque no lugar de um aliado adjacente.
-    Se houver um healer em campo, recebe 50% a menos
+  shield: 7
+  health: 7
+  effectDescription: "1 vez por turno recebe o ataque no lugar de um aliado adjacente
+    (inclusive tanks) que esteja ao lado ou atr\xE1s dele. Se houver um healer em
+    campo, recebe 50% a menos (redu\xE7\xF5es de 50% n\xE3o se acumulam)"

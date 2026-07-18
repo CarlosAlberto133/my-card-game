@@ -19,20 +19,20 @@ public class CardEffectSimple : MonoBehaviour
         int baseHp = cardDisplay.card.health;
 
         if (baseAtk == 6 && baseHp == 3)
-            ArcherTier5Effect1_DoubleDamageAgainstTank();
+            ArcherTier5Effect4_CopyOnKill();
         else if (baseAtk == 6 && baseHp == 4)
             ArcherTier5Effect2_RemoveEnemyArmor();
         else if (baseAtk == 5 && baseHp == 4)
             ArcherTier5Effect3_IgnoreArmorAndExecute();
     }
 
-    // Efeito 1: Archer 5 (ATK 6, HP 3) - Causa dano duplicado se atacar um Tank
-    void ArcherTier5Effect1_DoubleDamageAgainstTank()
+    // Efeito 4: Archer 5 (ATK 6, HP 3, subiu do tier 4) - Cria cópia de si ao
+    // matar (o gancho fica em CardDisplay.DestroyCard → ActivateCopyOnKill)
+    void ArcherTier5Effect4_CopyOnKill()
     {
         if (cardDisplay == null) return;
 
-        // Este efeito é ativado via hook em AttackAdjacentEnemy
-        Debug.Log($"[ArcherTier5Effect1] {cardDisplay.card.cardName}: Pronta para duplicar dano contra Tanks");
+        Debug.Log($"[ArcherTier5Effect4] {cardDisplay.card.cardName}: Pronta para copiar ao matar");
     }
 
     public bool IsTargetTank(CardDisplay target)
@@ -234,7 +234,7 @@ public class CardEffectSimple : MonoBehaviour
         else if (baseAtk == 4 && baseHp == 2)
             ArcherTier4Effect2_StunEvery2Turns();
         else if (baseAtk == 5 && baseHp == 2)
-            ArcherTier4Effect3_CopyOnKill();
+            ArcherTier4Effect5_DoubleDamageVsTank();
         else if (baseAtk == 4 && baseHp == 3)
             ArcherTier4Effect4_ExtraMoveOnSideAttack();
     }
@@ -309,18 +309,19 @@ public class CardEffectSimple : MonoBehaviour
         if (target != null)
         {
             EffectProjectileFX.Launch(cardDisplay, target, EffectProjectileFX.Arrow);
-            target.Stun();
+            target.Stun(cardDisplay);
             Debug.Log($"[ArcherTier4Effect2] {cardDisplay.card.cardName}: Stuneu {target.card.cardName}!");
         }
     }
 
-    // Efeito 3: Archer 4 (ATK 5, HP 2) - Cria cópia ao matar, move novamente se tem Tank
-    void ArcherTier4Effect3_CopyOnKill()
+    // Efeito 5: Archer 4 (ATK 5, HP 2, desceu do tier 5) - Dano em dobro
+    // contra Tank em 1 ataque, 1 vez a cada 2 turnos (gancho em
+    // CardDisplay.PerformAttackOn, cooldown em doubleVsTankLastUsedRound)
+    void ArcherTier4Effect5_DoubleDamageVsTank()
     {
         if (cardDisplay == null) return;
 
-        // Este efeito é ativado quando mata um alvo (via hook em TakeDamage)
-        Debug.Log($"[ArcherTier4Effect3] {cardDisplay.card.cardName}: Pronta para copiar ao matar");
+        Debug.Log($"[ArcherTier4Effect5] {cardDisplay.card.cardName}: Pronta para dobrar dano contra Tank (1x a cada 2 turnos)");
     }
 
     public void ActivateCopyOnKill()
@@ -339,14 +340,14 @@ public class CardEffectSimple : MonoBehaviour
             CardDisplay copy = cardDisplay.SpawnCardCopy(emptyTile);
             if (copy != null) copy.BlockAttackThisRound();
             FloatingTextFX.ShowAboveCard(cardDisplay, "CÓPIA!", FloatingTextFX.EffectColor, 4.5f);
-            Debug.Log($"[ArcherTier4Effect3] {cardDisplay.card.cardName}: Criou uma cópia (ataca só no próximo round)!");
+            Debug.Log($"[ArcherTier5Effect4] {cardDisplay.card.cardName}: Criou uma cópia (ataca só no próximo round)!");
         }
 
         // Se tem Tank aliado, pode se mover novamente
         if (board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Tank))
         {
             cardDisplay.lastMovedRound = -1;
-            Debug.Log($"[ArcherTier4Effect3] {cardDisplay.card.cardName}: Tem Tank aliado - pode se mover novamente!");
+            Debug.Log($"[ArcherTier5Effect4] {cardDisplay.card.cardName}: Tem Tank aliado - pode se mover novamente!");
         }
     }
 
@@ -447,8 +448,9 @@ public class CardEffectSimple : MonoBehaviour
                 CardDisplay copy = cardDisplay.SpawnCardCopy(emptyTile);
                 if (copy != null)
                 {
+                    copy.WeakenAsEcho(); // metade dos stats (min 1) + só anda neste round
                     cardDisplay.archerTier3Effect2Used = true;
-                    Debug.Log($"[ArcherTier3Effect2] {cardDisplay.card.cardName}: Criou uma cópia em {emptyTile.row},{emptyTile.column}!");
+                    Debug.Log($"[ArcherTier3Effect2] {cardDisplay.card.cardName}: Criou um eco ({copy.currentAttack}/{copy.currentHealth}) em {emptyTile.row},{emptyTile.column}!");
                 }
             }
         }
@@ -541,7 +543,7 @@ public class CardEffectSimple : MonoBehaviour
         }
 
         // Para o ataque
-        attackingCard.Stun();
+        attackingCard.Stun(cardDisplay);
         cardDisplay.archerShieldArrowUsed = true;
 
         FloatingTextFX.ShowAboveCard(cardDisplay, "FLECHA PROTETORA!", FloatingTextFX.EffectColor, 4.2f);
@@ -566,7 +568,7 @@ public class CardEffectSimple : MonoBehaviour
             return;
         }
 
-        attackingCard.Stun();
+        attackingCard.Stun(cardDisplay);
         cardDisplay.archerStunOnHitUsed = true;
 
         Debug.Log($"[ArcherTier2Effect3] {cardDisplay.card.cardName}: Stuneu {attackingCard.card.cardName}!");
@@ -736,7 +738,8 @@ public class CardEffectSimple : MonoBehaviour
                 CardDisplay copy = cardDisplay.SpawnCardCopy(emptyTile);
                 if (copy != null)
                 {
-                    Debug.Log($"[ArcherEffect3] {cardDisplay.card.cardName}: Criou uma cópia em {emptyTile.row},{emptyTile.column}");
+                    copy.WeakenAsEcho(); // metade dos stats (min 1) + só anda neste round
+                    Debug.Log($"[ArcherEffect3] {cardDisplay.card.cardName}: Criou um eco ({copy.currentAttack}/{copy.currentHealth}) em {emptyTile.row},{emptyTile.column}");
                 }
                 else
                 {
@@ -811,6 +814,7 @@ public class CardEffectSimple : MonoBehaviour
             if (player != null)
             {
                 player.AddGold(1);
+                MatchStatsTracker.RecordGold(cardDisplay, 1);
                 FloatingTextFX.ShowAboveCard(cardDisplay, "+1 ouro", FloatingTextFX.GoldColor);
                 Debug.Log($"[HealerTier4Effect1] {cardDisplay.card.cardName}: Tem Mago aliado - ganhou 1 de ouro!");
             }
@@ -848,6 +852,7 @@ public class CardEffectSimple : MonoBehaviour
         }
 
         player.AddGold(1);
+        MatchStatsTracker.RecordGold(cardDisplay, 1);
         FloatingTextFX.ShowAboveCard(cardDisplay, "+1 ouro", FloatingTextFX.GoldColor);
         Debug.Log($"[HealerTier4Effect2] {cardDisplay.card.cardName}: Ganhou 1 ouro ao fim do turno do oponente!");
     }
@@ -963,6 +968,7 @@ public class CardEffectSimple : MonoBehaviour
             if (player != null)
             {
                 player.AddGold(2);
+                MatchStatsTracker.RecordGold(cardDisplay, 2);
                 cardDisplay.healerTier3Effect1Used = true;
                 FloatingTextFX.ShowAboveCard(cardDisplay, "+2 ouro", FloatingTextFX.GoldColor);
                 Debug.Log($"[HealerTier3Effect1] {cardDisplay.card.cardName}: Tem um mago aliado - ganhou 2 de ouro!");
@@ -1041,6 +1047,7 @@ public class CardEffectSimple : MonoBehaviour
             if (player != null)
             {
                 player.AddGold(totalGold);
+                MatchStatsTracker.RecordGold(cardDisplay, totalGold);
                 cardDisplay.healerTier3Effect3Used = true;
                 FloatingTextFX.ShowAboveCard(cardDisplay, $"+{totalGold} ouro", FloatingTextFX.GoldColor);
                 Debug.Log($"[HealerTier3Effect3] {cardDisplay.card.cardName}: Ganhou {totalGold} de ouro ({healerCount} Healers + {mageCount} Magos)!");
@@ -1192,7 +1199,7 @@ public class CardEffectSimple : MonoBehaviour
         int baseAtk = cardDisplay.card.attack;
         int baseHp = cardDisplay.card.health;
 
-        // (Efeito 1 do 0/3 é SÓ periódico — a cura sai pelo contador de 2 rounds
+        // (Efeito 1 do 0/3 é SÓ periódico — a cura sai pelo contador de 2 TURNOS
         // via OnPeriodicCounterExpired; antes também curava na entrada em campo,
         // um proc extra que não está na descrição)
         if (baseAtk == 1 && baseHp == 3)
@@ -1224,8 +1231,8 @@ public class CardEffectSimple : MonoBehaviour
         return best;
     }
 
-    // Efeito 1: Cura 3 HP no aliado MAIS FERIDO a cada 2 rounds (era cura 2 em
-    // aliado aleatório — sorteava mal e curava pouco para a régua v3.9)
+    // Efeito 1: Cura 3 HP no aliado MAIS FERIDO a cada 2 TURNOS (era a cada 2
+    // rounds — demorava demais; pedido do Carlos no rebalance v4.1)
     void HealerEffect1_RandomAllyPeriodicHeal()
     {
         if (cardDisplay == null) return;
@@ -1241,17 +1248,29 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[HealerEffect1] {cardDisplay.card.cardName}: Curou {targetAlly.card.cardName} (o mais ferido) por 3 HP");
     }
 
-    // Efeito 2: Ao entrar em campo, cura 2 HP em todos os aliados (apenas 1 vez)
+    // Efeito 2: Ao entrar em campo, cura 2 HP em todos os aliados — e desde o
+    // rebalance v4.1 REATIVA a cada 2 turnos (contador amarelo, ver
+    // SetupPeriodicCounter/OnPeriodicCounterExpired)
     void HealerEffect2_HealAllAlliesOnEnter()
     {
         if (cardDisplay == null) return;
 
-        // Verifica se já usou o efeito
+        // A cura de ENTRADA só sai 1 vez (as seguintes vêm pelo contador)
         if (cardDisplay.healOnEnterUsed)
         {
-            Debug.Log($"[HealerEffect2] {cardDisplay.card.cardName}: Efeito já foi usado!");
+            Debug.Log($"[HealerEffect2] {cardDisplay.card.cardName}: Cura de entrada já foi usada!");
             return;
         }
+
+        cardDisplay.healOnEnterUsed = true;
+        ActivateHealAllAlliesPeriodic();
+    }
+
+    // Núcleo da cura em área do Healer 1 (1/3): usado na entrada e no tique
+    // periódico de 2 turnos
+    public void ActivateHealAllAlliesPeriodic()
+    {
+        if (cardDisplay == null) return;
 
         BoardManager board = BoardManager.Instance;
         if (board == null) return;
@@ -1268,7 +1287,6 @@ public class CardEffectSimple : MonoBehaviour
             }
         }
 
-        cardDisplay.healOnEnterUsed = true;
         Debug.Log($"[HealerEffect2] {cardDisplay.card.cardName}: Curou {healed} aliado(s) por 2 HP");
     }
 
@@ -1298,6 +1316,7 @@ public class CardEffectSimple : MonoBehaviour
         if (player != null)
         {
             player.AddGold(1);
+            MatchStatsTracker.RecordGold(cardDisplay, 1);
             FloatingTextFX.ShowAboveCard(cardDisplay, "+1 ouro", FloatingTextFX.GoldColor);
             Debug.Log($"[HealerEffect4] {cardDisplay.card.cardName}: Ganhou 1 ouro! Total: {player.gold}");
         }
@@ -1318,7 +1337,7 @@ public class CardEffectSimple : MonoBehaviour
         else if (baseAtk == 3 && baseHp == 5)
             MageTier4Effect3_DestroyLowerTier();
         else if (baseAtk == 4 && baseHp == 4)
-            MageTier4Effect4_GoldPerRound();
+            MageTier4Effect4_LightningEvery2Turns();
     }
 
     // Efeito 1: Mage 4 (ATK 4, HP 5) - Remove bônus de um inimigo, pode usar 2 vezes se tem Healer + Arqueiro
@@ -1484,36 +1503,21 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 4: Mage 4 (ATK 4, HP 4) - Uma vez por round ganha +1 ouro
-    void MageTier4Effect4_GoldPerRound()
+    // Efeito 4: Mage 4 (ATK 4, HP 4) - RAIO a cada 2 turnos: 2 de dano num
+    // inimigo aleatório e 1 nos adjacentes. Era "+1 ouro por round" —
+    // economia é trabalho de healer, não de mago (v4.1)
+    void MageTier4Effect4_LightningEvery2Turns()
     {
         if (cardDisplay == null) return;
 
-        // Este efeito é ativado quando a carta entra em campo
-        Debug.Log($"[MageTier4Effect4] {cardDisplay.card.cardName}: Pronta para ganhar +1 ouro uma vez por round");
+        // O raio sai pelo contador amarelo (SetupPeriodicCounter/
+        // OnPeriodicCounterExpired), a cada 2 turnos
+        Debug.Log($"[MageTier4Effect4] {cardDisplay.card.cardName}: Pronta para lançar raios a cada 2 turnos");
     }
 
-    public void ActivateGoldPerRound()
+    public void ActivateLightningPeriodic()
     {
-        if (cardDisplay == null) return;
-
-        if (TurnManager.Instance == null) return;
-
-        // Verifica se já usou neste round
-        if (cardDisplay.mageTier4Effect4LastUsedRound >= TurnManager.Instance.currentRound)
-        {
-            Debug.Log($"[MageTier4Effect4] {cardDisplay.card.cardName}: Já usou neste round!");
-            return;
-        }
-
-        PlayerData player = TurnManager.Instance.GetPlayer(cardDisplay.ownerPlayerNumber);
-        if (player != null)
-        {
-            player.AddGold(1);
-            cardDisplay.mageTier4Effect4LastUsedRound = TurnManager.Instance.currentRound;
-            FloatingTextFX.ShowAboveCard(cardDisplay, "+1 ouro", FloatingTextFX.GoldColor);
-            Debug.Log($"[MageTier4Effect4] {cardDisplay.card.cardName}: Ganhou +1 ouro! Total: {player.gold}");
-        }
+        CastAreaBlast(2, 1, "MageTier4Effect4");
     }
 
     // ===== MAGE TIER-3 =====
@@ -1527,11 +1531,11 @@ public class CardEffectSimple : MonoBehaviour
         if (baseAtk == 1 && baseHp == 3)
             MageTier3Effect1_StealStats();
         else if (baseAtk == 3 && baseHp == 5)
-            MageTier3Effect2_BoostAllWithArcher();
+            MageTier3Effect2_SplashAttacks();
         else if (baseAtk == 3 && baseHp == 4)
             MageTier3Effect3_FreezeOrDamage();
         else if (baseAtk == 2 && baseHp == 5)
-            MageTier3Effect4_BoostHandCards();
+            MageTier3Effect4_Explosion();
     }
 
     // Efeito 1: Mage 3 (ATK 1, HP 3) - Rouba todos os status de um inimigo aleatório (inimigo fica com 0)
@@ -1586,34 +1590,15 @@ public class CardEffectSimple : MonoBehaviour
     }
 
     // Efeito 2: Mage 3 (ATK 3, HP 5) - Concede +1 de ataque a todos no campo se houver Arqueiro
-    void MageTier3Effect2_BoostAllWithArcher()
+    // Efeito 2: Mage 3 (ATK 3, HP 5) - RESPINGO: os ataques dela causam 1 de
+    // dano também aos inimigos adjacentes ao alvo (gancho em
+    // CardDisplay.PerformAttackOn → SplashDamageAroundTile). Era "+1 ATK a
+    // todos com arqueiro" — buff genérico sem identidade (v4.1)
+    void MageTier3Effect2_SplashAttacks()
     {
-        if (cardDisplay == null || cardDisplay.mageTier3Effect2Used) return;
+        if (cardDisplay == null) return;
 
-        BoardManager board = BoardManager.Instance;
-        if (board == null) return;
-
-        bool hasArcherAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Arqueiro);
-
-        if (hasArcherAlly)
-        {
-            var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
-            foreach (var ally in allies)
-            {
-                if (ally != null)
-                {
-                    ally.currentAttack += 1;
-                    ally.UpdateDisplay();
-                }
-            }
-
-            cardDisplay.mageTier3Effect2Used = true;
-            Debug.Log($"[MageTier3Effect2] {cardDisplay.card.cardName}: Tem um arqueiro aliado - todos os aliados ganharam +1 ATK!");
-        }
-        else
-        {
-            Debug.Log($"[MageTier3Effect2] {cardDisplay.card.cardName}: Nenhum arqueiro aliado - efeito não ativado");
-        }
+        Debug.Log($"[MageTier3Effect2] {cardDisplay.card.cardName}: Ataques com respingo (1 de dano nos adjacentes ao alvo)");
     }
 
     // Efeito 3: Mage 3 (ATK 3, HP 4) - Escolhe congelar OU dano (popup) ou ambos se tiver Healer e Tank
@@ -1706,7 +1691,7 @@ public class CardEffectSimple : MonoBehaviour
         if (targetEnemy != null)
         {
             EffectProjectileFX.Launch(cardDisplay, targetEnemy, EffectProjectileFX.Ice);
-            targetEnemy.Freeze(forceOneTurn);
+            targetEnemy.Freeze(forceOneTurn, cardDisplay);
             Debug.Log($"[MageTier3Effect3] {cardDisplay.card.cardName}: Congelou {targetEnemy.card.cardName}!");
         }
     }
@@ -1752,34 +1737,24 @@ public class CardEffectSimple : MonoBehaviour
         if (targetEnemy != null)
         {
             EffectProjectileFX.Launch(cardDisplay, targetEnemy, EffectProjectileFX.Ice);
-            targetEnemy.Freeze(forceOneTurn);
+            targetEnemy.Freeze(forceOneTurn, cardDisplay);
+            MatchStatsTracker.EffectSource = cardDisplay;
             targetEnemy.TakeDamage(1);
+            MatchStatsTracker.EffectSource = null;
             Debug.Log($"[MageTier3Effect3] {cardDisplay.card.cardName}: Congelou E causou 1 de dano a {targetEnemy.card.cardName}!");
         }
     }
 
     // Efeito 4: Mage 3 (ATK 2, HP 5) - Concede +1 de ataque a todas as cartas aliadas em campo
-    void MageTier3Effect4_BoostHandCards()
+    // Efeito 4: Mage 3 (ATK 2, HP 5) - EXPLOSÃO ao entrar: 2 de dano num
+    // inimigo aleatório e 1 nos adjacentes a ele. Era "+1 ATK a todas as
+    // cartas no campo" — buff genérico sem identidade (v4.1)
+    void MageTier3Effect4_Explosion()
     {
         if (cardDisplay == null || cardDisplay.mageTier3Effect4Used) return;
 
-        BoardManager board = BoardManager.Instance;
-        if (board == null) return;
-
-        var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
-        if (allies.Count == 0) return;
-
-        foreach (var ally in allies)
-        {
-            if (ally != null)
-            {
-                ally.currentAttack += 1;
-                ally.UpdateDisplay();
-            }
-        }
-
         cardDisplay.mageTier3Effect4Used = true;
-        Debug.Log($"[MageTier3Effect4] {cardDisplay.card.cardName}: Concedeu +1 ATK a {allies.Count} carta(s) aliada(s) em campo!");
+        CastAreaBlast(2, 1, "MageTier3Effect4");
     }
 
     // ===== MAGE TIER-2 =====
@@ -1873,7 +1848,7 @@ public class CardEffectSimple : MonoBehaviour
 
         // A descrição diz CONGELE (o código antigo stunava por engano)
         EffectProjectileFX.Launch(cardDisplay, attacker, EffectProjectileFX.Ice);
-        attacker.Freeze();
+        attacker.Freeze(false, cardDisplay);
 
         Debug.Log($"[MageTier2Effect4] {cardDisplay.card.cardName}: Congelou {attacker.card.cardName}!");
     }
@@ -1944,7 +1919,7 @@ public class CardEffectSimple : MonoBehaviour
         else if (baseAtk == 1 && baseHp == 3)
             MageEffect3_FreezeEnemy();
         else if (baseAtk == 1 && baseHp == 4)
-            MageEffect5_DamageAllEnemyMages();
+            MageEffect5_DamageColumnAhead();
     }
 
     // Efeito 1: Conceda +1 de ataque ao healer que levar dano (ou +2 com tanque)
@@ -1974,7 +1949,9 @@ public class CardEffectSimple : MonoBehaviour
         // Escolhe um inimigo aleatório
         CardDisplay targetEnemy = enemies[Random.Range(0, enemies.Count)];
         EffectProjectileFX.Launch(cardDisplay, targetEnemy, EffectProjectileFX.Fire);
+        MatchStatsTracker.EffectSource = cardDisplay;
         targetEnemy.TakeDamage(1);
+        MatchStatsTracker.EffectSource = null;
 
         Debug.Log($"[MageEffect2] {cardDisplay.card.cardName}: Causou 1 de dano a {targetEnemy.card.cardName}");
     }
@@ -1995,28 +1972,39 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 5: Cause 1 de dano a todos os inimigos magos em campo
-    void MageEffect5_DamageAllEnemyMages()
+    // Efeito 5: Ao entrar, causa 1 de dano a TODOS os inimigos na COLUNA à
+    // frente (identidade de área dos magos, v4.1 — antes só atingia magos
+    // inimigos, nicho demais). Alvos coletados antes do dano (ver respingo).
+    void MageEffect5_DamageColumnAhead()
     {
+        if (cardDisplay == null || cardDisplay.currentTile == null) return;
+
         BoardManager board = BoardManager.Instance;
         if (board == null) return;
 
-        var allCards = board.GetAllCards();
-        int damageCount = 0;
+        int col = cardDisplay.currentTile.column;
+        int row = cardDisplay.currentTile.row;
+        bool marchaSubindo = cardDisplay.ownerPlayerNumber == 1; // P1 sobe, P2 desce
 
-        foreach (var card in allCards)
+        var targets = new System.Collections.Generic.List<CardDisplay>();
+        foreach (var c in board.GetAllCards())
         {
-            if (card.ownerPlayerNumber != cardDisplay.ownerPlayerNumber &&
-                card.ownerPlayerNumber != 0 &&
-                card.card.cardClass == CardClass.Mago)
-            {
-                EffectProjectileFX.Launch(cardDisplay, card, EffectProjectileFX.Fire);
-                card.TakeDamage(1);
-                damageCount++;
-            }
+            if (c == null || c.card == null || c.currentTile == null) continue;
+            if (c.ownerPlayerNumber == cardDisplay.ownerPlayerNumber || c.ownerPlayerNumber == 0) continue;
+            if (c.currentTile.column != col) continue;
+            if (marchaSubindo ? c.currentTile.row <= row : c.currentTile.row >= row) continue;
+            targets.Add(c);
         }
 
-        Debug.Log($"[MageEffect5] {cardDisplay.card.cardName}: Causou 1 de dano a {damageCount} mago(s) inimigo(s)");
+        MatchStatsTracker.EffectSource = cardDisplay;
+        foreach (var t in targets)
+        {
+            EffectProjectileFX.Launch(cardDisplay, t, EffectProjectileFX.Fire);
+            t.TakeDamage(1);
+        }
+        MatchStatsTracker.EffectSource = null;
+
+        Debug.Log($"[MageEffect5] {cardDisplay.card.cardName}: Causou 1 de dano a {targets.Count} inimigo(s) na coluna à frente");
     }
 
     public void ApplyMageEffectOnHealerDamage(CardDisplay healerThatTookDamage)
@@ -2083,7 +2071,7 @@ public class CardEffectSimple : MonoBehaviour
         if (target1 != null)
         {
             EffectProjectileFX.Launch(cardDisplay, target1, EffectProjectileFX.Ice);
-            target1.Freeze();
+            target1.Freeze(false, cardDisplay);
             Debug.Log($"[MageTier5Effect1] {cardDisplay.card.cardName}: Congelou {target1.card.cardName}!");
         }
 
@@ -2097,7 +2085,7 @@ public class CardEffectSimple : MonoBehaviour
             if (target2 != null)
             {
                 EffectProjectileFX.Launch(cardDisplay, target2, EffectProjectileFX.Ice);
-                target2.Freeze();
+                target2.Freeze(false, cardDisplay);
                 Debug.Log($"[MageTier5Effect1] {cardDisplay.card.cardName}: Tem Tank aliado - congelou {target2.card.cardName}!");
             }
         }
@@ -2168,12 +2156,85 @@ public class CardEffectSimple : MonoBehaviour
             CardDisplay target = enemies[Random.Range(0, enemies.Count)];
             if (target != null)
             {
-                // Bola de fogo grande (dano 5)
+                // Bola de fogo grande (dano 5) + respingo de 2 nos adjacentes
+                // (identidade de área dos magos, v4.1). O tile é capturado
+                // ANTES do dano — se o alvo morrer, o tile dele é liberado
+                CardTile centerTile = target.currentTile;
                 EffectProjectileFX.Launch(cardDisplay, target, EffectProjectileFX.Fire, 0.9f);
+                MatchStatsTracker.EffectSource = cardDisplay;
                 target.TakeDamage(5);
+                MatchStatsTracker.EffectSource = null;
                 Debug.Log($"[MageTier5Effect3] {cardDisplay.card.cardName}: Lançou bola de fogo em {target.card.cardName}!");
+                SplashDamageAroundTile(centerTile, 2, "MageTier5Effect3");
             }
         }
+    }
+
+    // ===== NÚCLEO DE DANO EM ÁREA DOS MAGOS (identidade v4.1) =====
+    // Explosão num inimigo ALEATÓRIO (sorteio sincronizado: roda dentro de
+    // RPC nos dois clientes com o Random já semeado — mesmo padrão do stun
+    // do Archer 4): mainDamage no alvo e splashDamage nos adjacentes a ele.
+    public void CastAreaBlast(int mainDamage, int splashDamage, string logTag)
+    {
+        if (cardDisplay == null) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        int enemyPlayer = cardDisplay.ownerPlayerNumber == 1 ? 2 : 1;
+        var enemies = board.GetCardsByOwner(enemyPlayer);
+        if (enemies.Count == 0)
+        {
+            Debug.Log($"[{logTag}] {cardDisplay.card.cardName}: Nenhum inimigo em campo");
+            return;
+        }
+
+        CardDisplay center = enemies[Random.Range(0, enemies.Count)];
+        if (center == null || center.currentTile == null) return;
+
+        // Tile capturado ANTES do dano (se o alvo morrer, o tile é liberado)
+        CardTile centerTile = center.currentTile;
+        EffectProjectileFX.Launch(cardDisplay, center, EffectProjectileFX.Fire, 0.7f);
+        Debug.Log($"[{logTag}] {cardDisplay.card.cardName}: {mainDamage} de dano em {center.card.cardName} + respingo de {splashDamage}");
+        MatchStatsTracker.EffectSource = cardDisplay;
+        center.TakeDamage(mainDamage);
+        MatchStatsTracker.EffectSource = null;
+
+        SplashDamageAroundTile(centerTile, splashDamage, logTag);
+    }
+
+    // Respingo: dano nos inimigos ADJACENTES ao tile central. Quem está NO
+    // tile central (o alvo principal, se sobreviveu) não é atingido de novo.
+    // Os alvos são coletados ANTES de aplicar o dano — TakeDamage pode matar
+    // e mexer nas listas do tabuleiro no meio da iteração.
+    public void SplashDamageAroundTile(CardTile center, int damage, string logTag)
+    {
+        if (cardDisplay == null || center == null || damage <= 0) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        int enemyPlayer = cardDisplay.ownerPlayerNumber == 1 ? 2 : 1;
+        var targets = new System.Collections.Generic.List<CardDisplay>();
+        foreach (var c in board.GetCardsByOwner(enemyPlayer))
+        {
+            if (c == null || c.card == null || c.currentTile == null) continue;
+            int dr = Mathf.Abs(c.currentTile.row - center.row);
+            int dc = Mathf.Abs(c.currentTile.column - center.column);
+            if (dr == 0 && dc == 0) continue; // tile central fica de fora
+            if (dr <= 1 && dc <= 1) targets.Add(c);
+        }
+
+        MatchStatsTracker.EffectSource = cardDisplay;
+        foreach (var t in targets)
+        {
+            EffectProjectileFX.Launch(cardDisplay, t, EffectProjectileFX.Fire, 0.5f);
+            t.TakeDamage(damage);
+        }
+        MatchStatsTracker.EffectSource = null;
+
+        if (targets.Count > 0)
+            Debug.Log($"[{logTag}] {cardDisplay.card.cardName}: Respingo de {damage} em {targets.Count} inimigo(s)");
     }
 
     // ===== TANK TIER-5 =====
@@ -2185,11 +2246,11 @@ public class CardEffectSimple : MonoBehaviour
         int baseShield = cardDisplay.card.shield;
         int baseHp = cardDisplay.card.health;
 
-        if (baseAtk == 3 && baseShield == 7 && baseHp == 8)
+        if (baseAtk == 3 && baseShield == 8 && baseHp == 9)
             TankTier5Effect1_ShieldOnKill();
-        else if (baseAtk == 3 && baseShield == 6 && baseHp == 9)
+        else if (baseAtk == 3 && baseShield == 7 && baseHp == 10)
             TankTier5Effect2_AttackOnDamageAndPeriodicShield();
-        else if (baseAtk == 3 && baseShield == 6 && baseHp == 10)
+        else if (baseAtk == 3 && baseShield == 7 && baseHp == 11)
             TankTier5Effect3_AttackOnDamageWithBonus();
     }
 
@@ -2339,13 +2400,13 @@ public class CardEffectSimple : MonoBehaviour
         int baseShield = cardDisplay.card.shield;
         int baseHp = cardDisplay.card.health;
 
-        if (baseAtk == 2 && baseShield == 5 && baseHp == 6)
+        if (baseAtk == 2 && baseShield == 6 && baseHp == 7)
             TankTier4Effect1_BoostWithArcherMage();
-        else if (baseAtk == 2 && baseShield == 6 && baseHp == 6)
+        else if (baseAtk == 2 && baseShield == 7 && baseHp == 7)
             TankTier4Effect2_InterceptOncePerTurn();
-        else if (baseAtk == 2 && baseShield == 5 && baseHp == 7)
+        else if (baseAtk == 2 && baseShield == 6 && baseHp == 8)
             TankTier4Effect3_ArcherDoubleAttack();
-        else if (baseAtk == 3 && baseShield == 6 && baseHp == 7)
+        else if (baseAtk == 3 && baseShield == 7 && baseHp == 8)
             TankTier4Effect4_DamageReductionAndShield();
     }
 
@@ -2461,13 +2522,13 @@ public class CardEffectSimple : MonoBehaviour
         int baseShield = cardDisplay.card.shield;
         int baseHp = cardDisplay.card.health;
 
-        if (baseAtk == 2 && baseShield == 3 && baseHp == 6)
+        if (baseAtk == 2 && baseShield == 3 && baseHp == 7)
             TankTier3Effect1_BoostHealersEvery2Turns();
-        else if (baseAtk == 2 && baseShield == 3 && baseHp == 5)
+        else if (baseAtk == 2 && baseShield == 3 && baseHp == 6)
             TankTier3Effect2_ReduceDamageAllTanks();
-        else if (baseAtk == 2 && baseShield == 4 && baseHp == 5)
-            TankTier3Effect3_BoostShieldPerTank();
         else if (baseAtk == 2 && baseShield == 4 && baseHp == 6)
+            TankTier3Effect3_BoostShieldPerTank();
+        else if (baseAtk == 2 && baseShield == 4 && baseHp == 7)
             TankTier3Effect4_BoostMagoShield();
     }
 
@@ -2598,9 +2659,9 @@ public class CardEffectSimple : MonoBehaviour
         int baseShield = cardDisplay.card.shield;
         int baseHp = cardDisplay.card.health;
 
-        // Membros da tríade (1/2/4, 1/3/3, 0/3/4): SÓ tríade — não interceptam
-        // mais ataques. (O Tank 1/3/2, fora da tríade, ainda pode assumir o dano.)
-        if (baseAtk == 1 && baseShield == 3 && baseHp == 4)
+        // Membros da tríade (1/2/5, 1/3/4, 0/3/5): SÓ tríade — não interceptam
+        // mais ataques. (O Tank 1/3/5, fora da tríade, ainda pode assumir o dano.)
+        if (baseAtk == 1 && baseShield == 3 && baseHp == 5)
             TankTier2Effect4_DefendAny();
 
         // Verifica combo dos 3 Tanks tier-2 (exceto o 4º)
@@ -2667,12 +2728,13 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[TankTier2Effect4] {cardDisplay.card.cardName}: Pronta para receber qualquer ataque");
     }
 
-    public void TankTier2Effect4_TakeAnyAttack(CardDisplay victim, int damage, CardDisplay attacker = null)
+    public void TankTier2Effect4_TakeAnyAttack(CardDisplay victim, int damage, CardDisplay attacker = null, bool alreadyHalved = false)
     {
         if (cardDisplay == null || victim == null) return;
 
-        // O Tank recebe o dano no lugar do aliado (com as próprias defesas)
-        cardDisplay.TakeRedirectedDamage(damage, attacker);
+        // O Tank recebe o dano no lugar do aliado (com as próprias defesas;
+        // alreadyHalved: se o dano já levou 50% na vítima, aqui não soma outro)
+        cardDisplay.TakeRedirectedDamage(damage, attacker, alreadyHalved);
 
         // Recompensa da escolta: sobreviveu ao golpe assumido → +1 armadura
         // ("apanhar é o combo dele")
@@ -2694,8 +2756,8 @@ public class CardEffectSimple : MonoBehaviour
 
         var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
 
-        // Membros DISTINTOS da tríade: (1/2/4), (1/3/3) e (0/3/4) — exclui o
-        // 4º (1/3/4) que defende qualquer um. BUGFIX: duplicatas não contam, e
+        // Membros DISTINTOS da tríade: (1/2/5), (1/3/4) e (0/3/5) — exclui o
+        // 4º (1/3/5) que defende qualquer um. BUGFIX: duplicatas não contam, e
         // se algum membro em campo já ativou, a tríade está gasta (antes cada
         // cópia nova re-disparava o +10 de armadura para todos)
         bool has124 = false, has133 = false, has034 = false;
@@ -2704,9 +2766,9 @@ public class CardEffectSimple : MonoBehaviour
             if (ally == null || ally.card == null) continue;
             if (ally.card.cardClass != CardClass.Tank || ally.card.tier != CardTier.Tier2) continue;
 
-            if (ally.card.attack == 1 && ally.card.shield == 2 && ally.card.health == 4) { if (ally.archerComboActivated) return; has124 = true; }
-            else if (ally.card.attack == 1 && ally.card.shield == 3 && ally.card.health == 3) { if (ally.archerComboActivated) return; has133 = true; }
-            else if (ally.card.attack == 0 && ally.card.shield == 3 && ally.card.health == 4) { if (ally.archerComboActivated) return; has034 = true; }
+            if (ally.card.attack == 1 && ally.card.shield == 2 && ally.card.health == 5) { if (ally.archerComboActivated) return; has124 = true; }
+            else if (ally.card.attack == 1 && ally.card.shield == 3 && ally.card.health == 4) { if (ally.archerComboActivated) return; has133 = true; }
+            else if (ally.card.attack == 0 && ally.card.shield == 3 && ally.card.health == 5) { if (ally.archerComboActivated) return; has034 = true; }
         }
 
         // Se os 3 Tanks tier-2 defensores estão em campo, ativa combo:
@@ -2723,9 +2785,9 @@ public class CardEffectSimple : MonoBehaviour
                 // Trava de "1x por partida" SÓ nos 3 defensores da tríade
                 // (a flag é compartilhada com as tríades de Arqueiro/Mago)
                 if (ally.card.cardClass == CardClass.Tank && ally.card.tier == CardTier.Tier2 &&
-                    ((ally.card.attack == 1 && ally.card.shield == 2 && ally.card.health == 4) ||
-                     (ally.card.attack == 1 && ally.card.shield == 3 && ally.card.health == 3) ||
-                     (ally.card.attack == 0 && ally.card.shield == 3 && ally.card.health == 4)))
+                    ((ally.card.attack == 1 && ally.card.shield == 2 && ally.card.health == 5) ||
+                     (ally.card.attack == 1 && ally.card.shield == 3 && ally.card.health == 4) ||
+                     (ally.card.attack == 0 && ally.card.shield == 3 && ally.card.health == 5)))
                 {
                     ally.archerComboActivated = true; // Reusa flag
                 }
@@ -2745,13 +2807,13 @@ public class CardEffectSimple : MonoBehaviour
         int baseShield = cardDisplay.card.shield;
         int baseHp = cardDisplay.card.health;
 
-        if (baseAtk == 0 && baseShield == 2 && baseHp == 4)
+        if (baseAtk == 0 && baseShield == 2 && baseHp == 5)
             TankEffect1_AttackPerMago();
-        else if (baseAtk == 1 && baseShield == 1 && baseHp == 4)
+        else if (baseAtk == 1 && baseShield == 1 && baseHp == 5)
             TankEffect2_BoostOnHeal();
-        else if (baseAtk == 0 && baseShield == 2 && baseHp == 3)
+        else if (baseAtk == 0 && baseShield == 2 && baseHp == 4)
             TankEffect3_AttackOnHeal();
-        else if (baseAtk == 1 && baseShield == 2 && baseHp == 3)
+        else if (baseAtk == 1 && baseShield == 2 && baseHp == 4)
             TankEffect5_ShieldHandIfMagoOnBoard();
     }
 
@@ -2845,20 +2907,26 @@ public class CardEffectSimple : MonoBehaviour
 
         Card c = cardDisplay.card;
 
-        // Healer 1 (ATK 0, HP 3): cura aliado aleatório a cada 2 ROUNDS
+        // Healer 1 (ATK 0, HP 3): cura o mais ferido a cada 2 TURNOS (era a
+        // cada 2 rounds — lento demais, pedido do Carlos no v4.1)
         if (c.cardClass == CardClass.Healer && c.tier == CardTier.Tier1 && c.attack == 0 && c.health == 3)
-            cardDisplay.StartEffectCounter(2, true, true);
+            cardDisplay.StartEffectCounter(2, false, true);
+
+        // Healer 1 (ATK 1, HP 3): cura 2 em TODOS os aliados a cada 2 TURNOS
+        // (além da cura de entrada, que dispara via HealerEffect)
+        else if (c.cardClass == CardClass.Healer && c.tier == CardTier.Tier1 && c.attack == 1 && c.health == 3)
+            cardDisplay.StartEffectCounter(2, false, true);
 
         // Healer 4 (ATK 2, HP 5): cura 3 no mais ferido TODO round
         else if (c.cardClass == CardClass.Healer && c.tier == CardTier.Tier4 && c.attack == 2 && c.health == 5)
             cardDisplay.StartEffectCounter(1, true, true);
 
-        // Tank 5 (ATK 3, Shield 6, HP 9): +2 armadura a aliado a cada 2 TURNOS
-        else if (c.cardClass == CardClass.Tank && c.tier == CardTier.Tier5 && c.attack == 3 && c.shield == 6 && c.health == 9)
+        // Tank 5 (ATK 3, Shield 7, HP 10): +2 armadura a aliado a cada 2 TURNOS
+        else if (c.cardClass == CardClass.Tank && c.tier == CardTier.Tier5 && c.attack == 3 && c.shield == 7 && c.health == 10)
             cardDisplay.StartEffectCounter(2, false, true);
 
-        // Tank 3 (ATK 2, Shield 3, HP 6): +2 armadura aos Healers a cada 2 TURNOS
-        else if (c.cardClass == CardClass.Tank && c.tier == CardTier.Tier3 && c.attack == 2 && c.shield == 3 && c.health == 6)
+        // Tank 3 (ATK 2, Shield 3, HP 7): +2 armadura aos Healers a cada 2 TURNOS
+        else if (c.cardClass == CardClass.Tank && c.tier == CardTier.Tier3 && c.attack == 2 && c.shield == 3 && c.health == 7)
             cardDisplay.StartEffectCounter(2, false, true);
 
         // Archer 4 (ATK 4, HP 2): stun em inimigo aleatório a cada 2 TURNOS
@@ -2866,15 +2934,15 @@ public class CardEffectSimple : MonoBehaviour
         else if (c.cardClass == CardClass.Arqueiro && c.tier == CardTier.Tier4 && c.attack == 4 && c.health == 2)
             cardDisplay.StartEffectCounter(2, false, true);
 
-        // Mage 4 (ATK 4, HP 4): +1 ouro uma vez por ROUND (era código morto —
-        // o método existia mas nunca era chamado, o ouro nunca chegava)
+        // Mage 4 (ATK 4, HP 4): RAIO em área a cada 2 TURNOS (era +1 ouro
+        // por round — trocado no v4.1 pela identidade de dano em área)
         else if (c.cardClass == CardClass.Mago && c.tier == CardTier.Tier4 && c.attack == 4 && c.health == 4)
-            cardDisplay.StartEffectCounter(1, true, true);
+            cardDisplay.StartEffectCounter(2, false, true);
 
-        // Mage 3 (ATK 3, HP 4): congelar OU causar 1 de dano, uma vez por TURNO
-        // (era one-shot por partida; o primeiro uso sai na entrada em campo)
+        // Mage 3 (ATK 3, HP 4): congelar OU causar 1 de dano, a cada 2 TURNOS
+        // (delay pedido pelo Carlos — antes disparava todo turno, forte demais)
         else if (c.cardClass == CardClass.Mago && c.tier == CardTier.Tier3 && c.attack == 3 && c.health == 4)
-            cardDisplay.StartEffectCounter(1, false, true);
+            cardDisplay.StartEffectCounter(2, false, true);
     }
 
     // Chamado pelo CardDisplay quando o contador periódico chega a 0
@@ -2890,16 +2958,18 @@ public class CardEffectSimple : MonoBehaviour
 
         if (c.cardClass == CardClass.Healer && c.tier == CardTier.Tier1 && c.attack == 0 && c.health == 3)
             HealerEffect1_RandomAllyPeriodicHeal();
+        else if (c.cardClass == CardClass.Healer && c.tier == CardTier.Tier1 && c.attack == 1 && c.health == 3)
+            ActivateHealAllAlliesPeriodic();
         else if (c.cardClass == CardClass.Healer && c.tier == CardTier.Tier4 && c.attack == 2 && c.health == 5)
             ActivatePeriodicCure();
-        else if (c.cardClass == CardClass.Tank && c.tier == CardTier.Tier5 && c.attack == 3 && c.shield == 6 && c.health == 9)
+        else if (c.cardClass == CardClass.Tank && c.tier == CardTier.Tier5 && c.attack == 3 && c.shield == 7 && c.health == 10)
             ActivatePeriodicShieldTier5Effect2();
-        else if (c.cardClass == CardClass.Tank && c.tier == CardTier.Tier3 && c.attack == 2 && c.shield == 3 && c.health == 6)
+        else if (c.cardClass == CardClass.Tank && c.tier == CardTier.Tier3 && c.attack == 2 && c.shield == 3 && c.health == 7)
             ActivateBoostHealersPeriodic();
         else if (c.cardClass == CardClass.Arqueiro && c.tier == CardTier.Tier4 && c.attack == 4 && c.health == 2)
             ActivateRandomStun();
         else if (c.cardClass == CardClass.Mago && c.tier == CardTier.Tier4 && c.attack == 4 && c.health == 4)
-            ActivateGoldPerRound();
+            ActivateLightningPeriodic();
         else if (c.cardClass == CardClass.Mago && c.tier == CardTier.Tier3 && c.attack == 3 && c.health == 4)
             ActivateFreezeOrDamagePerTurn();
     }

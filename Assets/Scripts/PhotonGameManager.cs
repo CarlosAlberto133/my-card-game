@@ -467,6 +467,32 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
         }
     }
 
+    // ========== MAGIA DA TORRE (compra/equipar) ==========
+
+    // Compra de carta mágica da torre: executa nos DOIS clientes (a validação
+    // do TowerSystem é idêntica sobre o mesmo estado). replaceSlot: -1 = slot
+    // livre; 0/1 = substitui a equipada naquele slot.
+    public void SendBuyTowerCardRPC(int buyerPlayerNumber, int cardId, int replaceSlot)
+    {
+        if (!PhotonNetwork.connected) return;
+
+        PhotonView photonView = GetComponent<PhotonView>();
+        if (photonView != null)
+        {
+            photonView.RPC("RPC_BuyTowerCard", PhotonTargets.All, buyerPlayerNumber, cardId, replaceSlot);
+            Debug.Log($"[PhotonGame] Enviado RPC: P{buyerPlayerNumber} compra magia de torre {cardId} (slot {replaceSlot})");
+        }
+    }
+
+    [PunRPC]
+    public void RPC_BuyTowerCard(int buyerPlayerNumber, int cardId, int replaceSlot)
+    {
+        Debug.Log($"[PhotonGame] RPC_BuyTowerCard: P{buyerPlayerNumber} compra {cardId} (slot {replaceSlot})");
+
+        ReseedForAction();
+        TowerSystem.BuyCard(buyerPlayerNumber, cardId, replaceSlot);
+    }
+
     // ========== SINCRONIZAÇÃO DE TURNO ==========
 
     // Envia "passar a vez" para os dois clientes
@@ -636,8 +662,23 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
     // O OPONENTE caiu/saiu: este cliente ainda está online → upload normal
     void OnPhotonPlayerDisconnected(PhotonPlayer other)
     {
-        if (TurnManager.Instance != null && TurnManager.Instance.gameState == GameState.Playing)
-            MatchReporter.ReportMatchAbandoned();
+        // Só se a partida está em andamento E ainda NÃO foi decidida. Sem o
+        // MatchInProgress, o vencedor saindo DEPOIS de ganhar viraria uma
+        // vitória falsa para quem já tinha perdido (não há estado GameOver —
+        // o gameState continua "Playing" após o fim).
+        if (TurnManager.Instance != null && TurnManager.Instance.gameState == GameState.Playing
+            && MatchReporter.MatchInProgress)
+        {
+            // O oponente saiu no meio (desistiu, caiu ou fechou): quem ficou
+            // VENCE. Mostra a tela de vitória e registra a vitória (em vez de
+            // "abandonada" — antes o jogador que ficou levava um registro de
+            // abandono mesmo sem ter feito nada de errado).
+            int me = myPlayerNumber != 0 ? myPlayerNumber : 1;
+            if (GameUIManager.Instance != null)
+                GameUIManager.Instance.ShowVictoryScreen(me);
+            else
+                MatchReporter.ReportMatchEnd(me);
+        }
     }
 
     // EU perdi a conexão: o upload provavelmente falha e vira log pendente

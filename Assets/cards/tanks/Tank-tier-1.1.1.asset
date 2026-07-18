@@ -18,5 +18,5 @@ MonoBehaviour:
   artwork: {fileID: 21300000, guid: ac7f8f91cf468a94d931da8419115bc7, type: 3}
   attack: 0
   shield: 2
-  health: 3
+  health: 4
   effectDescription: Ganha +1 de atque toda vez que ganhar vida

@@ -58,6 +58,48 @@ public static class MatchLogRecorder
         OnLogMessage(message, null, LogType.Log);
     }
 
+    // Marcador de início de round no histórico. Uma linha reconhecível (buscada
+    // por conteúdo → robusta mesmo se o log for aparado). Usada pelo report para
+    // recortar só o trecho do round em que o jogador reportou.
+    private const string RoundMarkerPrefix = "========== ROUND ";
+    public static void MarkRound(int round)
+    {
+        if (!hooked) Hook();
+        entries.Add($"{RoundMarkerPrefix}{round} ==========");
+    }
+
+    // Devolve só as linhas do round pedido (do marcador daquele round até o do
+    // próximo, ou o fim). Se não achar o marcador, devolve as últimas ~120
+    // linhas (melhor do que nada). Vazio se não houver histórico.
+    public static string GetRoundSegment(int round)
+    {
+        string marker = RoundMarkerPrefix + round + " ";
+        int start = -1, end = entries.Count;
+        for (int i = 0; i < entries.Count; i++)
+        {
+            if (start < 0)
+            {
+                if (entries[i].StartsWith(marker)) start = i;
+            }
+            else if (entries[i].StartsWith(RoundMarkerPrefix))
+            {
+                end = i; // marcador do próximo round
+                break;
+            }
+        }
+
+        var sb = new System.Text.StringBuilder();
+        if (start < 0)
+        {
+            // Sem marcador (ex.: report no lobby): últimas 120 linhas
+            int from = System.Math.Max(0, entries.Count - 120);
+            for (int i = from; i < entries.Count; i++) sb.AppendLine(entries[i]);
+            return sb.ToString();
+        }
+        for (int i = start; i < end; i++) sb.AppendLine(entries[i]);
+        return sb.ToString();
+    }
+
     // Devolve o histórico completo como texto (para upload ao banco no fim da
     // partida). Se passar do limite, mantém o FIM (as linhas mais recentes —
     // que são as da partida que acabou de terminar).

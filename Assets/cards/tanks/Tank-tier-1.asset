@@ -18,5 +18,5 @@ MonoBehaviour:
   artwork: {fileID: 21300000, guid: 1b70cd78d61a05f488a35a256be21dc1, type: 3}
   attack: 1
   shield: 2
-  health: 4
+  health: 5
   effectDescription: Guerreiro destemido

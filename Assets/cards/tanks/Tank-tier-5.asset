@@ -17,7 +17,7 @@ MonoBehaviour:
   tier: 5
   artwork: {fileID: 21300000, guid: 1e49cad381dc6a94dbbf3200c6005919, type: 3}
   attack: 3
-  shield: 7
-  health: 8
+  shield: 8
+  health: 9
   effectDescription: Ao derrotar um monstro, conceda armadura a todas as cartas no
     tabuleiro. Magos e Arqueiros ganham 1 a mais de ataque

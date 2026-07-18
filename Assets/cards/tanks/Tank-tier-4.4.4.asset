@@ -17,7 +17,9 @@ MonoBehaviour:
   tier: 4
   artwork: {fileID: 21300000, guid: c886171dcf21a9e4aa5b924422a5805d, type: 3}
   attack: 2
-  shield: 5
-  health: 7
-  effectDescription: Se houver as 4 classes em campo e este tank estiver na linha
-    de frente (fora das 2 fileiras de casa), arqueiros podem atacar 2 vezes por turno
+  shield: 6
+  health: 8
+  effectDescription: "Se houver as 4 classes em campo e este tank estiver na linha
+    de frente (fora das 2 fileiras de casa), arqueiros podem atacar 2 vezes por turno.
+    Ap\xF3s o ataque duplo, a aura descansa no round seguinte (ativa round sim, round
+    n\xE3o)"

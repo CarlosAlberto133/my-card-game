@@ -19,5 +19,5 @@ MonoBehaviour:
   attack: 3
   shield: 0
   health: 6
-  effectDescription: "Ao entrar em campo concede uma compra gr\xE1tos da \xE1rea
-    de monstros"
+  effectDescription: "Ao entrar em campo, concede 1 compra gr\xE1tis na loja (n\xE3o
+    gasta ouro nem conta no limite de compras)"

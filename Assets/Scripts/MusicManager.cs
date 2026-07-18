@@ -187,6 +187,8 @@ public class MusicManager : MonoBehaviour
     private Slider volumeSlider;
     private Toggle muteToggle;
     private TextMeshProUGUI volumeLabel;
+    private Slider sfxSlider;
+    private TextMeshProUGUI sfxLabel;
 
     void BuildUI()
     {
@@ -205,6 +207,8 @@ public class MusicManager : MonoBehaviour
         volumeSlider = null;
         muteToggle = null;
         volumeLabel = null;
+        sfxSlider = null;
+        sfxLabel = null;
 
         CreateMusicButton(canvas);
         CreateSettingsModal(canvas);
@@ -316,13 +320,15 @@ public class MusicManager : MonoBehaviour
         panelRt.anchorMax = new Vector2(0.5f, 0.5f);
         panelRt.pivot = new Vector2(0.5f, 0.5f);
         panelRt.anchoredPosition = Vector2.zero;
-        float panelH = inGame ? 400f : 330f;
+        // Mais alto agora: música + efeitos + Como Jogar/Reportar + (na partida)
+        // Desistir/Sair/Fechar — sem sobreposição
+        float panelH = inGame ? 640f : 520f;
         panelRt.sizeDelta = new Vector2(440f, panelH);
         settingsModal.GetComponent<Image>().color = new Color(0.06f, 0.07f, 0.13f, 0.98f);
 
         float half = panelH / 2f;
 
-        // Título (agora o modal tem mais que música)
+        // Título
         MakeText(settingsModal.transform, "Title", "CONFIGURAÇÕES",
             new Vector2(0.5f, 0.5f), new Vector2(0f, half - 32f), new Vector2(400f, 40f),
             24f, FontStyles.Bold, new Color(0.96f, 0.77f, 0.32f));
@@ -343,34 +349,57 @@ public class MusicManager : MonoBehaviour
             new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(32f, 32f),
             18f, FontStyles.Bold, Color.white);
 
-        // Rótulo do volume (mostra a %)
+        // ── Volume da MÚSICA ──
         volumeLabel = MakeText(settingsModal.transform, "VolLabel", "Volume da música: 60%",
-            new Vector2(0.5f, 0.5f), new Vector2(0f, half - 92f), new Vector2(400f, 30f),
-            19f, FontStyles.Normal, Color.white);
+            new Vector2(0.5f, 0.5f), new Vector2(0f, half - 78f), new Vector2(400f, 30f),
+            18f, FontStyles.Normal, Color.white);
 
-        // Linha do slider: [ - ] [==== slider ====] [ + ]
-        float sliderY = half - 140f;
-        MakeStepButton(settingsModal.transform, "-", new Vector2(-176f, sliderY), () => SetVolume(volume - 0.1f));
-        volumeSlider = MakeSlider(settingsModal.transform, new Vector2(0f, sliderY), new Vector2(260f, 24f));
+        float musicY = half - 120f;
+        MakeStepButton(settingsModal.transform, "-", new Vector2(-176f, musicY), () => SetVolume(volume - 0.1f));
+        volumeSlider = MakeSlider(settingsModal.transform, new Vector2(0f, musicY), new Vector2(260f, 24f));
         volumeSlider.value = volume;
         volumeSlider.onValueChanged.AddListener(SetVolume);
-        MakeStepButton(settingsModal.transform, "+", new Vector2(176f, sliderY), () => SetVolume(volume + 0.1f));
+        MakeStepButton(settingsModal.transform, "+", new Vector2(176f, musicY), () => SetVolume(volume + 0.1f));
 
-        // Checkbox de mute
-        CreateMuteToggle(settingsModal.transform, new Vector2(0f, half - 200f));
+        // Checkbox de mute (só a música)
+        CreateMuteToggle(settingsModal.transform, new Vector2(0f, half - 166f));
 
-        // Botões de saída (abaixo do mute). "Sair da partida" só na partida.
+        // ── Volume dos EFEITOS (SoundManager) ──
+        float sfxVol = SoundManager.GetVolume();
+        sfxLabel = MakeText(settingsModal.transform, "SfxLabel",
+            $"Volume dos efeitos: {Mathf.RoundToInt(sfxVol * 100f)}%",
+            new Vector2(0.5f, 0.5f), new Vector2(0f, half - 214f), new Vector2(400f, 30f),
+            18f, FontStyles.Normal, Color.white);
+
+        float sfxY = half - 256f;
+        MakeStepButton(settingsModal.transform, "-", new Vector2(-176f, sfxY), () => SetSfxVolume(SoundManager.GetVolume() - 0.1f));
+        sfxSlider = MakeSlider(settingsModal.transform, new Vector2(0f, sfxY), new Vector2(260f, 24f));
+        sfxSlider.value = sfxVol;
+        sfxSlider.onValueChanged.AddListener(SetSfxVolume);
+        MakeStepButton(settingsModal.transform, "+", new Vector2(176f, sfxY), () => SetSfxVolume(SoundManager.GetVolume() + 0.1f));
+
+        // "Como Jogar" + "Reportar" lado a lado (logo abaixo dos volumes)
+        float rowY = half - 306f;
+        MakeHalfButton(settingsModal.transform, "Como Jogar",
+            new Color(0.16f, 0.28f, 0.20f, 1f), new Vector2(-100f, rowY), OnHowToPlay);
+        MakeHalfButton(settingsModal.transform, "Reportar",
+            new Color(0.30f, 0.20f, 0.36f, 1f), new Vector2(100f, rowY), OnReport);
+
+        // Botões de saída ancorados a partir da BASE do painel (espaçamento 62).
+        // Na partida: Desistir (conta derrota) / Sair / Fechar. No lobby: Fechar.
         if (inGame)
         {
-            MakeWideButton(settingsModal.transform, "Sair da partida",
-                new Color(0.55f, 0.36f, 0.10f, 1f), new Vector2(0f, -half + 130f), OnLeaveMatch);
+            MakeWideButton(settingsModal.transform, "Desistir da partida",
+                new Color(0.50f, 0.14f, 0.32f, 1f), new Vector2(0f, -half + 194f), OnSurrender);
+            MakeWideButton(settingsModal.transform, "Sair (sem contar)",
+                new Color(0.45f, 0.30f, 0.10f, 1f), new Vector2(0f, -half + 132f), OnLeaveMatch);
             MakeWideButton(settingsModal.transform, "Fechar o jogo",
-                new Color(0.55f, 0.12f, 0.12f, 1f), new Vector2(0f, -half + 68f), OnQuitGame);
+                new Color(0.50f, 0.12f, 0.12f, 1f), new Vector2(0f, -half + 70f), OnQuitGame);
         }
         else
         {
             MakeWideButton(settingsModal.transform, "Fechar o jogo",
-                new Color(0.55f, 0.12f, 0.12f, 1f), new Vector2(0f, -half + 68f), OnQuitGame);
+                new Color(0.50f, 0.12f, 0.12f, 1f), new Vector2(0f, -half + 70f), OnQuitGame);
         }
 
         settingsModal.SetActive(false);
@@ -394,6 +423,79 @@ public class MusicManager : MonoBehaviour
         MakeText(btnObj.transform, "L", label,
             new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(300f, 48f),
             22f, FontStyles.Bold, Color.white);
+    }
+
+    void OnHowToPlay()
+    {
+        if (settingsModal != null) settingsModal.SetActive(false);
+        Canvas canvas = FindObjectOfType<Canvas>();
+        HowToPlayUI.Show(canvas);
+    }
+
+    void OnReport()
+    {
+        if (settingsModal != null) settingsModal.SetActive(false);
+        Canvas canvas = FindObjectOfType<Canvas>();
+        ReportUI.Show(canvas);
+    }
+
+    // Botão de meia-largura (dois lado a lado)
+    void MakeHalfButton(Transform parent, string label, Color color, Vector2 pos,
+        UnityEngine.Events.UnityAction onClick)
+    {
+        GameObject btnObj = new GameObject("Btn_" + label,
+            typeof(RectTransform), typeof(Image), typeof(Button));
+        btnObj.transform.SetParent(parent, false);
+        RectTransform rt = btnObj.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = pos;
+        rt.sizeDelta = new Vector2(188f, 46f);
+        btnObj.GetComponent<Image>().color = color;
+        btnObj.GetComponent<Button>().onClick.AddListener(onClick);
+        MakeText(btnObj.transform, "L", label,
+            new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(188f, 46f),
+            19f, FontStyles.Bold, Color.white);
+    }
+
+    void SetSfxVolume(float v)
+    {
+        SoundManager.SetVolume(v);
+        // Toca um efeito de exemplo pra o jogador ouvir o novo volume
+        SoundManager.Play(SoundManager.Sound.Buff);
+        RefreshSettingsUI();
+    }
+
+    // DESISTIR: encerra a partida como DERROTA do jogador local (conta como
+    // partida decidida, não "abandonada"). Offline/bot: mostra a vitória do
+    // oponente na hora. Online: registra a derrota e sai — o oponente vê a
+    // vitória pelo OnPhotonPlayerDisconnected do PhotonGameManager.
+    void OnSurrender()
+    {
+        if (settingsModal != null) settingsModal.SetActive(false);
+
+        int me = (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
+            ? PhotonGameManager.Instance.myPlayerNumber : 1;
+        if (me == 0) me = 1;
+        int opponent = me == 1 ? 2 : 1;
+
+        Debug.Log("[MusicManager] Jogador desistiu — registrando derrota.");
+        MatchReporter.ReportSurrender(me);
+
+        if (PhotonNetwork.inRoom && !PhotonNetwork.offlineMode)
+        {
+            // Multiplayer real: sair da sala faz o oponente ganhar (ele detecta
+            // a saída). Volta pro lobby.
+            if (PhotonNetwork.inRoom) PhotonNetwork.LeaveRoom();
+            SceneManager.LoadScene("Lobby");
+        }
+        else
+        {
+            // Offline/treino: mostra a tela de vitória do oponente aqui mesmo
+            if (GameUIManager.Instance != null)
+                GameUIManager.Instance.ShowVictoryScreen(opponent);
+        }
     }
 
     // Sai da sala do Photon e volta para a cena do lobby (não fecha o jogo)
@@ -477,6 +579,14 @@ public class MusicManager : MonoBehaviour
         if (muteToggle != null && muteToggle.isOn != muted)
         {
             muteToggle.SetIsOnWithoutNotify(muted);
+        }
+
+        float sfxVol = SoundManager.GetVolume();
+        if (sfxLabel != null)
+            sfxLabel.text = $"Volume dos efeitos: {Mathf.RoundToInt(sfxVol * 100f)}%";
+        if (sfxSlider != null && !Mathf.Approximately(sfxSlider.value, sfxVol))
+        {
+            sfxSlider.SetValueWithoutNotify(sfxVol);
         }
     }
 

@@ -17,8 +17,8 @@ MonoBehaviour:
   tier: 4
   artwork: {fileID: 21300000, guid: ffcd5e1f5accc0146bf3bde59d2258f9, type: 3}
   attack: 3
-  shield: 6
-  health: 7
-  effectDescription: Enquanto houver no tabuleiro healer, magos e arqueiros, esta
-    carta recebe 50% a menos de dano e os aliados adjacentes recebem 1 de armadura
-    por turno
+  shield: 7
+  health: 8
+  effectDescription: "Enquanto houver no tabuleiro healer, magos e arqueiros, esta
+    carta recebe 50% a menos de dano (n\xE3o se acumula com outras redu\xE7\xF5es
+    de 50%) e os aliados adjacentes recebem 1 de armadura por turno"

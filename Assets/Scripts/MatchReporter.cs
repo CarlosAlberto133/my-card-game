@@ -25,6 +25,11 @@ public class MatchReporter : MonoBehaviour
     static bool matchActive = false;  // partida em andamento (elegível a salvar)
     static bool reported = false;     // já salvou esta partida (não duplicar)
 
+    // Partida em andamento E ainda não decidida (nenhum resultado registrado).
+    // Usado para NÃO mostrar vitória falsa quando o VENCEDOR sai depois de já
+    // ter ganhado (o gameState continua "Playing" — não há estado GameOver).
+    public static bool MatchInProgress => matchActive && !reported;
+
     [Serializable]
     class SessionData
     {
@@ -74,6 +79,7 @@ public class MatchReporter : MonoBehaviour
     {
         reported = false;
         matchActive = true;
+        MatchStatsTracker.Reset(); // zera a telemetria de balanceamento da partida
         EnsureInstance();
     }
 
@@ -90,11 +96,29 @@ public class MatchReporter : MonoBehaviour
         Report(0, "abandonada");
     }
 
+    // Desistência DELIBERADA (botão Desistir): conta como partida DECIDIDA e
+    // DERROTA do jogador local (winner = oponente → i_won = false), não como
+    // "abandonada". Assim a taxa de vitória do perfil reflete a realidade.
+    public static void ReportSurrender(int myPlayerNumber)
+    {
+        if (reported) return;
+        int opponent = myPlayerNumber == 1 ? 2 : 1;
+        Report(opponent, "finalizada");
+    }
+
     static void Report(int winner, string status)
     {
         if (reported) return;
         reported = true;
         matchActive = false;
+
+        // Telemetria de balanceamento (card_stats): só partidas DECIDIDAS. O
+        // tracker gate internamente (só master client, nunca treino contra bot).
+        if (status == "finalizada")
+        {
+            int seed = PhotonGameManager.Instance != null ? PhotonGameManager.Instance.currentGameSeed : 0;
+            MatchStatsTracker.Upload(winner, PhotonLobbyManager.GameVersion, seed, CurrentMapName());
+        }
 
         // SEMPRE salva um .txt local da partida (logado ou não) — cópia fácil
         // de abrir/mandar, além do banco. Pasta: persistentDataPath/match-logs
@@ -155,10 +179,17 @@ public class MatchReporter : MonoBehaviour
             ? Mathf.Max(0, (int)(Time.realtimeSinceStartup - TurnManager.Instance.matchStartRealtime))
             : 0;
         row.seed = PhotonGameManager.Instance != null ? PhotonGameManager.Instance.currentGameSeed : 0;
-        row.map = BoardThemeManager.Current == BoardTheme.Tabletop ? "mesa"
-                : BoardThemeManager.Current == BoardTheme.Space ? "espaco" : "?";
+        row.map = CurrentMapName();
         row.status = status;
         return row;
+    }
+
+    // Nome do mapa atual para o banco (mesa | espaco | floresta)
+    static string CurrentMapName()
+    {
+        return BoardThemeManager.Current == BoardTheme.Tabletop ? "mesa"
+             : BoardThemeManager.Current == BoardTheme.Space ? "espaco"
+             : BoardThemeManager.Current == BoardTheme.Forest ? "floresta" : "?";
     }
 
     // ── Sessão: renovação ÚNICA e só quando precisa ──────────────────────
@@ -437,6 +468,76 @@ public class MatchReporter : MonoBehaviour
         if (onDone != null) onDone(stats);
     }
 
+    // ── Histórico (últimas partidas para o painel de perfil) ─────────────
+
+    public class MatchSummary
+    {
+        public bool iWon;
+        public string status;   // finalizada | abandonada
+        public int durationSeconds, rounds;
+        public string map;      // mesa | espaco | floresta | ?
+    }
+
+    [Serializable] class RecentItem { public bool i_won; public int duration_seconds, rounds; public string status, map; }
+    [Serializable] class RecentList { public RecentItem[] items; }
+
+    // Últimas N partidas (mais recentes primeiro). Callback SEMPRE chamado —
+    // sem login/rede vem lista vazia.
+    public static void FetchRecentMatches(int limit, Action<System.Collections.Generic.List<MatchSummary>> onDone)
+    {
+        EnsureInstance();
+        instance.StartCoroutine(instance.FetchRecentRoutine(limit, onDone));
+    }
+
+    IEnumerator FetchRecentRoutine(int limit, Action<System.Collections.Generic.List<MatchSummary>> onDone)
+    {
+        var result = new System.Collections.Generic.List<MatchSummary>();
+
+        SessionData pre = LoadSession();
+        if (pre == null || string.IsNullOrEmpty(pre.refresh_token))
+        {
+            if (onDone != null) onDone(result);
+            yield break;
+        }
+
+        SessionData session = null;
+        yield return EnsureFreshSession(s => session = s);
+        if (session == null) { if (onDone != null) onDone(result); yield break; }
+
+        string url = SupabaseUrl + "/rest/v1/matches?user_id=eq." + session.user_id +
+                     "&select=i_won,duration_seconds,rounds,status,map&order=created_at.desc&limit=" + limit;
+        using (UnityWebRequest req = UnityWebRequest.Get(url))
+        {
+            req.SetRequestHeader("apikey", SupabaseKey);
+            req.SetRequestHeader("Authorization", "Bearer " + session.access_token);
+            req.timeout = 20;
+            yield return req.SendWebRequest();
+
+            if (req.result == UnityWebRequest.Result.Success)
+            {
+                RecentList list = null;
+                try { list = JsonUtility.FromJson<RecentList>("{\"items\":" + req.downloadHandler.text + "}"); }
+                catch (Exception e) { Debug.LogWarning($"[MatchReporter] Histórico: JSON inesperado: {e.Message}"); }
+
+                if (list != null && list.items != null)
+                {
+                    foreach (RecentItem m in list.items)
+                        result.Add(new MatchSummary
+                        {
+                            iWon = m.i_won, status = m.status, map = m.map,
+                            durationSeconds = Mathf.Max(0, m.duration_seconds), rounds = m.rounds,
+                        });
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"[MatchReporter] Histórico: falha ({req.responseCode}).");
+            }
+        }
+
+        if (onDone != null) onDone(result);
+    }
+
     // ── HTTP / sessão ────────────────────────────────────────────────────
 
     static UnityWebRequest MakeJsonPost(string url, string json, string bearer)
@@ -450,6 +551,23 @@ public class MatchReporter : MonoBehaviour
         req.timeout = 30;
         return req;
     }
+
+    // Identidade do jogador logado (para o sistema de report anexar quem
+    // enviou). Retorna false se não há sessão — o report sobe como anônimo.
+    public static bool TryGetPlayerIdentity(out string userId, out string email, out string name)
+    {
+        userId = email = name = null;
+        SessionData s = LoadSession();
+        if (s == null || string.IsNullOrEmpty(s.user_id)) return false;
+        userId = s.user_id;
+        email = s.email;
+        name = s.name;
+        return true;
+    }
+
+    // URL/chave do Supabase para o ReportSender (mesmo projeto)
+    public static string SupabaseEndpoint => SupabaseUrl;
+    public static string SupabaseAnonKey => SupabaseKey;
 
     static SessionData LoadSession()
     {

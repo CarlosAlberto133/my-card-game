@@ -19,4 +19,5 @@ MonoBehaviour:
   attack: 4
   shield: 0
   health: 4
-  effectDescription: Uma vez por round pode ganhar +1 de ouro
+  effectDescription: "A cada 2 turnos lan\xE7a um raio: 2 de dano em um inimigo
+    aleat\xF3rio e 1 nos inimigos adjacentes a ele"

@@ -18,6 +18,7 @@ MonoBehaviour:
   artwork: {fileID: 21300000, guid: 7b644b56a7c91054f952b0ea9c5bcc49, type: 3}
   attack: 2
   shield: 3
-  health: 5
-  effectDescription: Estando na linha de frente (fora das 2 fileiras de casa),
-    todos os tanques recebem 50% a menos de dano
+  health: 6
+  effectDescription: "Estando na linha de frente (fora das 2 fileiras de casa),
+    todos os tanques recebem 50% a menos de dano (n\xE3o se acumula com outras
+    redu\xE7\xF5es de 50%)"

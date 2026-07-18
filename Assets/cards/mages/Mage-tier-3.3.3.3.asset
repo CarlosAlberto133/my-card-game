@@ -19,4 +19,5 @@ MonoBehaviour:
   attack: 2
   shield: 0
   health: 5
-  effectDescription: Conceda +1 de ataque a todas as cartas no campo
+  effectDescription: "Ao entrar em campo, causa uma explos\xE3o: 2 de dano em um
+    inimigo aleat\xF3rio e 1 nos inimigos adjacentes a ele"

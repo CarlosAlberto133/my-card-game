@@ -259,7 +259,7 @@ public class BotController : MonoBehaviour
         { CardClass.Arqueiro, new[] { new[] {2,0,3}, new[] {3,0,2}, new[] {2,0,2} } },
         { CardClass.Healer,   new[] { new[] {1,0,4}, new[] {0,0,4}, new[] {0,0,3} } },
         { CardClass.Mago,     new[] { new[] {2,0,4}, new[] {2,0,3}, new[] {3,0,3} } },
-        { CardClass.Tank,     new[] { new[] {1,2,4}, new[] {1,3,3}, new[] {0,3,4} } },
+        { CardClass.Tank,     new[] { new[] {1,2,5}, new[] {1,3,4}, new[] {0,3,5} } },
     };
 
     static int TriadMemberIndex(Card card)
@@ -329,6 +329,22 @@ public class BotController : MonoBehaviour
 
         TurnManager tm = TurnManager.Instance;
         PlayerData bot = tm.GetPlayer(BotMode.BotPlayerNumber);
+
+        // 0) Magia da torre: no round de oferta, compra 1 se der (prioriza a
+        //    carta de classe — o GetOffer põe ela primeiro). Sem troca de slot.
+        if (TowerSystem.IsOfferRound(tm.currentRound) &&
+            !TowerSystem.HasBoughtThisWindow(BotMode.BotPlayerNumber, tm.currentRound) &&
+            TowerSystem.EquippedOf(BotMode.BotPlayerNumber).Count < 2 &&
+            bot.gold >= TowerCard.GoldCost + 2) // guarda um troco pra loja normal
+        {
+            int[] towerOffer = TowerSystem.GetOffer(BotMode.BotPlayerNumber, tm.currentRound);
+            if (towerOffer.Length > 0)
+            {
+                PhotonGameManager.Instance.SendBuyTowerCardRPC(BotMode.BotPlayerNumber, towerOffer[0], -1);
+                yield return new WaitForSeconds(ActionDelay);
+                yield return WaitDecisionsClear();
+            }
+        }
 
         // 1) Compras do turno (até o limite por turno)
         int buySafety = 6;

@@ -19,4 +19,6 @@ MonoBehaviour:
   attack: 1
   shield: 0
   health: 3
-  effectDescription: "Faz um c\xF3pia de si se estiver com um tanque aliado em campo"
+  effectDescription: "Se estiver com um tanque aliado em campo, cria um eco de si:
+    uma c\xF3pia com metade dos status (m\xEDnimo 1) que s\xF3 pode andar no round
+    em que entra"

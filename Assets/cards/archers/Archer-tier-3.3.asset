@@ -19,4 +19,5 @@ MonoBehaviour:
   attack: 4
   shield: 0
   health: 2
-  effectDescription: "Caso t enha um mago em campo, fa\xE7a uma c\xF3pia de si"
+  effectDescription: "Caso tenha um mago em campo, cria um eco de si: uma c\xF3pia
+    com metade dos status (m\xEDnimo 1) que s\xF3 pode andar no round em que entra"

@@ -18,6 +18,6 @@ MonoBehaviour:
   artwork: {fileID: 21300000, guid: d10ad2efd62380f418075abb7c0db5ef, type: 3}
   attack: 1
   shield: 2
-  health: 3
+  health: 4
   effectDescription: "Se houver um mago em campo, conceda +1 de armadura as cartas
     na sua m\xE3o"

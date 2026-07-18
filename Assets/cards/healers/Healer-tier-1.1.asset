@@ -19,4 +19,5 @@ MonoBehaviour:
   attack: 1
   shield: 0
   health: 3
-  effectDescription: Ao entrar em campo, cure em 2 todos os aliados
+  effectDescription: Ao entrar em campo, cure em 2 todos os aliados. Reativa a
+    cada 2 turnos

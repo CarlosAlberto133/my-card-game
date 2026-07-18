@@ -15,8 +15,10 @@ MonoBehaviour:
   cardName: Archer 5
   cardClass: 3
   tier: 5
-  artwork: {fileID: 21300000, guid: 8b28a66a52bfcf64582a3465a3789edb, type: 3}
+  artwork: {fileID: 21300000, guid: 4c9f943a8779d9f4aa178ff1283fccff, type: 3}
   attack: 6
   shield: 0
   health: 3
-  effectDescription: causa dano duplicado se atacar um tank
+  effectDescription: "Sempre que matar um alvo, cria uma c\xF3pia de si mesma. A
+    c\xF3pia pode andar, mas s\xF3 ataca no pr\xF3ximo round. Com um tanque em campo,
+    se movimenta novamente"

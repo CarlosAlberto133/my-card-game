@@ -128,7 +128,7 @@ public static class LobbyProfileUI
     static void BuildProfilePanel(Transform root)
     {
         // Painel arredondado com moldura dourada (mesma tabuleta dos botões)
-        GameObject panel = MakeImage(root, "ProfilePanel", new Vector2(330f, 380f), PanelBg);
+        GameObject panel = MakeImage(root, "ProfilePanel", new Vector2(340f, 588f), PanelBg);
         LobbySprites.MakeRounded(panel.GetComponent<Image>(), PanelBg);
         LobbySprites.AddRing(panel.transform, PanelBorder);
         RectTransform brt = panel.GetComponent<RectTransform>();
@@ -138,27 +138,40 @@ public static class LobbyProfileUI
         brt.anchoredPosition = new Vector2(-22f, -22f);
 
         MakeText(panel.transform, "Header", "«  PERFIL DO JOGADOR  »", 14, TextMuted,
-            TextAlignmentOptions.Center, new Vector2(0f, 162f), new Vector2(300f, 24f));
+            TextAlignmentOptions.Center, new Vector2(0f, 258f), new Vector2(310f, 24f));
 
         TMP_Text nameText = MakeText(panel.transform, "Name", "Carregando...", 23, Gold,
-            TextAlignmentOptions.Center, new Vector2(0f, 128f), new Vector2(300f, 34f));
+            TextAlignmentOptions.Center, new Vector2(0f, 222f), new Vector2(310f, 34f));
         nameText.fontStyle = FontStyles.Bold;
         nameText.enableWordWrapping = false;
         nameText.overflowMode = TextOverflowModes.Ellipsis;
 
-        MakeImage(panel.transform, "Divider", new Vector2(280f, 2f), PanelBorder)
-            .GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 104f);
+        MakeImage(panel.transform, "Divider", new Vector2(290f, 2f), PanelBorder)
+            .GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, 198f);
 
         // Linhas de estatística (rótulo à esquerda, valor à direita)
-        TMP_Text vMatches = MakeStatRow(panel.transform, "Partidas", 70f, TextLight);
-        TMP_Text vWins = MakeStatRow(panel.transform, "Vitórias", 36f, Green);
-        TMP_Text vLosses = MakeStatRow(panel.transform, "Derrotas", 2f, Red);
-        TMP_Text vAbandoned = MakeStatRow(panel.transform, "Abandonadas", -32f, TextMuted);
-        TMP_Text vTime = MakeStatRow(panel.transform, "Tempo de jogo", -66f, TextLight);
-        TMP_Text vRate = MakeStatRow(panel.transform, "Taxa de vitória", -100f, Gold);
+        TMP_Text vMatches = MakeStatRow(panel.transform, "Partidas", 166f, TextLight);
+        TMP_Text vWins = MakeStatRow(panel.transform, "Vitórias", 136f, Green);
+        TMP_Text vLosses = MakeStatRow(panel.transform, "Derrotas", 106f, Red);
+        TMP_Text vAbandoned = MakeStatRow(panel.transform, "Abandonadas", 76f, TextMuted);
+        TMP_Text vTime = MakeStatRow(panel.transform, "Tempo de jogo", 46f, TextLight);
+        TMP_Text vRate = MakeStatRow(panel.transform, "Taxa de vitória", 16f, Gold);
+
+        // Seção de histórico
+        MakeImage(panel.transform, "Divider2", new Vector2(290f, 2f), PanelBorder)
+            .GetComponent<RectTransform>().anchoredPosition = new Vector2(0f, -12f);
+        MakeText(panel.transform, "HistHeader", "«  ÚLTIMAS PARTIDAS  »", 13, TextMuted,
+            TextAlignmentOptions.Center, new Vector2(0f, -34f), new Vector2(310f, 22f));
+
+        TMP_Text[] histRows = new TMP_Text[5];
+        for (int i = 0; i < histRows.Length; i++)
+            histRows[i] = MakeText(panel.transform, "Hist" + i, "", 14, TextMuted,
+                TextAlignmentOptions.Left, new Vector2(0f, -62f - i * 26f), new Vector2(288f, 24f));
 
         TMP_Text footer = MakeText(panel.transform, "Footer", "Buscando suas partidas...", 14,
-            TextMuted, TextAlignmentOptions.Center, new Vector2(0f, -152f), new Vector2(300f, 52f));
+            TextMuted, TextAlignmentOptions.Center, new Vector2(0f, -238f), new Vector2(310f, 52f));
+
+        FillHistory(histRows);
 
         // Busca as estatísticas (o callback pode chegar depois de trocar de cena:
         // os textos destruídos viram null e o preenchimento é simplesmente pulado)
@@ -215,6 +228,54 @@ public static class LobbyProfileUI
     {
         foreach (TMP_Text t in fields)
             if (t != null) t.text = value;
+    }
+
+    // Preenche as linhas do histórico com as últimas partidas (uma por linha:
+    // resultado + mapa + duração). Callback pode chegar após trocar de cena →
+    // guarda contra rows destruídas (viram null).
+    static void FillHistory(TMP_Text[] rows)
+    {
+        MatchReporter.FetchRecentMatches(rows.Length, matches =>
+        {
+            if (rows == null || rows.Length == 0 || rows[0] == null) return;
+
+            if (matches == null || matches.Count == 0)
+            {
+                rows[0].text = "<i>Nenhuma partida ainda.</i>";
+                rows[0].color = TextMuted;
+                for (int i = 1; i < rows.Length; i++) if (rows[i] != null) rows[i].text = "";
+                return;
+            }
+
+            for (int i = 0; i < rows.Length; i++)
+            {
+                if (rows[i] == null) continue;
+                if (i >= matches.Count) { rows[i].text = ""; continue; }
+
+                var m = matches[i];
+                string res; Color col;
+                if (m.iWon) { res = "Vitória"; col = Green; }
+                else if (m.status == "finalizada") { res = "Derrota"; col = Red; }
+                else { res = "Abandonada"; col = TextMuted; }
+
+                rows[i].color = col;
+                rows[i].text = $"{res}   ·   {MapName(m.map)}   ·   {ShortTime(m.durationSeconds)}";
+            }
+        });
+    }
+
+    static string MapName(string map)
+    {
+        if (map == "mesa") return "Mesa de RPG";
+        if (map == "espaco") return "Espaço";
+        if (map == "floresta") return "Floresta";
+        return "—";
+    }
+
+    static string ShortTime(int seconds)
+    {
+        if (seconds <= 0) return "0s";
+        return seconds >= 60 ? $"{seconds / 60}min" : $"{seconds}s";
     }
 
     static string FormatTime(int seconds)

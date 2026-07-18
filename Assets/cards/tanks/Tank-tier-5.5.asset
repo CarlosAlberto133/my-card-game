@@ -17,7 +17,7 @@ MonoBehaviour:
   tier: 5
   artwork: {fileID: 21300000, guid: 6197ad668d142dd4e8ea661ecd81b782, type: 3}
   attack: 3
-  shield: 6
-  health: 9
+  shield: 7
+  health: 10
   effectDescription: Ganha +1 de ataque ao receber dano. A cada 2 turnos conceda
     defesa de 2 de armadura a qualquer carta no tabuleiro

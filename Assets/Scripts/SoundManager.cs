@@ -28,6 +28,33 @@ public class SoundManager : MonoBehaviour
     private readonly Dictionary<Sound, AudioClip> clips = new Dictionary<Sound, AudioClip>();
     private bool warnedMissingFolder;
 
+    // Volume master dos EFEITOS (0..1), salvo em PlayerPrefs — separado do
+    // volume da música (MusicManager). Multiplica o volume de cada Play().
+    private const string PrefVolume = "sfx_volume";
+    private static float masterVolume = 1f;
+    private static bool volumeLoaded = false;
+
+    static void EnsureVolumeLoaded()
+    {
+        if (volumeLoaded) return;
+        masterVolume = Mathf.Clamp01(PlayerPrefs.GetFloat(PrefVolume, 1f));
+        volumeLoaded = true;
+    }
+
+    public static float GetVolume()
+    {
+        EnsureVolumeLoaded();
+        return masterVolume;
+    }
+
+    public static void SetVolume(float v)
+    {
+        masterVolume = Mathf.Clamp01(v);
+        volumeLoaded = true;
+        PlayerPrefs.SetFloat(PrefVolume, masterVolume);
+        PlayerPrefs.Save();
+    }
+
     public static void Ensure()
     {
         if (instance != null) return;
@@ -74,9 +101,10 @@ public class SoundManager : MonoBehaviour
     void PlayInternal(Sound sound, float volume)
     {
         if (source == null) return;
+        EnsureVolumeLoaded();
         if (clips.TryGetValue(sound, out AudioClip clip) && clip != null)
         {
-            source.PlayOneShot(clip, Mathf.Clamp01(volume));
+            source.PlayOneShot(clip, Mathf.Clamp01(volume) * masterVolume);
         }
     }
 }

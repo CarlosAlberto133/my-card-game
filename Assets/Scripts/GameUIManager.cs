@@ -36,6 +36,14 @@ public class GameUIManager : MonoBehaviour
     private GameObject victoryOverlay;
     private TextMeshProUGUI victoryOverlayTitle;
     private TextMeshProUGUI victoryOverlaySubtitle;
+    private TextMeshProUGUI victoryOverlayStats;
+
+    // Popup de decisão construído por código (padroniza com o modal de
+    // configurações — o serializado da cena era um retângulo cru)
+    private GameObject decisionOverlay;
+    private TextMeshProUGUI decisionOverlayMsg;
+    private TextMeshProUGUI decisionYesLabelCode;
+    private TextMeshProUGUI decisionNoLabelCode;
 
     [Header("Decision Popup")]
     public GameObject decisionPopupPanel;
@@ -99,6 +107,226 @@ public class GameUIManager : MonoBehaviour
         CreateShopButton();
         CreateLogsButton();
         CreateShopLockToggle();
+        StyleGameButtons();
+        StyleTopHud();
+    }
+
+    // Repagina os botões da partida com o visual das tabuletas do lobby:
+    // sprite arredondado, moldura dourada, cor por função e realce no hover.
+    void StyleGameButtons()
+    {
+        Color green = new Color(0.20f, 0.52f, 0.32f);
+        Color gold = new Color(0.90f, 0.70f, 0.24f);
+        Color bronze = new Color(0.46f, 0.33f, 0.15f);
+        Color slate = new Color(0.18f, 0.23f, 0.35f);
+        Color blue = new Color(0.13f, 0.37f, 0.55f);
+        Color darkTxt = new Color(0.12f, 0.09f, 0.02f);
+        Color lightTxt = new Color(0.96f, 0.93f, 0.86f);
+
+        StyleButton(startGameButton, green, lightTxt);        // Iniciar Partida
+        StyleButton(endTurnButton, gold, darkTxt);            // Passar a Vez (ação principal)
+        StyleButton(resetStoreButton, bronze, lightTxt);      // Reset Store
+
+        if (resetStoreButton != null)
+        {
+            Transform logs = resetStoreButton.transform.parent.Find("LogsButton");
+            if (logs != null) StyleButton(logs.GetComponent<Button>(), slate, lightTxt);
+        }
+        if (endTurnButton != null)
+        {
+            Transform shop = endTurnButton.transform.parent.Find("ShopToggleButton");
+            if (shop != null) StyleButton(shop.GetComponent<Button>(), blue, lightTxt);
+        }
+    }
+
+    void StyleButton(Button b, Color fill, Color textColor)
+    {
+        if (b == null) return;
+
+        RectTransform rt = b.GetComponent<RectTransform>();
+        Vector2 size = rt != null ? rt.rect.size : Vector2.zero;
+        if (size.x < 1f || size.y < 1f) size = rt != null ? rt.sizeDelta : new Vector2(160f, 40f);
+        // Escala da borda do 9-slice conforme o tamanho: em botões BAIXOS as
+        // bordas de 20px se sobrepunham e distorciam o sprite (o "bugado")
+        float ppu = Mathf.Clamp(60f / Mathf.Max(1f, Mathf.Min(size.x, size.y)), 1f, 3f);
+
+        Image img = b.GetComponent<Image>();
+        if (img != null)
+        {
+            LobbySprites.MakeRounded(img, fill);
+            img.pixelsPerUnitMultiplier = ppu;
+
+            if (b.transform.Find("Ring") == null)
+            {
+                GameObject ring = LobbySprites.AddRing(b.transform, new Color(0.96f, 0.77f, 0.32f, 0.45f));
+                Image ringImg = ring != null ? ring.GetComponent<Image>() : null;
+                if (ringImg != null) ringImg.pixelsPerUnitMultiplier = ppu;
+            }
+
+            b.targetGraphic = img;
+            b.transition = Selectable.Transition.ColorTint;
+            ColorBlock cb = b.colors;
+            cb.normalColor = fill;
+            cb.highlightedColor = Color.Lerp(fill, Color.white, 0.18f);
+            cb.pressedColor = Color.Lerp(fill, Color.black, 0.20f);
+            cb.selectedColor = fill;
+            cb.disabledColor = new Color(fill.r, fill.g, fill.b, 0.40f);
+            cb.fadeDuration = 0.08f;
+            b.colors = cb;
+        }
+
+        TMP_Text tmp = b.GetComponentInChildren<TMP_Text>(true);
+        if (tmp != null)
+        {
+            tmp.color = textColor;
+            tmp.fontStyle |= FontStyles.Bold;
+            // Auto-ajuste: se o rótulo não couber (ex.: "Reset Store"), encolhe
+            // até caber em vez de ficar espremido nas bordas
+            RectTransform ttr = tmp.rectTransform;
+            if (ttr.anchorMin != ttr.anchorMax) // só se o texto preenche o botão
+            {
+                ttr.offsetMin = new Vector2(8f, ttr.offsetMin.y);
+                ttr.offsetMax = new Vector2(-8f, ttr.offsetMax.y);
+            }
+            float baseSize = tmp.fontSize;
+            tmp.enableAutoSizing = true;
+            tmp.fontSizeMax = baseSize;
+            tmp.fontSizeMin = Mathf.Max(9f, baseSize * 0.6f);
+        }
+        else
+        {
+            Text legacy = b.GetComponentInChildren<Text>(true);
+            if (legacy != null)
+            {
+                legacy.color = textColor;
+                legacy.fontStyle = FontStyle.Bold;
+                legacy.resizeTextForBestFit = true;
+                legacy.resizeTextMinSize = 9;
+            }
+        }
+    }
+
+    // Visual de "placa": 3 cards transparentes atrás das infos do topo —
+    // Jogador 1 (esquerda), Turno/Round (centro) e Jogador 2 (direita) — além
+    // de cor por tipo (nome dourado, ouro âmbar, vida verde). Cada card cobre a
+    // ÁREA do seu grupo (calculada pelas posições reais dos textos na cena).
+    void StyleTopHud()
+    {
+        Color name = new Color(0.96f, 0.80f, 0.40f);
+        Color goldC = new Color(1f, 0.86f, 0.42f);
+        Color life = new Color(0.55f, 0.90f, 0.62f);
+        Color info = new Color(0.90f, 0.93f, 0.98f);
+
+        ColorText(player1NameText, name, true);
+        ColorText(player1GoldText, goldC, false);
+        ColorText(player1HealthText, life, false);
+        ColorText(player2NameText, name, true);
+        ColorText(player2GoldText, goldC, false);
+        ColorText(player2HealthText, life, false);
+        ColorText(turnInfoText, info, true);
+        ColorText(roundText, new Color(0.96f, 0.77f, 0.32f), true);
+
+        // Os cards são desenhados a partir da ÁREA dos textos — que só existe
+        // depois que a UI é preenchida. Espera 2 frames antes de medir.
+        StartCoroutine(BuildHudCardsDeferred());
+    }
+
+    System.Collections.IEnumerator BuildHudCardsDeferred()
+    {
+        yield return null;
+        yield return null;
+
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null) canvas = FindObjectOfType<Canvas>();
+        if (canvas == null) yield break;
+
+        // Remove cards antigos (caso o layout mude e a gente reconstrua)
+        foreach (string n in new[] { "HudCardLeft", "HudCardMid", "HudCardRight" })
+        {
+            Transform old = canvas.transform.Find(n);
+            if (old != null) Destroy(old.gameObject);
+        }
+
+        // Laterais cobrem a CAIXA dos textos; o do meio se ajusta ao TEXTO real
+        // (tight) — a caixa dele na cena é maior que o conteúdo
+        AddGroupCard(canvas, "HudCardLeft", new Vector2(26f, 16f), false,
+            player1NameText, player1GoldText, player1HealthText);
+        AddGroupCard(canvas, "HudCardMid", new Vector2(18f, 12f), true,
+            turnInfoText, roundText);
+        AddGroupCard(canvas, "HudCardRight", new Vector2(26f, 16f), false,
+            player2NameText, player2GoldText, player2HealthText);
+    }
+
+    void ColorText(TextMeshProUGUI tmp, Color color, bool bold)
+    {
+        if (tmp == null) return;
+        tmp.color = color;
+        if (bold) tmp.fontStyle |= FontStyles.Bold;
+    }
+
+    // Um card transparente cobrindo o grupo de textos. tight=false usa a CAIXA
+    // (RectTransform) de cada texto; tight=true usa os limites RENDERIZADOS
+    // (textBounds) — bem mais justo, para o card do meio abraçar só o texto.
+    void AddGroupCard(Canvas canvas, string cardName, Vector2 pad, bool tight,
+        params TextMeshProUGUI[] members)
+    {
+        Vector3 min = new Vector3(float.MaxValue, float.MaxValue);
+        Vector3 max = new Vector3(float.MinValue, float.MinValue);
+        bool any = false;
+
+        foreach (var m in members)
+        {
+            if (m == null) continue;
+            Vector3[] worldCorners = tight ? RenderedCorners(m) : BoxCorners(m);
+            for (int i = 0; i < worldCorners.Length; i++)
+            {
+                min = Vector3.Min(min, worldCorners[i]);
+                max = Vector3.Max(max, worldCorners[i]);
+            }
+            any = true;
+        }
+        if (!any) return;
+
+        GameObject card = new GameObject(cardName, typeof(RectTransform), typeof(Image));
+        card.transform.SetParent(canvas.transform, false);
+        card.transform.SetAsFirstSibling(); // atrás dos textos do HUD
+
+        RectTransform crt = card.GetComponent<RectTransform>();
+        crt.anchorMin = crt.anchorMax = new Vector2(0.5f, 0.5f);
+        crt.pivot = new Vector2(0.5f, 0.5f);
+        float sf = canvas.scaleFactor > 0.001f ? canvas.scaleFactor : 1f;
+        crt.position = (min + max) * 0.5f;
+        crt.sizeDelta = new Vector2((max.x - min.x) / sf, (max.y - min.y) / sf) + pad * 2f;
+
+        Image img = card.GetComponent<Image>();
+        LobbySprites.MakeRounded(img, new Color(0.07f, 0.055f, 0.04f, 0.42f)); // transparente
+        img.raycastTarget = false;
+    }
+
+    static Vector3[] BoxCorners(TextMeshProUGUI m)
+    {
+        Vector3[] c = new Vector3[4];
+        m.rectTransform.GetWorldCorners(c);
+        return c;
+    }
+
+    // 4 cantos do TEXTO renderizado (não da caixa) em espaço de mundo
+    static Vector3[] RenderedCorners(TextMeshProUGUI m)
+    {
+        m.ForceMeshUpdate();
+        Bounds b = m.textBounds;
+        // Se o texto ainda está vazio, cai para a caixa
+        if (b.size.x < 1f || b.size.y < 1f) return BoxCorners(m);
+
+        Vector3 c = b.center, e = b.extents;
+        RectTransform rt = m.rectTransform;
+        return new[]
+        {
+            rt.TransformPoint(new Vector3(c.x - e.x, c.y - e.y, 0f)),
+            rt.TransformPoint(new Vector3(c.x + e.x, c.y - e.y, 0f)),
+            rt.TransformPoint(new Vector3(c.x - e.x, c.y + e.y, 0f)),
+            rt.TransformPoint(new Vector3(c.x + e.x, c.y + e.y, 0f)),
+        };
     }
 
     // ── Checkbox "Travar loja" (acima do botão Passar a Vez) ─────────────
@@ -199,14 +427,35 @@ public class GameUIManager : MonoBehaviour
 
         GameObject btnObj = new GameObject("ShopToggleButton",
             typeof(RectTransform), typeof(Image), typeof(Button));
-        btnObj.transform.SetParent(canvas.transform, false);
 
         RectTransform rt = btnObj.GetComponent<RectTransform>();
-        rt.anchorMin = new Vector2(1f, 1f);
-        rt.anchorMax = new Vector2(1f, 1f);
-        rt.pivot = new Vector2(1f, 1f);
-        rt.anchoredPosition = new Vector2(-172f, -12f); // à esquerda do botão Sair
-        rt.sizeDelta = new Vector2(130f, 40f);
+        // Empilha ACIMA do "Travar loja" (que fica acima do Passar a Vez):
+        //   Loja  /  Travar loja  /  Passar a Vez
+        RectTransform endRt = endTurnButton != null ? endTurnButton.GetComponent<RectTransform>() : null;
+        if (endRt != null)
+        {
+            btnObj.transform.SetParent(endRt.parent, false);
+            rt.anchorMin = endRt.anchorMin;
+            rt.anchorMax = endRt.anchorMax;
+            rt.pivot = endRt.pivot;
+            float btnH = endRt.sizeDelta.y > 1f ? endRt.sizeDelta.y : 40f;
+            float btnW = endRt.sizeDelta.x > 1f ? endRt.sizeDelta.x : 160f;
+            float lockOffset = (btnH + 32f) * 0.5f + 6f;          // centro do "Travar loja"
+            float shopH = 44f;
+            float shopOffset = lockOffset + (32f + shopH) * 0.5f + 6f; // acima dele
+            rt.sizeDelta = new Vector2(Mathf.Min(btnW, 220f), shopH);
+            rt.anchoredPosition = endRt.anchoredPosition + new Vector2(0f, shopOffset);
+        }
+        else
+        {
+            // Fallback: canto superior direito (comportamento antigo)
+            btnObj.transform.SetParent(canvas.transform, false);
+            rt.anchorMin = new Vector2(1f, 1f);
+            rt.anchorMax = new Vector2(1f, 1f);
+            rt.pivot = new Vector2(1f, 1f);
+            rt.anchoredPosition = new Vector2(-172f, -12f);
+            rt.sizeDelta = new Vector2(130f, 40f);
+        }
 
         Image img = btnObj.GetComponent<Image>();
         img.color = new Color(0.12f, 0.35f, 0.55f, 0.92f);
@@ -895,28 +1144,28 @@ public class GameUIManager : MonoBehaviour
             if (c == null || c.card == null) continue;
             Card card = c.card;
 
-            // Tank 4 (3/6/7): 50% menos dano + armadura/turno com as 3 classes
+            // Tank 4 (3/7/8): 50% menos dano + armadura/turno com as 3 classes
             if (card.cardClass == CardClass.Tank && card.tier == CardTier.Tier4 &&
-                card.attack == 3 && card.shield == 6 && card.health == 7)
+                card.attack == 3 && card.shield == 7 && card.health == 8)
             {
                 any = true;
-                sb.AppendLine(ComboLine("Tank 4 (3/6/7) — 50% menos dano + armadura/turno",
+                sb.AppendLine(ComboLine("Tank 4 (3/7/8) — 50% menos dano + armadura/turno",
                     Missing(hasHealer, "Healer", hasMage, "Mago", hasArcher, "Arqueiro"), false));
             }
-            // Tank 4 (2/5/6): +5 HP +2 DEF com Arqueiro e Mago (1x)
+            // Tank 4 (2/6/7): +5 HP +2 DEF com Arqueiro e Mago (1x)
             else if (card.cardClass == CardClass.Tank && card.tier == CardTier.Tier4 &&
-                     card.attack == 2 && card.shield == 5 && card.health == 6)
+                     card.attack == 2 && card.shield == 6 && card.health == 7)
             {
                 any = true;
-                sb.AppendLine(ComboLine("Tank 4 (2/5/6) — +5 HP e +2 DEF",
+                sb.AppendLine(ComboLine("Tank 4 (2/6/7) — +5 HP e +2 DEF",
                     Missing(hasArcher, "Arqueiro", hasMage, "Mago"), c.tankTier4Effect1Used));
             }
-            // Tank 4 (2/5/7): Arqueiros atacam 2x com as 4 classes (aura contínua)
+            // Tank 4 (2/6/8): Arqueiros atacam 2x com as 4 classes (aura round sim, round não)
             else if (card.cardClass == CardClass.Tank && card.tier == CardTier.Tier4 &&
-                     card.attack == 2 && card.shield == 5 && card.health == 7)
+                     card.attack == 2 && card.shield == 6 && card.health == 8)
             {
                 any = true;
-                sb.AppendLine(ComboLine("Tank 4 (2/5/7) — Arqueiros atacam 2x (enquanto houver as 4 classes)",
+                sb.AppendLine(ComboLine("Tank 4 (2/6/8) — Arqueiros atacam 2x (round sim, round não)",
                     Missing(hasTank, "Tank", hasHealer, "Healer", hasMage, "Mago", hasArcher, "Arqueiro"),
                     false));
             }
@@ -1218,7 +1467,24 @@ public class GameUIManager : MonoBehaviour
                 : new Color(1f, 0.42f, 0.37f);     // vermelho
         }
         if (victoryOverlaySubtitle != null)
-            victoryOverlaySubtitle.text = $"Jogador {winnerPlayerNumber} venceu a partida.";
+            victoryOverlaySubtitle.text = localWon
+                ? "Você derrubou a torre inimiga!"
+                : "Sua torre foi destruída.";
+
+        // Resumo da partida: duração, rounds e mapa (usa os mesmos dados que o
+        // MatchReporter envia ao banco)
+        if (victoryOverlayStats != null)
+        {
+            int rounds = TurnManager.Instance != null ? TurnManager.Instance.currentRound : 0;
+            int secs = (TurnManager.Instance != null && TurnManager.Instance.matchStartRealtime > 0f)
+                ? Mathf.Max(0, (int)(Time.realtimeSinceStartup - TurnManager.Instance.matchStartRealtime))
+                : 0;
+            string dur = secs >= 60 ? $"{secs / 60}min {secs % 60}s" : $"{secs}s";
+            string map = BoardThemeManager.Current == BoardTheme.Tabletop ? "Mesa de RPG"
+                       : BoardThemeManager.Current == BoardTheme.Forest ? "Floresta"
+                       : BoardThemeManager.Current == BoardTheme.Space ? "Espaço" : "—";
+            victoryOverlayStats.text = $"Duração {dur}   ·   {rounds} rounds   ·   {map}";
+        }
 
         victoryOverlay.SetActive(true);
         victoryOverlay.transform.SetAsLastSibling(); // fica por cima de tudo
@@ -1274,9 +1540,14 @@ public class GameUIManager : MonoBehaviour
             new Vector2(0f, 110f), new Vector2(520f, 90f), FontStyles.Bold);
 
         // Subtítulo
-        victoryOverlaySubtitle = MakeOverlayLabel(box.transform, "", 28f,
-            new Vector2(0f, 40f), new Vector2(520f, 50f), FontStyles.Normal);
+        victoryOverlaySubtitle = MakeOverlayLabel(box.transform, "", 26f,
+            new Vector2(0f, 48f), new Vector2(520f, 40f), FontStyles.Normal);
         victoryOverlaySubtitle.color = new Color(0.85f, 0.88f, 0.95f);
+
+        // Resumo da partida (duração/rounds/mapa)
+        victoryOverlayStats = MakeOverlayLabel(box.transform, "", 17f,
+            new Vector2(0f, 12f), new Vector2(520f, 28f), FontStyles.Normal);
+        victoryOverlayStats.color = new Color(0.62f, 0.66f, 0.76f);
 
         // Botão "Jogar Novamente"
         MakeOverlayButton(box.transform, "Jogar Novamente",
@@ -1475,42 +1746,109 @@ public class GameUIManager : MonoBehaviour
         onDecisionYes = decision.onYes;
         onDecisionNo = decision.onNo;
 
-        // Atualiza mensagem
-        if (decisionMessageText != null)
-        {
-            decisionMessageText.text = decision.message;
-        }
+        // Popup por código (padronizado com o modal de configurações). O
+        // painel serializado da cena fica SEMPRE oculto.
+        if (decisionPopupPanel != null) decisionPopupPanel.SetActive(false);
+        if (decisionOverlay == null) BuildDecisionOverlay();
 
-        // Atualiza textos dos botões
-        if (decisionYesButtonText != null)
+        if (decisionOverlay != null)
         {
-            decisionYesButtonText.text = decision.yesText;
+            if (decisionOverlayMsg != null) decisionOverlayMsg.text = decision.message;
+            if (decisionYesLabelCode != null) decisionYesLabelCode.text = decision.yesText;
+            if (decisionNoLabelCode != null) decisionNoLabelCode.text = decision.noText;
+            decisionOverlay.SetActive(true);
+            decisionOverlay.transform.SetAsLastSibling();
         }
-        if (decisionNoButtonText != null)
+        else
         {
-            decisionNoButtonText.text = decision.noText;
+            // Fallback: se não houve Canvas para o overlay, usa o serializado
+            if (decisionMessageText != null) decisionMessageText.text = decision.message;
+            if (decisionYesButtonText != null) decisionYesButtonText.text = decision.yesText;
+            if (decisionNoButtonText != null) decisionNoButtonText.text = decision.noText;
+            if (decisionYesButton != null)
+            {
+                decisionYesButton.onClick.RemoveAllListeners();
+                decisionYesButton.onClick.AddListener(OnDecisionYesClicked);
+            }
+            if (decisionNoButton != null)
+            {
+                decisionNoButton.onClick.RemoveAllListeners();
+                decisionNoButton.onClick.AddListener(OnDecisionNoClicked);
+            }
+            if (decisionPopupPanel != null) decisionPopupPanel.SetActive(true);
         }
-
-        // Setup listeners
-        if (decisionYesButton != null)
-        {
-            decisionYesButton.onClick.RemoveAllListeners();
-            decisionYesButton.onClick.AddListener(OnDecisionYesClicked);
-        }
-        if (decisionNoButton != null)
-        {
-            decisionNoButton.onClick.RemoveAllListeners();
-            decisionNoButton.onClick.AddListener(OnDecisionNoClicked);
-        }
-
-        // Mostra o popup
-        decisionPopupPanel.SetActive(true);
         Debug.Log($"[DecisionPopup] Mostrando: {decision.message}");
+    }
+
+    // Popup de decisão de efeito, no MESMO estilo do modal de configurações:
+    // fundo escurecido, caixa arredondada com moldura dourada, botão "sim" em
+    // dourado e "não" em ardósia. Construído 1x sob demanda.
+    void BuildDecisionOverlay()
+    {
+        Canvas canvas = GetComponentInParent<Canvas>();
+        if (canvas == null) canvas = FindObjectOfType<Canvas>();
+        if (canvas == null) return;
+
+        decisionOverlay = new GameObject("DecisionOverlay", typeof(RectTransform), typeof(Image));
+        decisionOverlay.transform.SetParent(canvas.transform, false);
+        RectTransform ort = decisionOverlay.GetComponent<RectTransform>();
+        ort.anchorMin = Vector2.zero; ort.anchorMax = Vector2.one;
+        ort.offsetMin = Vector2.zero; ort.offsetMax = Vector2.zero;
+        decisionOverlay.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.55f);
+
+        GameObject box = new GameObject("Box", typeof(RectTransform), typeof(Image));
+        box.transform.SetParent(decisionOverlay.transform, false);
+        RectTransform brt = box.GetComponent<RectTransform>();
+        brt.anchorMin = new Vector2(0.5f, 0.5f);
+        brt.anchorMax = new Vector2(0.5f, 0.5f);
+        brt.pivot = new Vector2(0.5f, 0.5f);
+        brt.sizeDelta = new Vector2(480f, 260f);
+        LobbySprites.MakeRounded(box.GetComponent<Image>(), new Color(0.07f, 0.05f, 0.035f, 0.99f));
+        LobbySprites.AddRing(box.transform, new Color(0.96f, 0.77f, 0.32f, 0.5f));
+
+        decisionOverlayMsg = MakeOverlayLabel(box.transform, "", 22f,
+            new Vector2(0f, 52f), new Vector2(430f, 120f), FontStyles.Bold);
+
+        // "Sim" (dourado) à esquerda, "Não" (ardósia) à direita
+        decisionYesLabelCode = MakeDecisionButton(box.transform, "Sim",
+            new Color(0.96f, 0.77f, 0.32f), new Color(0.12f, 0.09f, 0.02f),
+            new Vector2(-116f, -72f), OnDecisionYesClicked);
+        decisionNoLabelCode = MakeDecisionButton(box.transform, "Não",
+            new Color(0.17f, 0.22f, 0.34f), Color.white,
+            new Vector2(116f, -72f), OnDecisionNoClicked);
+
+        decisionOverlay.SetActive(false);
+    }
+
+    TextMeshProUGUI MakeDecisionButton(Transform parent, string label, Color bg, Color fg,
+        Vector2 pos, UnityEngine.Events.UnityAction onClick)
+    {
+        GameObject go = new GameObject("Btn_" + label, typeof(RectTransform), typeof(Image), typeof(Button));
+        go.transform.SetParent(parent, false);
+        RectTransform rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = pos;
+        rt.sizeDelta = new Vector2(200f, 56f);
+        LobbySprites.MakeRounded(go.GetComponent<Image>(), bg);
+        go.GetComponent<Button>().onClick.AddListener(onClick);
+
+        GameObject txt = new GameObject("L", typeof(RectTransform));
+        txt.transform.SetParent(go.transform, false);
+        RectTransform trt = txt.GetComponent<RectTransform>();
+        trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one;
+        trt.offsetMin = Vector2.zero; trt.offsetMax = Vector2.zero;
+        TextMeshProUGUI tmp = txt.AddComponent<TextMeshProUGUI>();
+        tmp.text = label; tmp.fontSize = 24f; tmp.fontStyle = FontStyles.Bold;
+        tmp.alignment = TextAlignmentOptions.Center; tmp.color = fg; tmp.raycastTarget = false;
+        return tmp;
     }
 
     void OnDecisionYesClicked()
     {
-        decisionPopupPanel.SetActive(false);
+        if (decisionPopupPanel != null) decisionPopupPanel.SetActive(false);
+        if (decisionOverlay != null) decisionOverlay.SetActive(false);
         decisionShowing = false;
         System.Action callback = onDecisionYes;
         onDecisionYes = null;
@@ -1523,7 +1861,8 @@ public class GameUIManager : MonoBehaviour
 
     void OnDecisionNoClicked()
     {
-        decisionPopupPanel.SetActive(false);
+        if (decisionPopupPanel != null) decisionPopupPanel.SetActive(false);
+        if (decisionOverlay != null) decisionOverlay.SetActive(false);
         decisionShowing = false;
         System.Action callback = onDecisionNo;
         onDecisionYes = null;
