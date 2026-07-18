@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ba925473684ce5541bf2232ed40aba18, type: 3}
   m_Name: Healer-tier-4.4.4
   m_EditorClassIdentifier: Assembly-CSharp::Card
-  cardName: Healer 4
+  cardName: Anjo da Guarda
   cardClass: 2
   tier: 4
   artwork: {fileID: 21300000, guid: 74bc2002ed86dbf43965ec2762aaf767, type: 3}

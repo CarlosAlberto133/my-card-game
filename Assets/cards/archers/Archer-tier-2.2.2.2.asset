@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ba925473684ce5541bf2232ed40aba18, type: 3}
   m_Name: Archer-tier-2.2.2.2
   m_EditorClassIdentifier: Assembly-CSharp::Card
-  cardName: Archer 2->
+  cardName: Zéfiro
   cardClass: 3
   tier: 2
   artwork: {fileID: 21300000, guid: b11774df4fd23e145b32783c04b4901a, type: 3}

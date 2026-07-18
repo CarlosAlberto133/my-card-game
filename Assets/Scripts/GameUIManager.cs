@@ -1279,7 +1279,7 @@ public class GameUIManager : MonoBehaviour
         }
         if (player1HealthText != null)
         {
-            player1HealthText.text = $"Vida: {TurnManager.Instance.player1.health}/{PlayerData.MaxTowerHealth}";
+            player1HealthText.text = $"Vida: {TurnManager.Instance.player1.health}/{TowerSystem.MaxTowerHealth(1)}";
         }
 
         // Atualiza UI do Jogador 2
@@ -1293,7 +1293,7 @@ public class GameUIManager : MonoBehaviour
         }
         if (player2HealthText != null)
         {
-            player2HealthText.text = $"Vida: {TurnManager.Instance.player2.health}/{PlayerData.MaxTowerHealth}";
+            player2HealthText.text = $"Vida: {TurnManager.Instance.player2.health}/{TowerSystem.MaxTowerHealth(2)}";
         }
 
         // Atualiza informação de turno e round baseado no estado do jogo

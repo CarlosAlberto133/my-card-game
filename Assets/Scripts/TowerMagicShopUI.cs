@@ -20,6 +20,8 @@ public static class TowerMagicShopUI
     static TMP_Text chipsText, statusText;
     static int pendingBuyCardId = -1; // aguardando escolher qual equipada substituir
     static int currentOfferRound = -1;
+    static readonly System.Collections.Generic.List<Button> buyButtons =
+        new System.Collections.Generic.List<Button>();
 
     static int LocalPlayer()
     {
@@ -137,6 +139,7 @@ public static class TowerMagicShopUI
         statusText = MakeText(panel.transform, "St", "", 13.5f, Gold, TextAlignmentOptions.Center,
             FontStyles.Normal, new Vector2(0f, 246f), new Vector2(370f, 22f));
 
+        buyButtons.Clear();
         for (int i = 0; i < offer.Length && i < 3; i++)
         {
             TowerCard card = TowerCards.Get(offer[i]);
@@ -144,7 +147,12 @@ public static class TowerMagicShopUI
             BuildOfferEntry(panel.transform, card, new Vector2(0f, 140f - i * 182f), me);
         }
 
-        UpdatePanelStatus(me);
+        // Reavaliação AO VIVO dos botões: o ouro muda durante o round (renda,
+        // efeitos, compras) e o botão precisa acompanhar — antes ele era
+        // calculado só na abertura e ficava travado com o saldo velho
+        panel.AddComponent<LiveRefresher>();
+
+        LiveRefresh();
         panel.transform.SetAsLastSibling();
     }
 
@@ -174,12 +182,36 @@ public static class TowerMagicShopUI
             new Vector2(0f, -62f), new Vector2(210f, 30f), Gold, new Color(0.12f, 0.09f, 0.02f), 13,
             () => OnBuyClicked(cardId));
 
-        // Desabilita se já comprou nesta janela ou sem ouro
+        // O estado (ouro/já comprou) é reavaliado AO VIVO pelo LiveRefresher
+        buyButtons.Add(buy.GetComponent<Button>());
+    }
+
+    // Reavalia botões + status a cada 0,25s enquanto o painel existe
+    class LiveRefresher : MonoBehaviour
+    {
+        float nextTick;
+        void Update()
+        {
+            if (Time.unscaledTime < nextTick) return;
+            nextTick = Time.unscaledTime + 0.25f;
+            LiveRefresh();
+        }
+    }
+
+    static void LiveRefresh()
+    {
+        if (panel == null || pendingBuyCardId >= 0) return; // diálogo de troca aberto
+
+        int me = LocalPlayer();
         TurnManager tm = TurnManager.Instance;
         PlayerData p = tm != null ? tm.GetPlayer(me) : null;
         bool canBuy = p != null && p.gold >= TowerCard.GoldCost &&
                       !TowerSystem.HasBoughtThisWindow(me, currentOfferRound);
-        buy.GetComponent<Button>().interactable = canBuy;
+
+        foreach (Button b in buyButtons)
+            if (b != null) b.interactable = canBuy;
+
+        UpdatePanelStatus(me);
     }
 
     static void UpdatePanelStatus(int me)

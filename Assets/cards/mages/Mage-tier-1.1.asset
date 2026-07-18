@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ba925473684ce5541bf2232ed40aba18, type: 3}
   m_Name: Mage-tier-1.1
   m_EditorClassIdentifier: Assembly-CSharp::Card
-  cardName: Mage 1
+  cardName: Conjurador
   cardClass: 1
   tier: 1
   artwork: {fileID: 21300000, guid: 4763e98b62abaf845ad3bfd822b13792, type: 3}

@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ba925473684ce5541bf2232ed40aba18, type: 3}
   m_Name: Tank-tier-2
   m_EditorClassIdentifier: Assembly-CSharp::Card
-  cardName: Tank 2 <-
+  cardName: Legionário
   cardClass: 0
   tier: 2
   artwork: {fileID: 21300000, guid: a1dd91fffa64c9d47b39be5f9304c57d, type: 3}

@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ba925473684ce5541bf2232ed40aba18, type: 3}
   m_Name: Archer-tier-3
   m_EditorClassIdentifier: Assembly-CSharp::Card
-  cardName: Archer 3
+  cardName: Falcoeira
   cardClass: 3
   tier: 3
   artwork: {fileID: 21300000, guid: 11f734d61e3d6154bb06c96411e6a287, type: 3}

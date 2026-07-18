@@ -749,6 +749,7 @@ public class CardDisplay : MonoBehaviour
     private bool statsTracked = false;
 
     private CardActionDots actionDots;
+    private CardAuraIndicator auraIndicator;
 
     void UpdateStatusVisuals()
     {
@@ -761,6 +762,14 @@ public class CardDisplay : MonoBehaviour
         {
             actionDots = gameObject.AddComponent<CardActionDots>();
             actionDots.Init(this);
+        }
+
+        // Orbe de AURA no topo — só para cartas com efeito condicional/proteção
+        // (verde = ativa, amarelo = descansando, vermelho = condição não cumprida)
+        if (isOnBoard && auraIndicator == null && CardAuraIndicator.KindOf(this) != CardAuraIndicator.Kind.None)
+        {
+            auraIndicator = gameObject.AddComponent<CardAuraIndicator>();
+            auraIndicator.Init(this);
         }
 
         visuals.SetFrozen(isFrozen);
@@ -1619,6 +1628,9 @@ public class CardDisplay : MonoBehaviour
         // mostrando efeito por extenso + progresso de tríade. Só o verso não.
         if (!isFaceDown) CardTooltip.ShowFor(this);
 
+        // Aura: destaca com moldura verde as cartas beneficiadas/protegidas
+        if (isOnBoard) CardAuraIndicator.ShowLinksFor(this);
+
         if (isInHand) return;
 
         preHoverScale = transform.localScale;
@@ -1663,6 +1675,7 @@ public class CardDisplay : MonoBehaviour
         isMouseOver = false;
 
         CardTooltip.HideTip();
+        CardAuraIndicator.HideLinks();
 
         // Mouse saiu: a figura 3D volta a ficar sólida
         SetFigureGhost(false);

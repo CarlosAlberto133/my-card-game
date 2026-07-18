@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ba925473684ce5541bf2232ed40aba18, type: 3}
   m_Name: Archer-tier-2.2.2
   m_EditorClassIdentifier: Assembly-CSharp::Card
-  cardName: Archer 2 -
+  cardName: Vendaval
   cardClass: 3
   tier: 2
   artwork: {fileID: 21300000, guid: f2dab4cd697288045913827975501cd0, type: 3}

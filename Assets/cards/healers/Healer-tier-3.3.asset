@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ba925473684ce5541bf2232ed40aba18, type: 3}
   m_Name: Healer-tier-3.3
   m_EditorClassIdentifier: Assembly-CSharp::Card
-  cardName: Healer 3
+  cardName: Samaritana
   cardClass: 2
   tier: 3
   artwork: {fileID: 21300000, guid: c3e51b8e4e5a7d7458885344b9dcd999, type: 3}

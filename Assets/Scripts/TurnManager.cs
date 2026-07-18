@@ -307,11 +307,6 @@ public class TurnManager : MonoBehaviour
         {
             currentRound++;
             MatchLogRecorder.MarkRound(currentRound); // marcador p/ recorte do report
-
-            // Torres: efeitos periódicos + janela da loja mágica (roda dentro
-            // do RPC de fim de turno — idêntico nos dois clientes)
-            try { TowerSystem.OnRoundChanged(currentRound); }
-            catch (System.Exception e) { Debug.LogError($"[EndTurn] TowerSystem: {e}"); }
             Debug.Log($"Round {currentRound} iniciado!");
 
             // Checa efeitos periódicos das cartas (como heal do healer a cada 2 rounds)
@@ -323,6 +318,13 @@ public class TurnManager : MonoBehaviour
             // Ambos jogadores ganham 3 de ouro (máximo 10)
             player1.AddGold(3);
             player2.AddGold(3);
+
+            // Torres: efeitos periódicos + janela da loja mágica. DEPOIS da
+            // renda do round — a loja mágica abre lendo o ouro JÁ atualizado
+            // (antes o botão Comprar travava com o saldo velho). Roda dentro
+            // do RPC de fim de turno — idêntico nos dois clientes.
+            try { TowerSystem.OnRoundChanged(currentRound); }
+            catch (System.Exception e) { Debug.LogError($"[EndTurn] TowerSystem: {e}"); }
 
             // Refresh das cartas na loja
             if (CardManager.Instance != null)

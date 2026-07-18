@@ -122,14 +122,20 @@ public class CardPool : MonoBehaviour
         Debug.Log($"- Tier 5: {tier5Copies} cópia cada");
     }
 
+    // Filtro do MODO TESTE. Identifica por CLASSE/TIER/STATS (não por nome —
+    // as cartas ganharam nomes temáticos e o nome pode mudar de novo).
+    // Mantém o conjunto que o filtro antigo por nome pegava: o Tank 0/2/5,
+    // o Mago 2/3 e TODOS os Healers/Arqueiros de tier 1.
     bool IsCardWithEffect(Card card)
     {
         if (card == null) return false;
 
-        return card.cardName == "Tank 1*" ||
-               card.cardName == "Mage 1*" ||
-               card.cardName == "Healer 1*" ||
-               card.cardName == "Archer 1*";
+        return (card.cardClass == CardClass.Tank && card.tier == CardTier.Tier1 &&
+                card.attack == 0 && card.shield == 2 && card.health == 5) ||
+               (card.cardClass == CardClass.Mago && card.tier == CardTier.Tier1 &&
+                card.attack == 2 && card.health == 3) ||
+               (card.cardClass == CardClass.Healer && card.tier == CardTier.Tier1) ||
+               (card.cardClass == CardClass.Arqueiro && card.tier == CardTier.Tier1);
     }
 
     // Retorna todas as cartas disponíveis (não estão no board ou em uso)

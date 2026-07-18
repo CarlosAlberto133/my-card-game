@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ba925473684ce5541bf2232ed40aba18, type: 3}
   m_Name: Healer-tier-1.1.1
   m_EditorClassIdentifier: Assembly-CSharp::Card
-  cardName: Healer 1*
+  cardName: Vestal
   cardClass: 2
   tier: 1
   artwork: {fileID: 21300000, guid: 2344702e76bf0b44196d7a7ec35d96e4, type: 3}

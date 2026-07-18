@@ -472,6 +472,9 @@ public class CardEffectSimple : MonoBehaviour
         if (enemyPlayer != null)
         {
             enemyPlayer.TakeDamage(2);
+            // Ganchos de "torre tomou dano" (Ressurgimento). attacker=null de
+            // propósito: dano de EFEITO não é um ataque — a Represália não devolve
+            TowerSystem.OnTowerDamaged(enemyPlayerNumber, null);
             cardDisplay.archerTier3Effect3Used = true;
             Debug.Log($"[ArcherTier3Effect3] {cardDisplay.card.cardName}: Causou 2 de dano à torre inimiga!");
         }
@@ -1168,8 +1171,11 @@ public class CardEffectSimple : MonoBehaviour
             {
                 // Restaura ouro máximo (10)
                 player.gold = 10;
-                // Restaura vida máxima do jogador
-                player.health = PlayerData.MaxTowerHealth;
+                // Restaura a vida máxima da TORRE — contando bônus de magia
+                // (Muralha/Muros). Max() garante que NUNCA reduz: uma torre
+                // com 38/40 não pode voltar para 30 por causa da "cura"
+                player.health = Mathf.Max(player.health,
+                    TowerSystem.MaxTowerHealth(player.playerNumber));
 
                 // Marca que o combo foi ativado para todas as 3
                 foreach (var ally in allies)

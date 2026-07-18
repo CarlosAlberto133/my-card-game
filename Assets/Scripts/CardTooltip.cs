@@ -82,6 +82,11 @@ public class CardTooltip : MonoBehaviour
         effectText.text = string.IsNullOrEmpty(c.effectDescription)
             ? "<i>Sem efeito especial.</i>" : c.effectDescription;
 
+        // Estado da aura (cartas com efeito condicional em campo): explica se
+        // está valendo agora e, se não, o motivo
+        string aura = CardAuraIndicator.StatusLine(cd);
+        if (aura != null) effectText.text += "\n" + aura;
+
         // Progresso de tríade (só para cartas de tríade e quando há dono)
         int owner = cd.ownerPlayerNumber;
         int owned = (owner != 0) ? Triads.OwnedDistinct(owner, c) : (Triads.IsTriadCard(c) ? 0 : -1);

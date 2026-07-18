@@ -51,7 +51,7 @@ public static class TowerCards
         // Torre Arqueiro (Atalaia)
         new TowerCard(Sentinelas,  (int)CardClass.Arqueiro, "Sentinelas", "A torre atira: 1 de dano num inimigo aleatório todo round"),
         new TowerCard(PontaAfiada, (int)CardClass.Arqueiro, "Ponta Afiada", "Seus arqueiros ganham +1 de ataque (os em campo e os que entrarem)"),
-        new TowerCard(Emboscada,   (int)CardClass.Arqueiro, "Emboscada", "Cartas inimigas tomam 1 de dano ao entrar em campo"),
+        new TowerCard(Emboscada,   (int)CardClass.Arqueiro, "Emboscada", "Sua torre embosca os reforços: toda carta que o INIMIGO colocar em campo toma 1 de dano ao entrar"),
 
         // Universais (qualquer torre)
         new TowerCard(Cofres,        -1, "Cofres Reais", "+1 de ouro por round"),

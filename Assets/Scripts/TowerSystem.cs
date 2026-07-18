@@ -455,7 +455,10 @@ public static class TowerSystem
         CardDisplay target = enemies[rng.Next(enemies.Count)];
         if (target == null || target.card == null) return;
         Debug.Log($"[TowerSystem] Nevasca P{player}: congelou {target.card.cardName}");
-        target.Freeze();
+        // forceSingleTurn: congelamento aplicado no tique de virada de round
+        // (depois da troca de jogador) — sem a trava, a vítima perderia 2
+        // turnos em vez de 1 (mesma regra dos congelamentos por contador)
+        target.Freeze(true);
     }
 
     // Canhoneira: acerta o inimigo MAIS AVANÇADO em direção à torre do dono
