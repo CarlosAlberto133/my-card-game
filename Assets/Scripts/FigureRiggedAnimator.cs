@@ -21,7 +21,7 @@ public class FigureRiggedAnimator : MonoBehaviour
     const float WalkHysteresis = 0.25f;  // movimento contínuo: segue andando por este tempo
     const float MoveEpsilon = 0.01f;     // deslocamento mínimo por frame p/ contar movimento
     const float JumpThreshold = 2.5f;    // acima disso num frame = a carta TELEPORTOU de casa
-    const float TravelDelay = 0.6f;      // espera na casa antiga antes de sair andando
+    const float TravelDelay = 0.12f;     // espera na casa antiga antes de sair andando
     const float TravelWalkSpeed = 5.2f;  // unidades/s (1 casa = 6.6 → ~1.3s de caminhada)
     const float ArriveEpsilon = 0.06f;   // distância para considerar "chegou"
     const float FaceTurnSpeed = 10f;     // velocidade do giro para a direção do movimento

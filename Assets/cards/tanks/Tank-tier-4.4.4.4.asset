@@ -19,6 +19,4 @@ MonoBehaviour:
   attack: 3
   shield: 7
   health: 8
-  effectDescription: "Enquanto houver no tabuleiro healer, magos e arqueiros, esta
-    carta recebe 50% a menos de dano (n\xE3o se acumula com outras redu\xE7\xF5es
-    de 50%) e os aliados adjacentes recebem 1 de armadura por turno"
+  effectDescription: "Enquanto houver no tabuleiro healer, magos e arqueiros, esta carta ataca com +2 de dano e os aliados adjacentes recebem 1 de armadura por turno"

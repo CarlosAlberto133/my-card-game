@@ -20,4 +20,4 @@ MonoBehaviour:
   shield: 0
   health: 3
   effectDescription: "Sempre que um aliado for curado aumente a vida m\xE1xima dele
-    em mais 1"
+    em mais 1 (at\xE9 +3 por aliado)"

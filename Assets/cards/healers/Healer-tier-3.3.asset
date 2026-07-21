@@ -19,4 +19,4 @@ MonoBehaviour:
   attack: 2
   shield: 0
   health: 4
-  effectDescription: Sempre que um tanque receber dano, cure em 3 a sua vida
+  effectDescription: Sempre que um tanque receber dano, cure em 1 a sua vida

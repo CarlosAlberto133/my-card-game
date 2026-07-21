@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 // SISTEMA DE TORRES (v4.2): cada jogador escolhe uma torre de classe no início
-// da partida (TowerSelectUI) e pode equipar até 2 CARTAS MÁGICAS compradas na
+// da partida (TowerSelectUI) e pode equipar até 3 CARTAS MÁGICAS compradas na
 // loja da torre, que abre nos rounds 3, 6, 9... (TowerMagicShopUI).
 //
 // Sincronização (lockstep do Photon):
@@ -15,6 +15,9 @@ using UnityEngine;
 //   (seed da partida, round, jogador, carta) — nada de estado compartilhado.
 public static class TowerSystem
 {
+    // Slots de cartas mágicas por torre (v4.2: subiu de 2 para 3)
+    public const int MaxEquipped = 3;
+
     // -1 = torre ainda não escolhida. Índices 1 e 2 (0 não usado).
     static int[] towerOf = { -1, -1, -1 };
     static List<int>[] equipped = { null, new List<int>(), new List<int>() };
@@ -130,12 +133,12 @@ public static class TowerSystem
         { Debug.LogWarning($"[TowerSystem] P{player}: ouro insuficiente"); return; }
         if (equipped[player].Contains(cardId)) return;
 
-        if (equipped[player].Count < 2)
+        if (equipped[player].Count < MaxEquipped)
         {
             equipped[player].Add(cardId);
             equippedRound[player].Add(round);
         }
-        else if (replaceSlot == 0 || replaceSlot == 1)
+        else if (replaceSlot >= 0 && replaceSlot < equipped[player].Count)
         {
             gone[player].Add(equipped[player][replaceSlot]); // descartada não volta
             equipped[player][replaceSlot] = cardId;
@@ -176,7 +179,7 @@ public static class TowerSystem
                 p.health = Mathf.Min(p.health + 6, MaxTowerHealth(player));
                 break;
             case TowerCards.Recrutamento:
-                p.AddGold(3);
+                p.AddGold(6); // v4.2: era 3 — custava 3, "lucro zero" não fazia sentido
                 break;
             case TowerCards.Sobrecarga:
                 BuffClassOnBoard(player, CardClass.Mago, 1);
@@ -212,6 +215,13 @@ public static class TowerSystem
             {
                 int id = equipped[p][s];
                 int since = round - equippedRound[p][s];
+
+                // Diagnóstico dos periódicos (P{jogador}, carta, rounds desde o
+                // equipar) — deixa visível no log POR QUE disparou ou não
+                var cardDef = TowerCards.Get(id);
+                Debug.Log($"[TowerSystem] Round {round}: P{p} '{cardDef?.cardName}' " +
+                          $"equipada há {since} round(s)");
+
                 if (since <= 0) continue;
 
                 switch (id)
@@ -223,13 +233,15 @@ public static class TowerSystem
                         if (since % 2 == 0) HealMostWounded(p, 2);
                         break;
                     case TowerCards.Tempestade:
-                        if (since % 3 == 0) TowerBlast(p, round, id);
+                        if (since % 2 == 0) StartTowerTargetSelection(p, id,
+                            "Tempestade Arcana: escolha o alvo do raio (2 de dano + 1 nos adjacentes)");
                         break;
                     case TowerCards.Nevasca:
-                        if (since % 3 == 0) TowerFreeze(p, round, id);
+                        if (since % 2 == 0) StartTowerTargetSelection(p, id,
+                            "Nevasca: escolha um inimigo para CONGELAR");
                         break;
                     case TowerCards.Canhoneira:
-                        if (since % 3 == 0) CannonMostAdvanced(p, 2);
+                        if (since % 2 == 0) CannonMostAdvanced(p, 2);
                         break;
                 }
             }
@@ -282,11 +294,11 @@ public static class TowerSystem
         foreach (var c in board.GetCardsByOwner(player))
         {
             if (c == null || c.card == null) continue;
-            c.currentAttack += 1;
+            c.currentAttack += 2; // v4.2: era +1 — fraco demais para um efeito 1x
             c.UpdateDisplay();
             buffed++;
         }
-        Debug.Log($"[TowerSystem] Ressurgimento: torre do P{player} abaixo de 15 — {buffed} aliado(s) com +1 ATK!");
+        Debug.Log($"[TowerSystem] Ressurgimento: torre do P{player} abaixo de 15 — {buffed} aliado(s) com +2 ATK!");
     }
 
     // Carta entrou em campo (ExecutePlaceCard/PlaceCard — 1x por colocação)
@@ -351,6 +363,12 @@ public static class TowerSystem
             if (c == null || c.card == null || c.currentTile == null) continue;
             bool homeRows = player == 1 ? c.currentTile.row <= 1 : c.currentTile.row >= rows - 2;
             if (!homeRows) continue;
+
+            // Teto anti-tartaruga: a torre reforça cada unidade até +4 no total
+            // (sem isso, acampar nas fileiras de casa dava armadura infinita)
+            if (c.garrisonShieldGrants >= 4) continue;
+            c.garrisonShieldGrants++;
+
             c.currentShield += 1;
             c.UpdateDisplay();
             granted++;
@@ -415,16 +433,54 @@ public static class TowerSystem
         target.TakeDamage(damage);
     }
 
-    static void TowerBlast(int player, int round, int cardId)
+    // ── Tempestade/Nevasca com alvo ESCOLHIDO (v4.2 — eram sorteio) ──────
+    // O dono da torre clica no alvo (mesma seleção dos efeitos de mago);
+    // a escolha viaja por RPC_TowerEffectTarget e aplica nos 2 clientes.
+
+    static void StartTowerTargetSelection(int player, int cardId, string prompt)
     {
         int enemy = player == 1 ? 2 : 1;
         BoardManager board = BoardManager.Instance;
         if (board == null) return;
-        var enemies = board.GetCardsByOwner(enemy);
-        if (enemies.Count == 0) return;
-        var rng = EffectRng(player, round, cardId);
-        CardDisplay center = enemies[rng.Next(enemies.Count)];
+
+        var enemies = board.GetCardsByOwner(enemy)
+            .FindAll(c => c != null && c.card != null && c.currentTile != null);
+        if (enemies.Count == 0)
+        {
+            Debug.Log($"[TowerSystem] {TowerCards.Get(cardId)?.cardName} P{player}: sem inimigos em campo neste round");
+            return;
+        }
+
+        if (GameManager.Instance != null)
+            GameManager.Instance.StartTowerEffectTargetSelection(player, cardId, enemies, prompt);
+    }
+
+    // Aplica o efeito da torre no alvo escolhido (chega por RPC nos 2 clientes)
+    public static void ApplyTowerEffectOnTarget(int player, int cardId, CardDisplay target)
+    {
+        if (target == null || target.card == null) return;
+
+        switch (cardId)
+        {
+            case TowerCards.Tempestade: TowerBlastAt(player, target); break;
+
+            case TowerCards.Nevasca:
+                Debug.Log($"[TowerSystem] Nevasca P{player}: congelou {target.card.cardName}");
+                FloatingTextFX.ShowAboveCard(target, "NEVASCA!", FloatingTextFX.EffectColor, 3.6f);
+                // forceSingleTurn: a escolha chega por RPC em momento
+                // imprevisível vs. a troca de turno — forçar 1 turno dá a
+                // mesma duração nos 2 clientes
+                target.Freeze(true);
+                break;
+        }
+    }
+
+    static void TowerBlastAt(int player, CardDisplay center)
+    {
         if (center == null || center.currentTile == null) return;
+        int enemy = player == 1 ? 2 : 1;
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
 
         // Tile capturado ANTES do dano; respingo coletado antes de aplicar
         CardTile centerTile = center.currentTile;
@@ -442,23 +498,6 @@ public static class TowerSystem
             if (dr <= 1 && dc <= 1) splash.Add(c);
         }
         foreach (var t in splash) t.TakeDamage(1);
-    }
-
-    static void TowerFreeze(int player, int round, int cardId)
-    {
-        int enemy = player == 1 ? 2 : 1;
-        BoardManager board = BoardManager.Instance;
-        if (board == null) return;
-        var enemies = board.GetCardsByOwner(enemy);
-        if (enemies.Count == 0) return;
-        var rng = EffectRng(player, round, cardId);
-        CardDisplay target = enemies[rng.Next(enemies.Count)];
-        if (target == null || target.card == null) return;
-        Debug.Log($"[TowerSystem] Nevasca P{player}: congelou {target.card.cardName}");
-        // forceSingleTurn: congelamento aplicado no tique de virada de round
-        // (depois da troca de jogador) — sem a trava, a vítima perderia 2
-        // turnos em vez de 1 (mesma regra dos congelamentos por contador)
-        target.Freeze(true);
     }
 
     // Canhoneira: acerta o inimigo MAIS AVANÇADO em direção à torre do dono

@@ -19,6 +19,4 @@ MonoBehaviour:
   attack: 2
   shield: 3
   health: 6
-  effectDescription: "Estando na linha de frente (fora das 2 fileiras de casa),
-    todos os tanques recebem 50% a menos de dano (n\xE3o se acumula com outras
-    redu\xE7\xF5es de 50%)"
+  effectDescription: "Estando na linha de frente (fora das 2 fileiras de casa), os tanques aliados que tamb\xE9m estiverem na linha de frente atacam com +1 de dano"

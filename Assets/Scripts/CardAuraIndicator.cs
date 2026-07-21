@@ -91,9 +91,9 @@ public class CardAuraIndicator : MonoBehaviour
             if (c.tier == CardTier.Tier4 && c.attack == 2 && c.shield == 6 && c.health == 8)
                 return Kind.PortaBandeira;   // aura: arqueiros atacam 2x
             if (c.tier == CardTier.Tier3 && c.attack == 2 && c.shield == 3 && c.health == 6)
-                return Kind.CapitaoFerro;    // aura: tanks tomam 50% a menos
+                return Kind.CapitaoFerro;    // aura: tanks da frente atacam +1 (v4.2)
             if (c.tier == CardTier.Tier4 && c.attack == 3 && c.shield == 7 && c.health == 8)
-                return Kind.Baluarte;        // 50% c/ combo + armadura adjacente
+                return Kind.Baluarte;        // +2 ATK c/ combo + armadura adjacente (v4.2)
             if (c.tier == CardTier.Tier4 && c.attack == 2 && c.shield == 7 && c.health == 7)
                 return Kind.QuebraGolpes;    // intercepta 1x/turno (lado/atrás)
             if (c.tier == CardTier.Tier2 && c.attack == 1 && c.shield == 3 && c.health == 5)
@@ -196,7 +196,57 @@ public class CardAuraIndicator : MonoBehaviour
         foreach (CardDisplay target in AffectedBy(source))
         {
             if (target == null || target.card == null) continue;
-            linkHighlights.Add(BuildHighlight(target));
+            linkHighlights.Add(BuildHighlight(target, new Color(0.30f, 1.00f, 0.42f)));
+        }
+    }
+
+    // ── DESTAQUE DE ALVOS SELECIONÁVEIS (escolha de alvo de efeito) ───────
+    // Moldura DOURADA pulsando em volta de cada carta que pode ser clicada
+    // enquanto uma seleção de alvo está ativa (congelar, quebrar armadura,
+    // efeitos com alvo). 100% visual — acesa/apagada pelo GameManager.
+
+    static readonly Color SelectableA = new Color(1.00f, 0.78f, 0.22f);
+    static readonly Color SelectableB = new Color(1.00f, 0.96f, 0.65f);
+
+    static readonly List<GameObject> targetHighlights = new List<GameObject>();
+
+    public static void ShowSelectableTargets(List<CardDisplay> candidates)
+    {
+        HideSelectableTargets();
+        if (candidates == null) return;
+        foreach (CardDisplay c in candidates)
+        {
+            if (c == null || !c.isOnBoard) continue;
+            GameObject frame = BuildHighlight(c, SelectableA);
+            frame.AddComponent<SelectablePulse>();
+            targetHighlights.Add(frame);
+        }
+    }
+
+    public static void HideSelectableTargets()
+    {
+        foreach (GameObject go in targetHighlights)
+            if (go != null) Object.Destroy(go);
+        targetHighlights.Clear();
+    }
+
+    // Pulso dourado da moldura de alvo selecionável (chama atenção pro clique)
+    class SelectablePulse : MonoBehaviour
+    {
+        readonly List<Renderer> bars = new List<Renderer>();
+        float t;
+
+        void Start()
+        {
+            GetComponentsInChildren(true, bars);
+        }
+
+        void Update()
+        {
+            t += Time.deltaTime * 5f;
+            Color c = Color.Lerp(SelectableA, SelectableB, (Mathf.Sin(t) + 1f) * 0.5f);
+            foreach (Renderer r in bars)
+                if (r != null) r.material.color = c;
         }
     }
 
@@ -224,8 +274,10 @@ public class CardAuraIndicator : MonoBehaviour
                 break;
 
             case Kind.CapitaoFerro:
+                // v4.2: a aura vale para os tanks NA LINHA DE FRENTE (+1 ATK)
                 foreach (var c in board.GetCardsByOwner(owner))
-                    if (c != null && c.card != null && c.card.cardClass == CardClass.Tank)
+                    if (c != null && c.card != null && c.card.cardClass == CardClass.Tank &&
+                        CardDisplay.IsOnFrontLines(c))
                         result.Add(c);
                 break;
 
@@ -353,9 +405,9 @@ public class CardAuraIndicator : MonoBehaviour
         }
     }
 
-    // Moldura verde OPACA (4 barras — quads transparentes dão bug de sorting
-    // no build) em volta da carta beneficiada; filha da carta, segue ela
-    static GameObject BuildHighlight(CardDisplay target)
+    // Moldura OPACA (4 barras — quads transparentes dão bug de sorting no
+    // build) em volta da carta, na cor pedida; filha da carta, segue ela
+    static GameObject BuildHighlight(CardDisplay target, Color color)
     {
         GameObject root = new GameObject("AuraLinkHighlight");
         root.transform.SetParent(target.transform, false);
@@ -385,7 +437,7 @@ public class CardAuraIndicator : MonoBehaviour
             if (shader != null && r != null)
             {
                 r.material = new Material(shader);
-                r.material.color = new Color(0.30f, 1.00f, 0.42f);
+                r.material.color = color;
             }
         }
         return root;

@@ -329,11 +329,20 @@ public class GameUIManager : MonoBehaviour
         };
     }
 
-    // ── Checkbox "Travar loja" (acima do botão Passar a Vez) ─────────────
-    // Marcado: a SUA loja não renova automaticamente na virada do round (o
-    // reset pago continua funcionando). Estado sincronizado por RPC.
+    // ── Checkbox "Travar cartas" (acima do botão Passar a Vez) ───────────
+    // Marcado: vira o MODO de seleção — clicar numa carta da SUA loja trava/
+    // destrava ela (aura dourada) em vez de comprar. Cartas travadas não
+    // renovam no refresh. O modo em si é local; cada trava vai por RPC.
     private GameObject shopLockObj;
     private UnityEngine.UI.Toggle shopLockToggle;
+    private TextMeshProUGUI shopLockLabel;
+    private bool shopLockMode = false;
+
+    // CardDisplay consulta no clique: true = clique em carta da loja trava
+    public bool IsShopLockMode()
+    {
+        return shopLockMode && shopLockObj != null && shopLockObj.activeInHierarchy;
+    }
 
     void CreateShopLockToggle()
     {
@@ -387,11 +396,12 @@ public class GameUIManager : MonoBehaviour
         lblRt.offsetMin = new Vector2(34f, 0f);
         lblRt.offsetMax = new Vector2(-4f, 0f);
         TextMeshProUGUI tmp = lbl.AddComponent<TextMeshProUGUI>();
-        tmp.text = "Travar loja";
+        tmp.text = "Travar cartas";
         tmp.fontSize = 16f;
         tmp.alignment = TextAlignmentOptions.Left;
         tmp.color = Color.white;
         tmp.raycastTarget = false;
+        shopLockLabel = tmp;
 
         shopLockToggle = shopLockObj.GetComponent<UnityEngine.UI.Toggle>();
         shopLockToggle.targetGraphic = bg;
@@ -402,17 +412,17 @@ public class GameUIManager : MonoBehaviour
         shopLockObj.SetActive(false); // só aparece com a partida rolando
     }
 
-    void OnShopLockToggled(bool locked)
+    void OnShopLockToggled(bool on)
     {
-        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
+        // Modo local de seleção: com ele ligado, o clique nas cartas da loja
+        // trava/destrava (a trava em si é sincronizada por RPC no CardDisplay).
+        // As travas já feitas CONTINUAM valendo com o modo desligado — ele só
+        // muda o que o clique faz
+        shopLockMode = on;
+        if (shopLockLabel != null)
         {
-            // Sincronizado: chega aos DOIS clientes na mesma ordem global
-            PhotonGameManager.Instance.SendShopLockRPC(
-                PhotonGameManager.Instance.myPlayerNumber, locked);
-        }
-        else if (CardManager.Instance != null)
-        {
-            CardManager.Instance.SetShopLocked(0, locked); // offline: loja compartilhada
+            shopLockLabel.text = on ? "Clique p/ travar" : "Travar cartas";
+            shopLockLabel.color = on ? new Color(0.96f, 0.77f, 0.32f) : Color.white;
         }
     }
 
@@ -1144,12 +1154,12 @@ public class GameUIManager : MonoBehaviour
             if (c == null || c.card == null) continue;
             Card card = c.card;
 
-            // Tank 4 (3/7/8): 50% menos dano + armadura/turno com as 3 classes
+            // Tank 4 (3/7/8): +2 de dano + armadura/turno com as 3 classes (v4.2)
             if (card.cardClass == CardClass.Tank && card.tier == CardTier.Tier4 &&
                 card.attack == 3 && card.shield == 7 && card.health == 8)
             {
                 any = true;
-                sb.AppendLine(ComboLine("Tank 4 (3/7/8) — 50% menos dano + armadura/turno",
+                sb.AppendLine(ComboLine("Tank 4 (3/7/8) — +2 de dano + armadura/turno",
                     Missing(hasHealer, "Healer", hasMage, "Mago", hasArcher, "Arqueiro"), false));
             }
             // Tank 4 (2/6/7): +5 HP +2 DEF com Arqueiro e Mago (1x)
@@ -1482,7 +1492,8 @@ public class GameUIManager : MonoBehaviour
             string dur = secs >= 60 ? $"{secs / 60}min {secs % 60}s" : $"{secs}s";
             string map = BoardThemeManager.Current == BoardTheme.Tabletop ? "Mesa de RPG"
                        : BoardThemeManager.Current == BoardTheme.Forest ? "Floresta"
-                       : BoardThemeManager.Current == BoardTheme.Space ? "Espaço" : "—";
+                       : BoardThemeManager.Current == BoardTheme.Space ? "Espaço"
+                       : BoardThemeManager.Current == BoardTheme.Teste ? "Teste" : "—";
             victoryOverlayStats.text = $"Duração {dur}   ·   {rounds} rounds   ·   {map}";
         }
 

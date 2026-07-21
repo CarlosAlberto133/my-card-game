@@ -67,7 +67,8 @@ public class ReportSender : MonoBehaviour
         row.match_seed = (PhotonGameManager.Instance != null) ? PhotonGameManager.Instance.currentGameSeed : 0;
         row.map = BoardThemeManager.Current == BoardTheme.Tabletop ? "mesa"
                 : BoardThemeManager.Current == BoardTheme.Forest ? "floresta"
-                : BoardThemeManager.Current == BoardTheme.Space ? "espaco" : null;
+                : BoardThemeManager.Current == BoardTheme.Space ? "espaco"
+                : BoardThemeManager.Current == BoardTheme.Teste ? "teste" : null;
         row.game_version = Application.version;
 
         // Logs: completo (limitado) + trecho do round reportado

@@ -19,5 +19,5 @@ MonoBehaviour:
   attack: 5
   shield: 0
   health: 5
-  effectDescription: "Uma vez por round congelar um inimigo aleat\xF3rio. Efeito
+  effectDescription: "Uma vez por round congelar um inimigo \xE0 sua escolha. Efeito
     duplicado se tem Tank aliado"

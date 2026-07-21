@@ -19,4 +19,4 @@ MonoBehaviour:
   attack: 2
   shield: 0
   health: 4
-  effectDescription: "Cause 1 de dano a um inimigo aleat\xF3rio ao entrar em campo"
+  effectDescription: "Cause 1 de dano a um inimigo \xE0 sua escolha ao entrar em campo"

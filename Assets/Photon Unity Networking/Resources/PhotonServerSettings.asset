@@ -62,4 +62,6 @@ MonoBehaviour:
   - RPC_RestartGame
   - RPC_SetShopLock
   - RPC_BuyTowerCard
+  - RPC_SetShopCardLock
+  - RPC_TowerEffectTarget
   DisableAutoOpenWizard: 1

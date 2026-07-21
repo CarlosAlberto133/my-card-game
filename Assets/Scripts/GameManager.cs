@@ -7,7 +7,9 @@ public class GameManager : MonoBehaviour
 
     [Header("Regras do Jogo")]
     public int maxPlacementRows = 2; // Apenas 2 primeiras fileiras
-    public int movementRange = 1; // Distância de movimento em formato de +
+    // Movimentação v4.2: TODAS as classes andam em cruz até 2 casas (caminho
+    // livre); Tank/Healer também andam 1 casa na diagonal.
+    // As regras vivem em IsValidMovement.
 
     private GameObject selectedCard;
     private CardDisplay selectedCardDisplay;
@@ -15,6 +17,10 @@ public class GameManager : MonoBehaviour
     private HandManager handManager;
     private BoardManager boardManager;
     private bool isMovingCard = false; // Se está movendo uma carta do tabuleiro
+
+    // Pilhagem (v4.2): último round em que cada jogador ganhou o +1 de ouro
+    // por dano na torre (índices 1 e 2; campo de instância — zera por partida)
+    private int[] lastPlunderRound = { -1, -1, -1 };
 
     void Awake()
     {
@@ -452,8 +458,8 @@ public class GameManager : MonoBehaviour
             return false;
         }
 
-        // Verifica se o movimento é válido (formato de +)
-        if (!IsValidMovement(currentTile, targetTile))
+        // Verifica se o movimento é válido (regras por classe)
+        if (!IsValidMovement(selectedCardDisplay, currentTile, targetTile))
         {
             return false;
         }
@@ -495,6 +501,9 @@ public class GameManager : MonoBehaviour
         Vector3 cardPosition = toTile.transform.position + new Vector3(0, CardDisplay.BoardYOffset, 0);
         cardObject.transform.position = cardPosition;
         cardObject.transform.rotation = CardDisplay.BoardRotation; // Deitada sobre o tile
+        // Reafirma a escala de tabuleiro: cura cartas que ficaram com escala
+        // errada (ex.: o antigo bug do hover que devolvia o tamanho da loja)
+        cardObject.transform.localScale = Vector3.one * CardDisplay.BoardScale;
 
         // Ocupa o novo tile
         toTile.OccupyTile(cardObject);
@@ -507,24 +516,33 @@ public class GameManager : MonoBehaviour
         Debug.Log($"[GameManager] {cardDisplay.card.cardName} moveu de ({fromRow},{fromCol}) para ({toRow},{toCol})");
     }
 
-    // Verifica se o movimento é válido (formato de +)
-    bool IsValidMovement(CardTile from, CardTile to)
+    // Verifica se o movimento é válido — regras v4.2:
+    //   TODAS as classes: cruz (reta) de até 2 casas; na de 2, a casa do MEIO
+    //                     precisa estar livre (ninguém atravessa carta)
+    //   Tank/Healer:      ADEMAIS, diagonal de 1 casa
+    bool IsValidMovement(CardDisplay mover, CardTile from, CardTile to)
     {
         int rowDiff = Mathf.Abs(to.row - from.row);
         int colDiff = Mathf.Abs(to.column - from.column);
 
-        // Movimento em cruz: ou move em linha reta na horizontal ou vertical, mas não diagonal
-        // E deve estar dentro do alcance (movementRange)
-        if (rowDiff == 0 && colDiff > 0 && colDiff <= movementRange)
-        {
-            // Movimento horizontal
+        // Cruz de 1 casa
+        if ((rowDiff == 1 && colDiff == 0) || (rowDiff == 0 && colDiff == 1))
             return true;
-        }
-        else if (colDiff == 0 && rowDiff > 0 && rowDiff <= movementRange)
+
+        // Cruz de 2 casas com o caminho livre
+        if ((rowDiff == 2 && colDiff == 0) || (rowDiff == 0 && colDiff == 2))
         {
-            // Movimento vertical
-            return true;
+            CardTile mid = boardManager != null
+                ? boardManager.GetTile((from.row + to.row) / 2, (from.column + to.column) / 2)
+                : null;
+            return mid != null && mid.occupiedCard == null;
         }
+
+        // Diagonal de 1 casa: só Tank e Healer
+        CardClass cls = (mover != null && mover.card != null)
+            ? mover.card.cardClass : CardClass.Tank;
+        if (cls == CardClass.Tank || cls == CardClass.Healer)
+            return rowDiff == 1 && colDiff == 1;
 
         return false;
     }
@@ -539,6 +557,8 @@ public class GameManager : MonoBehaviour
         Vector3 cardPosition = targetTile.transform.position + new Vector3(0, CardDisplay.BoardYOffset, 0);
         selectedCard.transform.position = cardPosition;
         selectedCard.transform.rotation = CardDisplay.BoardRotation; // Deitada sobre o tile
+        // Reafirma a escala de tabuleiro (cura escala errada de bugs antigos)
+        selectedCard.transform.localScale = Vector3.one * CardDisplay.BoardScale;
 
         // Ocupa o novo tile
         targetTile.OccupyTile(selectedCard);
@@ -635,7 +655,7 @@ public class GameManager : MonoBehaviour
             if (currentTile == null) return false;
             if (tile == currentTile) return false; // Não pode mover para o mesmo lugar
             if (tile.occupiedCard != null) return false; // Não pode mover para tile ocupado
-            return IsValidMovement(currentTile, tile); // Verifica movimento em +
+            return IsValidMovement(selectedCardDisplay, currentTile, tile); // Regras por classe
         }
         else
         {
@@ -902,7 +922,9 @@ public class GameManager : MonoBehaviour
 
         CardDisplay attackerDisplay = tile.occupiedCard.GetComponent<CardDisplay>();
         PlayerData targetPlayer = TurnManager.Instance.GetPlayer(targetPlayerNumber);
-        int damage = attackerDisplay.currentAttack;
+        // Auras de ataque dos tanks (Capitão de Ferro/Baluarte) valem também
+        // contra a torre — é o caminho da vitória, o bônus não pode sumir aqui
+        int damage = attackerDisplay.currentAttack + attackerDisplay.AuraAttackBonus();
 
         Debug.Log($">>> {attackerDisplay.card.cardName} ataca a torre do {targetPlayer.playerName} causando {damage} de dano!");
 
@@ -913,6 +935,24 @@ public class GameManager : MonoBehaviour
         SoundManager.Play(SoundManager.Sound.Attack);
 
         targetPlayer.TakeDamage(damage);
+
+        // PILHAGEM (v4.2): causar dano na torre inimiga rende +1 de ouro, uma
+        // vez por round por jogador — atacar paga melhor que tartaruguear.
+        // Determinístico: roda no RPC do ataque, igual nos dois clientes
+        int raider = attackerDisplay.ownerPlayerNumber;
+        if (raider >= 1 && raider <= 2 && TurnManager.Instance != null &&
+            lastPlunderRound[raider] != TurnManager.Instance.currentRound)
+        {
+            lastPlunderRound[raider] = TurnManager.Instance.currentRound;
+            PlayerData raiderData = TurnManager.Instance.GetPlayer(raider);
+            if (raiderData != null)
+            {
+                raiderData.AddGold(1);
+                FloatingTextFX.ShowAboveCard(attackerDisplay, "PILHAGEM! +1 OURO",
+                    FloatingTextFX.EffectColor, 4.2f);
+                Debug.Log($"[Pilhagem] P{raider}: +1 de ouro por dano na torre (round {TurnManager.Instance.currentRound})");
+            }
+        }
 
         // Torres: gatilhos de "torre tomou dano" (Represália / Ressurgimento)
         TowerSystem.OnTowerDamaged(targetPlayerNumber, attackerDisplay);
@@ -987,6 +1027,9 @@ public class GameManager : MonoBehaviour
 
         mageFreezingCard = mageCard;
         isWaitingForFreezeTarget = true;
+
+        // Moldura dourada pulsando nos inimigos que podem ser congelados
+        CardAuraIndicator.ShowSelectableTargets(board.GetCardsByOwner(enemyPlayer));
         Debug.Log("[FreezeSelection] Aguardando seleção de alvo para congelar...");
     }
 
@@ -1013,6 +1056,7 @@ public class GameManager : MonoBehaviour
             }
             isWaitingForFreezeTarget = false;
             mageFreezingCard = null;
+            CardAuraIndicator.HideSelectableTargets();
             StartNextQueuedSelection();
             return;
         }
@@ -1022,6 +1066,7 @@ public class GameManager : MonoBehaviour
         targetCard.Freeze(false, mageFreezingCard);
         isWaitingForFreezeTarget = false;
         mageFreezingCard = null;
+        CardAuraIndicator.HideSelectableTargets();
 
         Debug.Log($"[FreezeSelection] {targetCard.card.cardName} foi congelada!");
         StartNextQueuedSelection();
@@ -1135,6 +1180,9 @@ public class GameManager : MonoBehaviour
         effectTargetType = effectType;
         effectTargetCandidates = candidates;
         isWaitingForEffectTarget = true;
+
+        // Moldura dourada pulsando nas cartas que PODEM ser clicadas
+        CardAuraIndicator.ShowSelectableTargets(candidates);
         Debug.Log($"[EffectTarget] Aguardando clique no alvo (efeito {effectType}, {candidates.Count} opções)...");
     }
 
@@ -1143,9 +1191,108 @@ public class GameManager : MonoBehaviour
         return isWaitingForEffectTarget;
     }
 
+    // ── Seleção de alvo para efeitos de TORRE (Tempestade/Nevasca, v4.2) ──
+    // A torre não tem carta no tabuleiro como origem, então a escolha viaja
+    // por um RPC próprio (RPC_TowerEffectTarget) carregando jogador + carta
+    // da torre. Reusa TODO o resto da máquina de seleção (fila, molduras,
+    // popup, ESC).
+    private int towerTargetOwner = 0;    // 0 = nenhuma seleção de torre ativa
+    private int towerTargetCardId = -1;
+
+    public void StartTowerEffectTargetSelection(int ownerPlayer, int towerCardId,
+        List<CardDisplay> candidates, string prompt)
+    {
+        // Torre do BOT (modo treino): escolhe sozinho via RPC
+        if (BotMode.IsBot(ownerPlayer))
+        {
+            BotController.AutoChooseTowerEffectTarget(ownerPlayer, towerCardId, candidates);
+            return;
+        }
+
+        // Em multiplayer, só o dono da torre escolhe (a escolha chega por RPC)
+        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null &&
+            ownerPlayer != PhotonGameManager.Instance.myPlayerNumber)
+        {
+            Debug.Log("[TowerTarget] Oponente está escolhendo o alvo da torre...");
+            return;
+        }
+
+        // Outra seleção em andamento: entra na fila
+        if (AnySelectionActive())
+        {
+            queuedSelections.Enqueue(() => StartTowerEffectTargetSelection(ownerPlayer, towerCardId, candidates, prompt));
+            Debug.Log($"[TowerTarget] Seleção da torre (carta {towerCardId}) enfileirada");
+            return;
+        }
+
+        if (candidates == null) return;
+        candidates.RemoveAll(c => c == null || c.currentTile == null);
+        if (candidates.Count == 0)
+        {
+            Debug.Log("[TowerTarget] Nenhum alvo válido em campo, efeito não ativado");
+            return;
+        }
+
+        // Um único alvo possível: aplica direto, sem pedir clique
+        if (candidates.Count == 1)
+        {
+            ApplyTowerTargetChoice(ownerPlayer, towerCardId, candidates[0]);
+            return;
+        }
+
+        if (GameUIManager.Instance != null)
+        {
+            GameUIManager.Instance.ShowDecisionPopup(
+                prompt + "\nClique na carta desejada no tabuleiro (ESC cancela)",
+                "Entendi", () => { /* aguardando clique */ },
+                "Cancelar", () => CancelEffectTargetSelection());
+        }
+
+        towerTargetOwner = ownerPlayer;
+        towerTargetCardId = towerCardId;
+        effectTargetSource = null;
+        effectTargetType = 0;
+        effectTargetCandidates = candidates;
+        isWaitingForEffectTarget = true;
+
+        CardAuraIndicator.ShowSelectableTargets(candidates);
+        Debug.Log($"[TowerTarget] Aguardando clique no alvo (torre carta {towerCardId}, {candidates.Count} opções)...");
+    }
+
+    void ApplyTowerTargetChoice(int ownerPlayer, int towerCardId, CardDisplay target)
+    {
+        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null &&
+            target != null && target.currentTile != null)
+        {
+            PhotonGameManager.Instance.SendTowerEffectTargetRPC(ownerPlayer, towerCardId,
+                target.currentTile.row, target.currentTile.column);
+        }
+        else
+        {
+            TowerSystem.ApplyTowerEffectOnTarget(ownerPlayer, towerCardId, target);
+        }
+    }
+
+    // Executa a escolha da torre (chamado via RPC nos dois clientes)
+    public void ExecuteTowerEffectOnTarget(int ownerPlayer, int towerCardId, int targetRow, int targetCol)
+    {
+        if (boardManager == null) boardManager = FindObjectOfType<BoardManager>();
+        CardTile tile = boardManager != null ? boardManager.GetTile(targetRow, targetCol) : null;
+        CardDisplay target = (tile != null && tile.occupiedCard != null)
+            ? tile.occupiedCard.GetComponent<CardDisplay>() : null;
+        if (target == null)
+        {
+            Debug.LogWarning($"[TowerTarget] Alvo em ({targetRow},{targetCol}) não existe mais — efeito perdido");
+            return;
+        }
+        TowerSystem.ApplyTowerEffectOnTarget(ownerPlayer, towerCardId, target);
+    }
+
     public void TryApplyEffectTarget(CardDisplay targetCard)
     {
-        if (!isWaitingForEffectTarget || effectTargetSource == null) return;
+        if (!isWaitingForEffectTarget) return;
+        bool towerMode = towerTargetOwner != 0;
+        if (!towerMode && effectTargetSource == null) return;
 
         if (effectTargetCandidates == null || !effectTargetCandidates.Contains(targetCard))
         {
@@ -1155,6 +1302,8 @@ public class GameManager : MonoBehaviour
 
         CardDisplay source = effectTargetSource;
         int effectType = effectTargetType;
+        int towerOwner = towerTargetOwner;
+        int towerCardId = towerTargetCardId;
 
         // Encerra o modo SEM puxar a fila ainda: a escolha clicada precisa ser
         // aplicada ANTES da próxima seleção enfileirada (senão um efeito da
@@ -1163,8 +1312,12 @@ public class GameManager : MonoBehaviour
         effectTargetSource = null;
         effectTargetType = 0;
         effectTargetCandidates = null;
+        towerTargetOwner = 0;
+        towerTargetCardId = -1;
+        CardAuraIndicator.HideSelectableTargets();
 
-        ApplyEffectTargetChoice(source, effectType, targetCard);
+        if (towerMode) ApplyTowerTargetChoice(towerOwner, towerCardId, targetCard);
+        else ApplyEffectTargetChoice(source, effectType, targetCard);
         StartNextQueuedSelection();
     }
 
@@ -1174,6 +1327,9 @@ public class GameManager : MonoBehaviour
         effectTargetSource = null;
         effectTargetType = 0;
         effectTargetCandidates = null;
+        towerTargetOwner = 0;
+        towerTargetCardId = -1;
+        CardAuraIndicator.HideSelectableTargets();
         Debug.Log("[EffectTarget] Seleção de alvo encerrada");
         StartNextQueuedSelection();
     }
@@ -1239,16 +1395,21 @@ public class GameManager : MonoBehaviour
         }
 
         // Projétil visual do feitiço voando da carta lançadora até o alvo
-        // (roxo = arcano ofensivo, dourado = bênção em aliado, azul = armadura)
+        // (roxo = arcano ofensivo, dourado = bênção em aliado, azul = armadura,
+        // gelo = congelamentos, fogo = danos diretos/explosões)
         Color projColor;
         switch (effectType)
         {
             case 5: projColor = EffectProjectileFX.Fire; break;       // destruir
             case 7: case 8: projColor = EffectProjectileFX.GoldBuff; break; // bênçãos
             case 9: projColor = EffectProjectileFX.ShieldBlue; break; // armadura
+            case 10: case 13: case 14: projColor = EffectProjectileFX.Fire; break; // danos escolhidos
+            case 11: case 12: case 15: case 16: projColor = EffectProjectileFX.Ice; break; // congelamentos
             default: projColor = EffectProjectileFX.Arcane; break;    // 4, 6...
         }
-        EffectProjectileFX.Launch(source, target, projColor);
+        // Explosão em área maiorzinha; bola de fogo do Mago 5 é a maior
+        float projSize = effectType == 14 ? 1.6f : (effectType == 13 ? 1.35f : 1.15f);
+        EffectProjectileFX.Launch(source, target, projColor, projSize);
 
         switch (effectType)
         {
@@ -1258,6 +1419,13 @@ public class GameManager : MonoBehaviour
             case 7: effect.ActivateDoubleStats(target); break;      // Healer 5: duplicar stats de aliado
             case 8: effect.ActivateInvulnerability(target); break;  // Healer 4: invulnerabilidade em aliado
             case 9: effect.ActivateBoostMagoShield(target); break;  // Tank 3: +3 armadura em Mago aliado
+            case 10: effect.ActivateDamageChosen(target); break;          // Mago: 1 de dano no alvo escolhido
+            case 11: effect.ActivateFreezeChosen(target); break;          // Mago 3 (3/4): congelar escolhido
+            case 12: effect.ActivateFreezeAndDamageChosen(target); break; // Mago 3 (3/4): congelar + dano
+            case 13: effect.ActivateAreaBlastChosen(target); break;       // Explosão 2+1 (Mago 3 [2/5] / Mago 4 [4/4])
+            case 14: effect.ActivateFireballChosen(target); break;        // Mago 5 (5/6): bola de fogo 5+2
+            case 15: effect.ActivateFreezePerRoundChosen(target, true); break;  // Mago 5 (5/5): 1º congelamento
+            case 16: effect.ActivateFreezePerRoundChosen(target, false); break; // Mago 5 (5/5): 2º congelamento (Tank)
             default:
                 Debug.LogError($"[GameManager] Tipo de efeito com alvo desconhecido: {effectType}");
                 break;
@@ -1268,6 +1436,7 @@ public class GameManager : MonoBehaviour
     {
         isWaitingForFreezeTarget = false;
         mageFreezingCard = null;
+        CardAuraIndicator.HideSelectableTargets();
         Debug.Log("[FreezeSelection] Seleção cancelada");
         StartNextQueuedSelection();
     }
@@ -1337,6 +1506,10 @@ public class GameManager : MonoBehaviour
         shieldBreakTargetsSelected = 0;
         shieldBreakFirstTarget = null;
         isWaitingForShieldBreakTargets = true;
+
+        // Moldura dourada pulsando nos inimigos selecionáveis
+        if (board != null)
+            CardAuraIndicator.ShowSelectableTargets(board.GetCardsByOwner(enemyPlayer));
         Debug.Log($"[ShieldBreakSelection] Aguardando seleção de {shieldBreakTargetsRequired} alvo(s)...");
     }
 
@@ -1385,11 +1558,21 @@ public class GameManager : MonoBehaviour
             shieldBreakMage = null;
             shieldBreakTargetsSelected = 0;
             shieldBreakFirstTarget = null;
+            CardAuraIndicator.HideSelectableTargets();
             Debug.Log("[ShieldBreakSelection] Seleção completa!");
             StartNextQueuedSelection();
         }
         else
         {
+            // Falta o 2º alvo: reacende as molduras SEM o inimigo já escolhido
+            BoardManager board = BoardManager.Instance;
+            if (board != null && shieldBreakMage != null)
+            {
+                int enemyPlayer = shieldBreakMage.ownerPlayerNumber == 1 ? 2 : 1;
+                var remaining = board.GetCardsByOwner(enemyPlayer)
+                    .FindAll(e => e != null && e != shieldBreakFirstTarget);
+                CardAuraIndicator.ShowSelectableTargets(remaining);
+            }
             Debug.Log($"[ShieldBreakSelection] Alvo selecionado, falta(m) {shieldBreakTargetsRequired - shieldBreakTargetsSelected}");
         }
     }
@@ -1400,6 +1583,7 @@ public class GameManager : MonoBehaviour
         shieldBreakMage = null;
         shieldBreakTargetsSelected = 0;
         shieldBreakFirstTarget = null;
+        CardAuraIndicator.HideSelectableTargets();
         Debug.Log("[ShieldBreakSelection] Seleção cancelada");
         StartNextQueuedSelection();
     }

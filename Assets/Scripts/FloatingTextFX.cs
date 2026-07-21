@@ -32,8 +32,14 @@ public class FloatingTextFX : MonoBehaviour
         Show(card.transform.position, text, color, size);
     }
 
+    // Multiplicador GLOBAL do tamanho dos popups (dano/cura/efeitos/debuffs).
+    // Pedido do Carlos (jul/2026): estavam pequenos e difíceis de perceber.
+    // Mexer só aqui escala TODOS mantendo as proporções entre eles
+    const float SizeBoost = 1.5f;
+
     public static void Show(Vector3 worldPos, string text, Color color, float size = 5f)
     {
+        size *= SizeBoost;
         // Empilhamento: popups do mesmo frame nascem um acima do outro
         if (Time.frameCount != lastSpawnFrame)
         {
@@ -52,9 +58,9 @@ public class FloatingTextFX : MonoBehaviour
         tmp.fontStyle = FontStyles.Bold;
         tmp.alignment = TextAlignmentOptions.Center;
         tmp.color = color;
-        tmp.outlineWidth = 0.25f;
+        tmp.outlineWidth = 0.28f; // contorno um pouco mais grosso: legível sobre qualquer fundo
         tmp.outlineColor = new Color32(0, 0, 0, 220);
-        tmp.rectTransform.sizeDelta = new Vector2(14f, 4f);
+        tmp.rectTransform.sizeDelta = new Vector2(20f, 5f);
         tmp.textWrappingMode = TextWrappingModes.NoWrap;
 
         // Renderiza por cima das cartas. fontMaterial (e NÃO sharedMaterial!)

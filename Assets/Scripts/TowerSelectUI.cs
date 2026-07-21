@@ -23,7 +23,6 @@ public static class TowerSelectUI
 
     public static bool IsOpen { get; private set; }
 
-    const float PickTimeout = 30f;
     static readonly int[] classOrder = { (int)CardClass.Tank, (int)CardClass.Healer, (int)CardClass.Mago, (int)CardClass.Arqueiro };
 
     static GameObject canvasGo, boothRoot;
@@ -281,19 +280,11 @@ public static class TowerSelectUI
 
         RenderBooth();
 
-        // Timeout: escolhe uma torre aleatória por você
-        float left = PickTimeout - (Time.realtimeSinceStartup - openedAt);
-        if (!confirmed)
-        {
-            if (timerText != null)
-                timerText.text = "Escolha automática em " + Mathf.CeilToInt(Mathf.Max(0f, left)) + "s";
-            if (left <= 0f)
-            {
-                if (selectedIdx < 0) OnSelect(Random.Range(0, 4));
-                OnConfirm();
-            }
-        }
-        else if (timerText != null) timerText.text = "";
+        // v4.2: SEM timeout — o jogador lê e escolhe com calma (pedido do
+        // Carlos: em fase de testes, vale a pena tudo ser lido). O jogo só
+        // segue quando os DOIS confirmarem.
+        if (timerText != null)
+            timerText.text = confirmed ? "" : "Leia com calma — o jogo espera os dois confirmarem";
 
         // Online: lê a escolha do oponente nas props da sala (chave por seed)
         if (!BotMode.Enabled && PhotonNetwork.inRoom && PhotonNetwork.room.customProperties != null)

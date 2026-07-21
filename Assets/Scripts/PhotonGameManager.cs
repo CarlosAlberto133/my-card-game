@@ -570,29 +570,58 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
         }
     }
 
-    // ========== TRAVAR LOJA (checkbox — não renovar na virada do round) ==========
+    // ========== ALVO ESCOLHIDO DOS EFEITOS DE TORRE (Tempestade/Nevasca) ==========
 
-    // AllViaServer: o PRÓPRIO remetente também recebe via servidor, garantindo a
-    // MESMA ordem global do RPC_EndTurn nos dois clientes. Com PhotonTargets.All
-    // o remetente aplicaria na hora e o oponente depois — se um EndTurn chegasse
-    // no meio, um cliente renovava a loja e o outro não (desync do pool).
-    public void SendShopLockRPC(int playerNumber, bool locked)
+    // A torre não tem carta-fonte no tabuleiro, então o RPC carrega o DONO e o
+    // ID da carta de torre (em vez do tile de origem do RPC_EffectTarget)
+    public void SendTowerEffectTargetRPC(int player, int towerCardId, int targetRow, int targetCol)
     {
         if (!PhotonNetwork.connected) return;
         PhotonView pv = GetComponent<PhotonView>();
         if (pv != null)
         {
-            pv.RPC("RPC_SetShopLock", PhotonTargets.AllViaServer, playerNumber, locked);
-            Debug.Log($"[PhotonGame] Enviado RPC: Travar loja P{playerNumber} = {locked}");
+            pv.RPC("RPC_TowerEffectTarget", PhotonTargets.AllViaServer, player, towerCardId, targetRow, targetCol);
+            Debug.Log($"[PhotonGame] Enviado RPC: alvo da torre P{player} carta {towerCardId} -> ({targetRow},{targetCol})");
         }
     }
 
     [PunRPC]
-    public void RPC_SetShopLock(int playerNumber, bool locked)
+    public void RPC_TowerEffectTarget(int player, int towerCardId, int targetRow, int targetCol)
     {
-        Debug.Log($"[PhotonGame] RPC_SetShopLock: P{playerNumber} -> {locked}");
-        if (CardManager.Instance != null)
-            CardManager.Instance.SetShopLocked(playerNumber, locked);
+        Debug.Log($"[PhotonGame] RPC_TowerEffectTarget: P{player} carta {towerCardId} em ({targetRow},{targetCol})");
+        if (GameManager.Instance != null)
+            GameManager.Instance.ExecuteTowerEffectOnTarget(player, towerCardId, targetRow, targetCol);
+    }
+
+    // ========== TRAVAR CARTAS DA LOJA (seleção individual por carta) ==========
+
+    // AllViaServer: o PRÓPRIO remetente também recebe via servidor, garantindo a
+    // MESMA ordem global do RPC_EndTurn nos dois clientes. Com PhotonTargets.All
+    // o remetente aplicaria na hora e o oponente depois — se um EndTurn chegasse
+    // no meio, um cliente renovava a loja e o outro não (desync do pool).
+    public void SendShopCardLockRPC(int playerNumber, int shopIndex, bool locked)
+    {
+        if (!PhotonNetwork.connected) return;
+        PhotonView pv = GetComponent<PhotonView>();
+        if (pv != null)
+        {
+            pv.RPC("RPC_SetShopCardLock", PhotonTargets.AllViaServer, playerNumber, shopIndex, locked);
+            Debug.Log($"[PhotonGame] Enviado RPC: travar carta {shopIndex} da loja P{playerNumber} = {locked}");
+        }
+    }
+
+    // Marca/desmarca UMA carta da loja como travada nos DOIS clientes (a loja do
+    // oponente existe oculta aqui, então o refresh dos dois lados pula os mesmos
+    // slots e o consumo do pool/seed continua idêntico — lockstep intacto)
+    [PunRPC]
+    public void RPC_SetShopCardLock(int playerNumber, int shopIndex, bool locked)
+    {
+        Debug.Log($"[PhotonGame] RPC_SetShopCardLock: loja P{playerNumber}, slot {shopIndex} -> {locked}");
+        if (CardManager.Instance == null) return;
+        GameObject cardObj = CardManager.Instance.GetShopCard(shopIndex, playerNumber);
+        if (cardObj == null) return;
+        CardDisplay cd = cardObj.GetComponent<CardDisplay>();
+        if (cd != null && cd.isInShop) cd.SetShopLock(locked);
     }
 
     // ========== REINÍCIO DE PARTIDA (Jogar Novamente) ==========

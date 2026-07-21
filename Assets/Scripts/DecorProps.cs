@@ -51,6 +51,49 @@ public static class DecorProps
         return forestMat;
     }
 
+    // Atlas do RPG Tools Bits (lanterna e afins)
+    static Material toolsMat;
+
+    static Material GetToolsMaterial()
+    {
+        if (toolsMat != null) return toolsMat;
+
+        Shader shader = Shader.Find("Universal Render Pipeline/Lit")
+                     ?? Shader.Find("Sprites/Default");
+        if (shader == null) return null;
+
+        toolsMat = new Material(shader);
+        toolsMat.color = Color.white;
+        Texture2D tex = Resources.Load<Texture2D>("decor/kaykit/tools_bits_texture");
+        if (tex != null)
+        {
+            toolsMat.mainTexture = tex;
+            toolsMat.SetTexture("_BaseMap", tex);
+        }
+        return toolsMat;
+    }
+
+    // Variações TINGIDAS do atlas do dungeon (ex.: estandarte branco → roxo do
+    // Mago). Uma por cor, cacheadas — a cor multiplica a textura inteira.
+    static readonly System.Collections.Generic.Dictionary<Color, Material> tintedMats =
+        new System.Collections.Generic.Dictionary<Color, Material>();
+
+    static Material GetTintedMaterial(Color tint)
+    {
+        Material cached;
+        if (tintedMats.TryGetValue(tint, out cached)) return cached;
+
+        Material baseMat = GetMaterial();
+        Material mat = baseMat != null ? new Material(baseMat) : null;
+        if (mat != null)
+        {
+            mat.color = tint;
+            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", tint);
+        }
+        tintedMats[tint] = mat;
+        return mat;
+    }
+
     // Instancia um prop do KayKit em pé sobre uma superfície:
     //   basePos = ponto de apoio; up = normal da superfície;
     //   lookDir = para onde o prop "olha"; targetHeight = altura final.
@@ -58,6 +101,22 @@ public static class DecorProps
         float targetHeight, Vector3 up, Vector3 lookDir)
     {
         return PlaceFrom(parent, "decor/kaykit/" + model, GetMaterial(),
+            basePos, targetHeight, up, lookDir);
+    }
+
+    // Prop do dungeon com o atlas tingido (estandarte roxo do Mago etc.)
+    public static GameObject PlaceTinted(Transform parent, string model, Vector3 basePos,
+        float targetHeight, Vector3 up, Vector3 lookDir, Color tint)
+    {
+        return PlaceFrom(parent, "decor/kaykit/" + model, GetTintedMaterial(tint),
+            basePos, targetHeight, up, lookDir);
+    }
+
+    // Prop do RPG Tools Bits (lanterna)
+    public static GameObject PlaceTool(Transform parent, string model, Vector3 basePos,
+        float targetHeight, Vector3 up, Vector3 lookDir)
+    {
+        return PlaceFrom(parent, "decor/kaykit/" + model, GetToolsMaterial(),
             basePos, targetHeight, up, lookDir);
     }
 

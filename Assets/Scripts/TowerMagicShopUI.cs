@@ -223,7 +223,7 @@ public static class TowerMagicShopUI
             statusText.text = "Você já comprou nesta janela.";
         else if (p != null && p.gold < TowerCard.GoldCost)
             statusText.text = "Ouro insuficiente (" + p.gold + "/" + TowerCard.GoldCost + ").";
-        else if (TowerSystem.EquippedOf(me).Count >= 2)
+        else if (TowerSystem.EquippedOf(me).Count >= TowerSystem.MaxEquipped)
             statusText.text = "Slots cheios: comprar vai pedir qual substituir.";
         else
             statusText.text = "A oferta some quando o round virar!";
@@ -234,7 +234,7 @@ public static class TowerMagicShopUI
         int me = LocalPlayer();
         var equipped = TowerSystem.EquippedOf(me);
 
-        if (equipped.Count < 2)
+        if (equipped.Count < TowerSystem.MaxEquipped)
         {
             SendBuy(me, cardId, -1);
             return;
@@ -257,15 +257,16 @@ public static class TowerMagicShopUI
         MakeText(panel.transform, "RepT", "Substituir qual carta por\n<b>" + (nova != null ? nova.cardName : "?") + "</b>?",
             17, Ink, TextAlignmentOptions.Center, FontStyles.Normal, new Vector2(0f, 90f), new Vector2(340f, 60f));
 
-        for (int s = 0; s < equipped.Count && s < 2; s++)
+        // 3 slots (v4.2): botões mais compactos para caber tudo + o Cancelar
+        for (int s = 0; s < equipped.Count && s < TowerSystem.MaxEquipped; s++)
         {
             TowerCard old = TowerCards.Get(equipped[s]);
             int slot = s;
             MakeButton(panel.transform, "Substituir: " + (old != null ? old.cardName : "?"),
-                new Vector2(0f, 10f - s * 60f), new Vector2(300f, 46f), Slot, Ink, 14,
+                new Vector2(0f, 26f - s * 52f), new Vector2(300f, 44f), Slot, Ink, 14,
                 () => { SendBuy(me, pendingBuyCardId, slot); });
         }
-        MakeButton(panel.transform, "Cancelar", new Vector2(0f, -130f), new Vector2(300f, 44f),
+        MakeButton(panel.transform, "Cancelar", new Vector2(0f, -140f), new Vector2(300f, 44f),
             new Color(0.55f, 0.18f, 0.16f), Color.white, 14, () =>
             {
                 pendingBuyCardId = -1;

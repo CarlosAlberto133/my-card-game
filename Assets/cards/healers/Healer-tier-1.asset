@@ -19,4 +19,4 @@ MonoBehaviour:
   attack: 0
   shield: 0
   health: 3
-  effectDescription: Cure em 3 o aliado mais ferido a cada 2 turnos
+  effectDescription: Cure em 2 o aliado mais ferido a cada 3 turnos

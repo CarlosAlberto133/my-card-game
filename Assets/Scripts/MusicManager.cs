@@ -225,9 +225,12 @@ public class MusicManager : MonoBehaviour
         rt.anchorMin = new Vector2(0f, 1f);
         rt.anchorMax = new Vector2(0f, 1f);
         rt.pivot = new Vector2(0f, 1f);
-        rt.anchoredPosition = new Vector2(14f, -14f);
-        rt.sizeDelta = new Vector2(52f, 52f);
-        btnObj.GetComponent<Image>().color = new Color(0.16f, 0.18f, 0.30f, 0.95f);
+        rt.anchoredPosition = new Vector2(16f, -16f);
+        rt.sizeDelta = new Vector2(54f, 54f);
+        // Tabuleta escura com moldura dourada (mesmo tema da arte do lobby)
+        LobbySprites.MakeRounded(btnObj.GetComponent<Image>(),
+            new Color(0.085f, 0.062f, 0.040f, 0.95f));
+        LobbySprites.AddRing(btnObj.transform, new Color(0.96f, 0.77f, 0.32f, 0.75f));
 
         // Ícone de engrenagem (configurações). Desenhado por código como sprite —
         // o glifo ⚙ da fonte TMP padrão não existe (renderizaria como quadrado)

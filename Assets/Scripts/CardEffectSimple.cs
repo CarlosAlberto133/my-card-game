@@ -267,12 +267,9 @@ public class CardEffectSimple : MonoBehaviour
             }
             Debug.Log($"[ArcherTier4Effect1] {cardDisplay.card.cardName}: Atacou {targetEnemy.card.cardName} 2 vezes!");
 
-            // Se mata o Healer, pode se movimentar novamente
-            if (targetEnemy == null || targetEnemy.currentHealth <= 0)
-            {
-                cardDisplay.lastMovedRound = -1;
-                Debug.Log($"[ArcherTier4Effect1] {cardDisplay.card.cardName}: Matou o Healer - pode se mover novamente!");
-            }
+            // O "matou o Healer → pode se mover de novo" vive no DestroyCard
+            // (gancho de morte): checar aqui perdia o bônus quando o dano era
+            // adiado por popup (anular/assumir/interceptar)
         }
     }
 
@@ -802,12 +799,13 @@ public class CardEffectSimple : MonoBehaviour
         BoardManager board = BoardManager.Instance;
         if (board == null) return;
 
-        // Cura o aliado mais ferido (sem sorteio — nunca desperdiça)
+        // Cura o aliado mais ferido (sem sorteio — nunca desperdiça).
+        // v4.2: cura 2 (era 3 — healers seguravam demais o jogo)
         CardDisplay targetAlly = MostWoundedAlly();
         if (targetAlly != null)
         {
-            targetAlly.Heal(3, cardDisplay);
-            Debug.Log($"[HealerTier4Effect1] {cardDisplay.card.cardName}: Curou {targetAlly.card.cardName} (o mais ferido) em 3!");
+            targetAlly.Heal(2, cardDisplay);
+            Debug.Log($"[HealerTier4Effect1] {cardDisplay.card.cardName}: Curou {targetAlly.card.cardName} (o mais ferido) em 2!");
         }
 
         // Se tem Mago aliado, ganha 1 de ouro (o proc agora é todo round)
@@ -1008,15 +1006,12 @@ public class CardEffectSimple : MonoBehaviour
     {
         if (cardDisplay == null || damagedTank == null) return;
 
-        EffectProjectileFX.Launch(cardDisplay, damagedTank, EffectProjectileFX.HealGreen);
-        // Cura +3 sem NUNCA reduzir (mesma regra do Heal): um tank buffado
-        // acima do máximo base não perde vida ao ser curado
-        int tankMaxHp = damagedTank.card.health + damagedTank.maxHealthBonus;
-        damagedTank.currentHealth = Mathf.Max(damagedTank.currentHealth,
-            Mathf.Min(damagedTank.currentHealth + 3, tankMaxHp));
-
-        damagedTank.UpdateDisplay();
-        Debug.Log($"[HealerTier3Effect2] {cardDisplay.card.cardName}: Curou {damagedTank.card.cardName} em 3 (HP agora: {damagedTank.currentHealth})");
+        // Cura pela rota OFICIAL (Heal): projétil, clamp de máximo, telemetria
+        // e os gatilhos "quando curado" (o Abençoado 1/1/5 não ganhava stats
+        // porque esta cura mexia na vida direto, por fora do Heal).
+        // Nerf v4.2: curava 3, virou 1 (a Samaritana estava opressora).
+        damagedTank.Heal(1, cardDisplay);
+        Debug.Log($"[HealerTier3Effect2] {cardDisplay.card.cardName}: Curou {damagedTank.card.cardName} em 1 (HP agora: {damagedTank.currentHealth})");
     }
 
     // Efeito 3: Healer 3 (ATK 1, HP 3) - Ganha 1 de ouro por cada Healer, +1 por cada Mago
@@ -1095,11 +1090,21 @@ public class CardEffectSimple : MonoBehaviour
     {
         if (cardDisplay == null || healedAlly == null) return;
 
+        // Teto anti-tartaruga (v4.2): a Matriarca aumenta a vida máxima de
+        // cada aliado até +3 no total. Sem o teto, curas periódicas faziam os
+        // tanques crescerem sem fim e a partida travava
+        if (healedAlly.matriarcaMaxHpGrants >= 3)
+        {
+            Debug.Log($"[HealerTier2Effect1] {healedAlly.card.cardName} já está no teto de +3 vida máxima");
+            return;
+        }
+        healedAlly.matriarcaMaxHpGrants++;
+
         healedAlly.maxHealthBonus += 1;
         healedAlly.currentHealth += 1; // preenche o novo espaço de vida
         healedAlly.UpdateDisplay();
 
-        Debug.Log($"[HealerTier2Effect1] {healedAlly.card.cardName} ganhou +1 vida máxima! Total: {healedAlly.card.health + healedAlly.maxHealthBonus}");
+        Debug.Log($"[HealerTier2Effect1] {healedAlly.card.cardName} ganhou +1 vida máxima! Total: {healedAlly.card.health + healedAlly.maxHealthBonus} ({healedAlly.matriarcaMaxHpGrants}/3 do teto)");
     }
 
     void HealerTier2Effect1_MaxHealthOnHeal()
@@ -1237,8 +1242,8 @@ public class CardEffectSimple : MonoBehaviour
         return best;
     }
 
-    // Efeito 1: Cura 3 HP no aliado MAIS FERIDO a cada 2 TURNOS (era a cada 2
-    // rounds — demorava demais; pedido do Carlos no rebalance v4.1)
+    // Efeito 1: Cura 2 HP no aliado MAIS FERIDO a cada 3 TURNOS (v4.2: era
+    // 3 de cura a cada 2 turnos — healers seguravam demais o jogo)
     void HealerEffect1_RandomAllyPeriodicHeal()
     {
         if (cardDisplay == null) return;
@@ -1250,12 +1255,12 @@ public class CardEffectSimple : MonoBehaviour
             return;
         }
 
-        targetAlly.Heal(3, cardDisplay);
-        Debug.Log($"[HealerEffect1] {cardDisplay.card.cardName}: Curou {targetAlly.card.cardName} (o mais ferido) por 3 HP");
+        targetAlly.Heal(2, cardDisplay);
+        Debug.Log($"[HealerEffect1] {cardDisplay.card.cardName}: Curou {targetAlly.card.cardName} (o mais ferido) por 2 HP");
     }
 
-    // Efeito 2: Ao entrar em campo, cura 2 HP em todos os aliados — e desde o
-    // rebalance v4.1 REATIVA a cada 2 turnos (contador amarelo, ver
+    // Efeito 2: Ao entrar em campo, cura 2 HP em todos os aliados — REATIVA a
+    // cada 4 turnos (v4.2: era 2; contador amarelo, ver
     // SetupPeriodicCounter/OnPeriodicCounterExpired)
     void HealerEffect2_HealAllAlliesOnEnter()
     {
@@ -1273,7 +1278,7 @@ public class CardEffectSimple : MonoBehaviour
     }
 
     // Núcleo da cura em área do Healer 1 (1/3): usado na entrada e no tique
-    // periódico de 2 turnos
+    // periódico de 4 turnos
     public void ActivateHealAllAlliesPeriodic()
     {
         if (cardDisplay == null) return;
@@ -1523,7 +1528,7 @@ public class CardEffectSimple : MonoBehaviour
 
     public void ActivateLightningPeriodic()
     {
-        CastAreaBlast(2, 1, "MageTier4Effect4");
+        StartAreaBlastTargetSelection("MageTier4Effect4");
     }
 
     // ===== MAGE TIER-3 =====
@@ -1649,106 +1654,89 @@ public class CardEffectSimple : MonoBehaviour
 
     void ShowFreezeOrDamageChoicePopup()
     {
-        // Captura AGORA se estamos no tique de fim de turno: o callback da
-        // decisão resolve DEPOIS da troca de jogador, e o cálculo de duração
-        // erraria (a vítima ficava congelada por 2 turnos em vez de 1)
-        bool fromCounterTick = TurnManager.TickingCounterEffects;
-
-        // Decisão sincronizada: o dono do Mago escolhe (Random dos callbacks roda re-seedado)
+        // Decisão sincronizada: o dono escolhe a AÇÃO no popup e depois o ALVO
+        // clicando no tabuleiro (v4.2 — o alvo era sorteado). A duração do
+        // congelamento não depende mais do momento do tique: o alvo escolhido
+        // é congelado com "1 turno forçado" (ver ActivateFreezeChosen)
         PhotonGameManager.AskEffectDecision(cardDisplay.ownerPlayerNumber,
             $"{cardDisplay.card.cardName} vai congelar ou causar dano?",
             "Congelar", "Causar Dano",
             accepted =>
             {
-                if (accepted) ActivateFreezeOnly(fromCounterTick);
-                else ActivateDamageOnly();
+                if (accepted) StartFreezeTargetSelection(11);
+                else StartDamageTargetSelection();
             });
     }
 
     void ShowFreezeAndDamagePopup()
     {
-        bool fromCounterTick = TurnManager.TickingCounterEffects;
-
         // Decisão sincronizada: o dono do Mago escolhe
         PhotonGameManager.AskEffectDecision(cardDisplay.ownerPlayerNumber,
             $"{cardDisplay.card.cardName} vai congelar E causar dano!",
             "Ativar", "Cancelar",
             accepted =>
             {
-                if (accepted) ActivateFreezeAndDamageChoice(fromCounterTick);
+                if (accepted) StartFreezeTargetSelection(12);
             });
     }
 
-    public void ActivateFreezeOnly(bool forceOneTurn = false)
+    // Abre a seleção de alvo para congelar (11) ou congelar+dano (12).
+    // Roda nos 2 clientes ao resolver o popup; só o dono entra em modo de
+    // seleção (StartEffectTargetSelection cuida disso) e a escolha volta por RPC
+    void StartFreezeTargetSelection(int effectType)
     {
-        if (cardDisplay == null) return;
-
         BoardManager board = BoardManager.Instance;
-        if (board == null) return;
+        if (board == null || cardDisplay == null) return;
 
-        // Encontra inimigos
         int enemyPlayerNumber = cardDisplay.ownerPlayerNumber == 1 ? 2 : 1;
         var enemies = board.GetCardsByOwner(enemyPlayerNumber);
-
         if (enemies.Count == 0) return;
 
-        // Congela um inimigo aleatório
-        CardDisplay targetEnemy = enemies[Random.Range(0, enemies.Count)];
-        if (targetEnemy != null)
-        {
-            EffectProjectileFX.Launch(cardDisplay, targetEnemy, EffectProjectileFX.Ice);
-            targetEnemy.Freeze(forceOneTurn, cardDisplay);
-            Debug.Log($"[MageTier3Effect3] {cardDisplay.card.cardName}: Congelou {targetEnemy.card.cardName}!");
-        }
+        string prompt = effectType == 12
+            ? "Escolha um inimigo para CONGELAR e receber 1 de dano"
+            : "Escolha um inimigo para CONGELAR";
+        if (GameManager.Instance != null)
+            GameManager.Instance.StartEffectTargetSelection(cardDisplay, effectType,
+                new List<CardDisplay>(enemies), prompt);
     }
 
-    public void ActivateDamageOnly()
+    void StartDamageTargetSelection()
     {
-        if (cardDisplay == null) return;
-
         BoardManager board = BoardManager.Instance;
-        if (board == null) return;
+        if (board == null || cardDisplay == null) return;
 
-        // Encontra inimigos
         int enemyPlayerNumber = cardDisplay.ownerPlayerNumber == 1 ? 2 : 1;
         var enemies = board.GetCardsByOwner(enemyPlayerNumber);
-
         if (enemies.Count == 0) return;
 
-        // Causa dano a um inimigo aleatório
-        CardDisplay targetEnemy = enemies[Random.Range(0, enemies.Count)];
-        if (targetEnemy != null)
-        {
-            EffectProjectileFX.Launch(cardDisplay, targetEnemy, EffectProjectileFX.Fire);
-            targetEnemy.TakeDamage(1);
-            Debug.Log($"[MageTier3Effect3] {cardDisplay.card.cardName}: Causou 1 de dano a {targetEnemy.card.cardName}!");
-        }
+        if (GameManager.Instance != null)
+            GameManager.Instance.StartEffectTargetSelection(cardDisplay, 10,
+                new List<CardDisplay>(enemies), "Escolha um inimigo para receber 1 de dano");
     }
 
-    public void ActivateFreezeAndDamageChoice(bool forceOneTurn = false)
+    // Congela o alvo escolhido (tipo 11). SEMPRE "1 turno forçado": a escolha
+    // chega por RPC num momento imprevisível (antes ou depois da troca de
+    // turno) — forçar 1 turno dá a MESMA duração nos dois clientes e cumpre o
+    // texto da carta ("congelar por um turno")
+    public void ActivateFreezeChosen(CardDisplay target)
     {
-        if (cardDisplay == null) return;
+        if (cardDisplay == null || target == null) return;
 
-        BoardManager board = BoardManager.Instance;
-        if (board == null) return;
+        target.Freeze(true, cardDisplay);
+        Debug.Log($"[MageFreezeChosen] {cardDisplay.card.cardName}: Congelou {target.card.cardName}!");
+    }
 
-        // Encontra inimigos
-        int enemyPlayerNumber = cardDisplay.ownerPlayerNumber == 1 ? 2 : 1;
-        var enemies = board.GetCardsByOwner(enemyPlayerNumber);
+    // Congela E causa 1 de dano no alvo escolhido (tipo 12 — Mago 3 [3/4] com
+    // Healer e Tank aliados)
+    public void ActivateFreezeAndDamageChosen(CardDisplay target)
+    {
+        if (cardDisplay == null || target == null) return;
 
-        if (enemies.Count == 0) return;
-
-        // Escolhe um inimigo aleatório e congela + causa dano
-        CardDisplay targetEnemy = enemies[Random.Range(0, enemies.Count)];
-        if (targetEnemy != null)
-        {
-            EffectProjectileFX.Launch(cardDisplay, targetEnemy, EffectProjectileFX.Ice);
-            targetEnemy.Freeze(forceOneTurn, cardDisplay);
-            MatchStatsTracker.EffectSource = cardDisplay;
-            targetEnemy.TakeDamage(1);
-            MatchStatsTracker.EffectSource = null;
-            Debug.Log($"[MageTier3Effect3] {cardDisplay.card.cardName}: Congelou E causou 1 de dano a {targetEnemy.card.cardName}!");
-        }
+        target.Freeze(true, cardDisplay);
+        MatchStatsTracker.EffectSource = cardDisplay;
+        target.TakeDamage(1);
+        MatchStatsTracker.EffectSource = null;
+        Debug.Log($"[MageTier3Effect3] {cardDisplay.card.cardName}: Congelou E causou 1 de dano a {target.card.cardName}!");
     }
 
     // Efeito 4: Mage 3 (ATK 2, HP 5) - Concede +1 de ataque a todas as cartas aliadas em campo
@@ -1760,7 +1748,7 @@ public class CardEffectSimple : MonoBehaviour
         if (cardDisplay == null || cardDisplay.mageTier3Effect4Used) return;
 
         cardDisplay.mageTier3Effect4Used = true;
-        CastAreaBlast(2, 1, "MageTier3Effect4");
+        StartAreaBlastTargetSelection("MageTier3Effect4");
     }
 
     // ===== MAGE TIER-2 =====
@@ -1936,7 +1924,8 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[MageEffect1] {cardDisplay.card.cardName}: Pronta para bufar Healers");
     }
 
-    // Efeito 2: Cause 1 de dano a um inimigo aleatório ao entrar em campo
+    // Efeito 2: Cause 1 de dano a um inimigo À SUA ESCOLHA ao entrar em campo
+    // (v4.2: era aleatório; agora o dono seleciona o alvo clicando nele)
     void MageEffect2_RandomEnemyDamage()
     {
         BoardManager board = BoardManager.Instance;
@@ -1952,14 +1941,25 @@ public class CardEffectSimple : MonoBehaviour
             return;
         }
 
-        // Escolhe um inimigo aleatório
-        CardDisplay targetEnemy = enemies[Random.Range(0, enemies.Count)];
-        EffectProjectileFX.Launch(cardDisplay, targetEnemy, EffectProjectileFX.Fire);
+        // O dono clica no inimigo desejado (a escolha viaja por RPC como tile)
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.StartEffectTargetSelection(cardDisplay, 10,
+                enemies, "Escolha um inimigo para receber 1 de dano");
+        }
+    }
+
+    // Aplica 1 de dano no alvo escolhido (tipo 10 — usado pelo Mago 1 [2/4]
+    // e pela opção "Causar Dano" do Mago 3 [3/4])
+    public void ActivateDamageChosen(CardDisplay target)
+    {
+        if (cardDisplay == null || target == null) return;
+
         MatchStatsTracker.EffectSource = cardDisplay;
-        targetEnemy.TakeDamage(1);
+        target.TakeDamage(1);
         MatchStatsTracker.EffectSource = null;
 
-        Debug.Log($"[MageEffect2] {cardDisplay.card.cardName}: Causou 1 de dano a {targetEnemy.card.cardName}");
+        Debug.Log($"[MageDamageChosen] {cardDisplay.card.cardName}: Causou 1 de dano a {target.card.cardName}");
     }
 
     // Efeito 3: Congele um monstro inimigo por 1 turno (player seleciona o alvo)
@@ -2002,15 +2002,18 @@ public class CardEffectSimple : MonoBehaviour
             targets.Add(c);
         }
 
+        // DEVOÇÃO — Escola Arcana (3+ magos): +1 no dano do efeito
+        int columnDamage = 1 + ClassDevotion.MageEffectBonus(cardDisplay.ownerPlayerNumber);
+
         MatchStatsTracker.EffectSource = cardDisplay;
         foreach (var t in targets)
         {
             EffectProjectileFX.Launch(cardDisplay, t, EffectProjectileFX.Fire);
-            t.TakeDamage(1);
+            t.TakeDamage(columnDamage);
         }
         MatchStatsTracker.EffectSource = null;
 
-        Debug.Log($"[MageEffect5] {cardDisplay.card.cardName}: Causou 1 de dano a {targets.Count} inimigo(s) na coluna à frente");
+        Debug.Log($"[MageEffect5] {cardDisplay.card.cardName}: Causou {columnDamage} de dano a {targets.Count} inimigo(s) na coluna à frente");
     }
 
     public void ApplyMageEffectOnHealerDamage(CardDisplay healerThatTookDamage)
@@ -2057,6 +2060,8 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[MageTier5Effect1] {cardDisplay.card.cardName}: Pronta para congelar inimigos aleatórios");
     }
 
+    // v4.2: o dono ESCOLHE quem congelar (era aleatório). Com Tank aliado,
+    // após o primeiro alvo o efeito encadeia uma SEGUNDA seleção (tipo 16)
     public void ActivateRandomFreeze()
     {
         if (cardDisplay == null) return;
@@ -2069,32 +2074,40 @@ public class CardEffectSimple : MonoBehaviour
 
         if (enemies.Count == 0) return;
 
-        // Verifica se tem Tank aliado para duplicar o efeito
-        bool hasTankAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Tank);
+        if (GameManager.Instance != null)
+            GameManager.Instance.StartEffectTargetSelection(cardDisplay, 15,
+                new List<CardDisplay>(enemies), "Escolha um inimigo para congelar");
+    }
 
-        // Congela 1 inimigo aleatório
-        CardDisplay target1 = enemies[Random.Range(0, enemies.Count)];
-        if (target1 != null)
-        {
-            EffectProjectileFX.Launch(cardDisplay, target1, EffectProjectileFX.Ice);
-            target1.Freeze(false, cardDisplay);
-            Debug.Log($"[MageTier5Effect1] {cardDisplay.card.cardName}: Congelou {target1.card.cardName}!");
-        }
+    // Congela o alvo escolhido (tipo 15 = primeiro do round, encadeia o
+    // segundo se houver Tank aliado; tipo 16 = segundo alvo, não encadeia).
+    // Freeze forçado de 1 turno: a escolha chega por RPC em momento
+    // imprevisível em relação à troca de turno — forçar dá a mesma duração
+    // nos 2 clientes
+    public void ActivateFreezePerRoundChosen(CardDisplay target, bool firstOfRound)
+    {
+        if (cardDisplay == null || target == null) return;
 
-        // Se tem Tank aliado, congela OUTRO inimigo aleatório. Sorteia da
-        // lista SEM o primeiro alvo — antes sorteava da lista inteira e, se
-        // repetia o alvo, o segundo congelamento era perdido em silêncio
-        if (hasTankAlly && enemies.Count > 1)
-        {
-            var others = enemies.FindAll(e => e != null && e != target1);
-            CardDisplay target2 = others.Count > 0 ? others[Random.Range(0, others.Count)] : null;
-            if (target2 != null)
-            {
-                EffectProjectileFX.Launch(cardDisplay, target2, EffectProjectileFX.Ice);
-                target2.Freeze(false, cardDisplay);
-                Debug.Log($"[MageTier5Effect1] {cardDisplay.card.cardName}: Tem Tank aliado - congelou {target2.card.cardName}!");
-            }
-        }
+        target.Freeze(true, cardDisplay);
+        Debug.Log($"[MageTier5Effect1] {cardDisplay.card.cardName}: Congelou {target.card.cardName}!" +
+                  (firstOfRound ? "" : " (segundo alvo do Tank aliado)"));
+
+        if (!firstOfRound) return;
+
+        // Tem Tank aliado: o dono escolhe um SEGUNDO inimigo (sem repetir o
+        // primeiro — antes o sorteio repetido perdia o congelamento em silêncio)
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+        if (!board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Tank)) return;
+
+        int enemyPlayerNumber = cardDisplay.ownerPlayerNumber == 1 ? 2 : 1;
+        var others = board.GetCardsByOwner(enemyPlayerNumber)
+            .FindAll(e => e != null && e != target);
+        if (others.Count == 0) return;
+
+        if (GameManager.Instance != null)
+            GameManager.Instance.StartEffectTargetSelection(cardDisplay, 16,
+                others, "Tank aliado: escolha um SEGUNDO inimigo para congelar");
     }
 
     // Efeito 2: Mage 5 (ATK 4, HP 6) - Copia stats de ataque e vida de um inimigo
@@ -2145,42 +2158,45 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[MageTier5Effect2] {cardDisplay.card.cardName}: Copiou stats de {targetEnemy.card.cardName} (ATK: {targetEnemy.currentAttack}, HP: {targetEnemy.currentHealth})!");
     }
 
-    // Efeito 3: Mage 5 (ATK 5, HP 6) - Causa 5 de dano ao entrar, aumenta ATK de todos Magos ao resetar turno
+    // Efeito 3: Mage 5 (ATK 5, HP 6) - Causa 5 de dano ao entrar (alvo à
+    // escolha do dono, v4.2 — era aleatório), aumenta ATK de todos Magos ao
+    // resetar turno
     void MageTier5Effect3_FireballAndMageBoost()
     {
         if (cardDisplay == null) return;
 
-        // Causa 5 de dano a um inimigo aleatório ao entrar
         BoardManager board = BoardManager.Instance;
         if (board == null) return;
 
         int enemyPlayerNumber = cardDisplay.ownerPlayerNumber == 1 ? 2 : 1;
         var enemies = board.GetCardsByOwner(enemyPlayerNumber);
+        if (enemies.Count == 0) return;
 
-        if (enemies.Count > 0)
-        {
-            CardDisplay target = enemies[Random.Range(0, enemies.Count)];
-            if (target != null)
-            {
-                // Bola de fogo grande (dano 5) + respingo de 2 nos adjacentes
-                // (identidade de área dos magos, v4.1). O tile é capturado
-                // ANTES do dano — se o alvo morrer, o tile dele é liberado
-                CardTile centerTile = target.currentTile;
-                EffectProjectileFX.Launch(cardDisplay, target, EffectProjectileFX.Fire, 0.9f);
-                MatchStatsTracker.EffectSource = cardDisplay;
-                target.TakeDamage(5);
-                MatchStatsTracker.EffectSource = null;
-                Debug.Log($"[MageTier5Effect3] {cardDisplay.card.cardName}: Lançou bola de fogo em {target.card.cardName}!");
-                SplashDamageAroundTile(centerTile, 2, "MageTier5Effect3");
-            }
-        }
+        if (GameManager.Instance != null)
+            GameManager.Instance.StartEffectTargetSelection(cardDisplay, 14,
+                new List<CardDisplay>(enemies),
+                "Escolha o alvo da bola de fogo (5 de dano + 2 nos adjacentes)");
+    }
+
+    // Bola de fogo no alvo escolhido (tipo 14): 5 de dano + respingo de 2
+    public void ActivateFireballChosen(CardDisplay target)
+    {
+        if (cardDisplay == null || target == null || target.currentTile == null) return;
+
+        // O tile é capturado ANTES do dano — se o alvo morrer, o tile dele é liberado
+        CardTile centerTile = target.currentTile;
+        MatchStatsTracker.EffectSource = cardDisplay;
+        target.TakeDamage(5);
+        MatchStatsTracker.EffectSource = null;
+        Debug.Log($"[MageTier5Effect3] {cardDisplay.card.cardName}: Lançou bola de fogo em {target.card.cardName}!");
+        SplashDamageAroundTile(centerTile, 2, "MageTier5Effect3");
     }
 
     // ===== NÚCLEO DE DANO EM ÁREA DOS MAGOS (identidade v4.1) =====
-    // Explosão num inimigo ALEATÓRIO (sorteio sincronizado: roda dentro de
-    // RPC nos dois clientes com o Random já semeado — mesmo padrão do stun
-    // do Archer 4): mainDamage no alvo e splashDamage nos adjacentes a ele.
-    public void CastAreaBlast(int mainDamage, int splashDamage, string logTag)
+    // v4.2: o centro da explosão passou a ser ESCOLHIDO pelo dono (era sorteio).
+    // A seleção abre nos 2 clientes; só o dono clica e a escolha volta por
+    // RPC_EffectTarget (tipo 13) — lockstep intacto.
+    void StartAreaBlastTargetSelection(string logTag)
     {
         if (cardDisplay == null) return;
 
@@ -2195,18 +2211,31 @@ public class CardEffectSimple : MonoBehaviour
             return;
         }
 
-        CardDisplay center = enemies[Random.Range(0, enemies.Count)];
-        if (center == null || center.currentTile == null) return;
+        if (GameManager.Instance != null)
+            GameManager.Instance.StartEffectTargetSelection(cardDisplay, 13,
+                new List<CardDisplay>(enemies),
+                "Escolha o alvo da explosão (2 de dano + 1 nos adjacentes)");
+    }
+
+    // Explosão no alvo escolhido (tipo 13): 2 de dano no centro (+ devoção)
+    // e 1 de respingo nos adjacentes
+    public void ActivateAreaBlastChosen(CardDisplay center)
+    {
+        if (cardDisplay == null || center == null || center.currentTile == null) return;
+
+        // DEVOÇÃO — Escola Arcana (3+ magos): os efeitos de dano dos magos
+        // causam +1 no alvo principal (o respingo fica como está)
+        int mainDamage = 2 + ClassDevotion.MageEffectBonus(cardDisplay.ownerPlayerNumber);
+        int splashDamage = 1;
 
         // Tile capturado ANTES do dano (se o alvo morrer, o tile é liberado)
         CardTile centerTile = center.currentTile;
-        EffectProjectileFX.Launch(cardDisplay, center, EffectProjectileFX.Fire, 0.7f);
-        Debug.Log($"[{logTag}] {cardDisplay.card.cardName}: {mainDamage} de dano em {center.card.cardName} + respingo de {splashDamage}");
+        Debug.Log($"[MageAreaBlast] {cardDisplay.card.cardName}: {mainDamage} de dano em {center.card.cardName} + respingo de {splashDamage}");
         MatchStatsTracker.EffectSource = cardDisplay;
         center.TakeDamage(mainDamage);
         MatchStatsTracker.EffectSource = null;
 
-        SplashDamageAroundTile(centerTile, splashDamage, logTag);
+        SplashDamageAroundTile(centerTile, splashDamage, "MageAreaBlast");
     }
 
     // Respingo: dano nos inimigos ADJACENTES ao tile central. Quem está NO
@@ -2441,22 +2470,15 @@ public class CardEffectSimple : MonoBehaviour
         }
     }
 
-    // Efeito 2: Tank 4 (ATK 2, Shield 6, HP 6) - Recebe ataque 1x por turno, 50% menos se tem Healer
+    // Efeito 2: Tank 4 (Quebra-Golpes) - Recebe o ataque 1x por turno no lugar
+    // de aliado adjacente. v4.2: o desconto de 25% com healer SAIU — intercepta
+    // tomando o dano cheio (o jogo travava com tanques quase imunes)
     void TankTier4Effect2_InterceptOncePerTurn()
     {
         if (cardDisplay == null) return;
 
         // Este efeito é ativado via hook em TakeDamage
         Debug.Log($"[TankTier4Effect2] {cardDisplay.card.cardName}: Pronta para interceptar ataques 1x por turno");
-    }
-
-    public int GetTankTier4Effect2Reduction()
-    {
-        BoardManager board = BoardManager.Instance;
-        if (board == null) return 0;
-
-        bool hasHealerAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Healer);
-        return hasHealerAlly ? 50 : 0; // Retorna 50% se tem Healer, senão 0%
     }
 
     // Efeito 3: Tank 4 (ATK 2, Shield 5, HP 7) - Arqueiros atacam 2 vezes se tem 4 classes.
@@ -2470,7 +2492,7 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[TankTier4Effect3] {cardDisplay.card.cardName}: Aura ativa - com as 4 classes em campo, Arqueiros atacam 2x por turno");
     }
 
-    // Efeito 4: Tank 4 (ATK 3, Shield 6, HP 7) - 50% menos dano se tem Healer+Mago+Arqueiro, aliados +1 armadura por turno
+    // Efeito 4: Tank 4 (ATK 3, Shield 6, HP 7) - 25% menos dano se tem Healer+Mago+Arqueiro, aliados +1 armadura por turno
     void TankTier4Effect4_DamageReductionAndShield()
     {
         if (cardDisplay == null) return;
@@ -2571,20 +2593,15 @@ public class CardEffectSimple : MonoBehaviour
             Debug.Log($"[TankTier3Effect1] {cardDisplay.card.cardName}: Concedeu +2 armadura a {healersBuffed} Healer(s)!");
     }
 
-    // Efeito 2: Tank 3 (ATK 2, Shield 3, HP 5) - Todos Tanks recebem 50% menos dano
+    // Efeito 2: Tank 3 (Capitão de Ferro) — v4.2: a redução de dano SAIU;
+    // agora, estando na linha de frente, os tanks aliados da linha de frente
+    // atacam com +1 (ver CardDisplay.AuraAttackBonus)
     void TankTier3Effect2_ReduceDamageAllTanks()
     {
         if (cardDisplay == null) return;
 
-        // Este efeito é ativado via hook no método TakeDamage() quando um Tank recebe dano
-        Debug.Log($"[TankTier3Effect2] {cardDisplay.card.cardName}: Pronta para reduzir dano de Tanks em 50%");
-    }
-
-    public int ReduceTankDamage(int originalDamage)
-    {
-        // Reduz dano em 50%, arredondando para CIMA: a redução nunca pode
-        // zerar o dano (1 de dano virava 0 e parecia "tank não leva dano")
-        return (originalDamage + 1) / 2;
+        // O bônus em si é somado em CardDisplay.AuraAttackBonus a cada ataque
+        Debug.Log($"[TankTier3Effect2] {cardDisplay.card.cardName}: Aura ativa — tanks da linha de frente atacam com +1");
     }
 
     // Efeito 3: Tank 3 (ATK 2, Shield 4, HP 5) - Recebe +2 armadura por cada outro Tank em campo
@@ -2913,15 +2930,16 @@ public class CardEffectSimple : MonoBehaviour
 
         Card c = cardDisplay.card;
 
-        // Healer 1 (ATK 0, HP 3): cura o mais ferido a cada 2 TURNOS (era a
-        // cada 2 rounds — lento demais, pedido do Carlos no v4.1)
+        // Healer 1 (ATK 0, HP 3): cura 2 no mais ferido a cada 3 TURNOS
+        // (v4.2: era 3 de cura a cada 2 turnos — nerf anti-tartaruga)
         if (c.cardClass == CardClass.Healer && c.tier == CardTier.Tier1 && c.attack == 0 && c.health == 3)
-            cardDisplay.StartEffectCounter(2, false, true);
+            cardDisplay.StartEffectCounter(3, false, true);
 
-        // Healer 1 (ATK 1, HP 3): cura 2 em TODOS os aliados a cada 2 TURNOS
-        // (além da cura de entrada, que dispara via HealerEffect)
+        // Healer 1 (ATK 1, HP 3): cura 2 em TODOS os aliados a cada 4 TURNOS
+        // (v4.2: era a cada 2 — nerf anti-tartaruga; a cura de entrada
+        // continua disparando via HealerEffect)
         else if (c.cardClass == CardClass.Healer && c.tier == CardTier.Tier1 && c.attack == 1 && c.health == 3)
-            cardDisplay.StartEffectCounter(2, false, true);
+            cardDisplay.StartEffectCounter(4, false, true);
 
         // Healer 4 (ATK 2, HP 5): cura 3 no mais ferido TODO round
         else if (c.cardClass == CardClass.Healer && c.tier == CardTier.Tier4 && c.attack == 2 && c.health == 5)

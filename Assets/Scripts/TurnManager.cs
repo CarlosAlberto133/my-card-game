@@ -177,6 +177,9 @@ public class TurnManager : MonoBehaviour
         TowerSystem.ResetForMatch();
         TowerSelectUI.Open();
 
+        // Painel da Devoção de Classe (contagens e bônus ativos, canto esquerdo)
+        ClassDevotionUI.Ensure();
+
         // Resetar flags de ready
         player1Ready = false;
         player2Ready = false;
@@ -309,15 +312,25 @@ public class TurnManager : MonoBehaviour
             MatchLogRecorder.MarkRound(currentRound); // marcador p/ recorte do report
             Debug.Log($"Round {currentRound} iniciado!");
 
-            // Checa efeitos periódicos das cartas (como heal do healer a cada 2 rounds)
-            if (GameManager.Instance != null)
+            // Checa efeitos periódicos das cartas (como heal do healer a cada 2 rounds).
+            // Em try/catch: uma exceção num efeito de carta NÃO pode matar o resto
+            // da virada (renda de ouro, devoção, torres — tudo abaixo dela)
+            try
             {
-                GameManager.Instance.CheckPeriodicCardEffects();
+                if (GameManager.Instance != null)
+                    GameManager.Instance.CheckPeriodicCardEffects();
             }
+            catch (System.Exception e) { Debug.LogError($"[EndTurn] PeriodicCards: {e}"); }
 
             // Ambos jogadores ganham 3 de ouro (máximo 10)
             player1.AddGold(3);
             player2.AddGold(3);
+
+            // Devoção de classe: ouro dos Healers (Oferendas) e raio dos Magos
+            // (Escola Arcana degrau 2). Antes da torre — a loja mágica abre
+            // lendo o ouro já com o bônus
+            try { ClassDevotion.OnRoundChanged(); }
+            catch (System.Exception e) { Debug.LogError($"[EndTurn] ClassDevotion: {e}"); }
 
             // Torres: efeitos periódicos + janela da loja mágica. DEPOIS da
             // renda do round — a loja mágica abre lendo o ouro JÁ atualizado

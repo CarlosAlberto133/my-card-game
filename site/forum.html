@@ -407,7 +407,7 @@ async function loadReports() {
 }
 
 function repTypeLabel(t) { return t === 'hacker' ? 'Hacker' : t === 'feedback' ? 'Feedback' : 'Bug'; }
-function mapLabel(m) { return m === 'mesa' ? 'Mesa de RPG' : m === 'espaco' ? 'Espaço' : m === 'floresta' ? 'Floresta' : '—'; }
+function mapLabel(m) { return m === 'mesa' ? 'Mesa de RPG' : m === 'espaco' ? 'Espaço' : m === 'floresta' ? 'Floresta' : m === 'teste' ? 'Teste' : '—'; }
 
 function reportHtml(r) {
   const type = r.type || 'bug';

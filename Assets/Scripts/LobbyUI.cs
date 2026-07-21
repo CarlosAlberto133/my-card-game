@@ -30,6 +30,7 @@ public class LobbyUI
     private Toggle botMapTable;
     private Toggle botMapForest;
     private Toggle botMapSpace;
+    private Toggle botMapTeste;
     private Action<int, int> onBotStart;
 
     private TMP_Text hostTitle;
@@ -38,15 +39,17 @@ public class LobbyUI
     private Toggle mapTableToggle;
     private Toggle mapForestToggle;
     private Toggle mapSpaceToggle;
+    private Toggle mapTesteToggle;
 
     // Mapa escolhido pelo anfitrião: 1 = Mesa de RPG (padrão), 2 = Floresta,
-    // 0 = Espaço (mesmos códigos da room property "theme")
+    // 0 = Espaço, 3 = Teste (mesmos códigos da room property "theme")
     public int SelectedMapTheme
     {
         get
         {
             if (mapSpaceToggle != null && mapSpaceToggle.isOn) return 0;
             if (mapForestToggle != null && mapForestToggle.isOn) return 2;
+            if (mapTesteToggle != null && mapTesteToggle.isOn) return 3;
             return 1;
         }
     }
@@ -115,14 +118,16 @@ public class LobbyUI
         // Escolha do mapa (só o anfitrião vê este painel). Padrão: Mesa de RPG.
         MakeText(hostPanel.transform, "MapLabel", "Mapa da partida:", 17, TextMuted,
             TextAlignmentOptions.Center, new Vector2(0f, 38f), new Vector2(500f, 26f));
-        mapTableToggle = MakeCheckbox(hostPanel.transform, "Mesa de RPG", new Vector2(-172f, 4f), true, 160f);
-        mapForestToggle = MakeCheckbox(hostPanel.transform, "Floresta", new Vector2(-2f, 4f), false, 140f);
-        mapSpaceToggle = MakeCheckbox(hostPanel.transform, "Espaço", new Vector2(150f, 4f), false, 130f);
+        mapTableToggle = MakeCheckbox(hostPanel.transform, "Mesa de RPG", new Vector2(-180f, 4f), true, 150f);
+        mapForestToggle = MakeCheckbox(hostPanel.transform, "Floresta", new Vector2(-40f, 4f), false, 120f);
+        mapSpaceToggle = MakeCheckbox(hostPanel.transform, "Espaço", new Vector2(78f, 4f), false, 105f);
+        mapTesteToggle = MakeCheckbox(hostPanel.transform, "Teste", new Vector2(185f, 4f), false, 100f);
 
         // Comportamento de "rádio": sempre exatamente UM mapa marcado
-        WireMapRadio(mapTableToggle, mapForestToggle, mapSpaceToggle);
-        WireMapRadio(mapForestToggle, mapTableToggle, mapSpaceToggle);
-        WireMapRadio(mapSpaceToggle, mapTableToggle, mapForestToggle);
+        WireMapRadio(mapTableToggle, mapForestToggle, mapSpaceToggle, mapTesteToggle);
+        WireMapRadio(mapForestToggle, mapTableToggle, mapSpaceToggle, mapTesteToggle);
+        WireMapRadio(mapSpaceToggle, mapTableToggle, mapForestToggle, mapTesteToggle);
+        WireMapRadio(mapTesteToggle, mapTableToggle, mapForestToggle, mapSpaceToggle);
 
         startButton = MakeButton(hostPanel.transform, "Iniciar Partida", new Vector2(0f, -74f),
             new Vector2(260f, 56f), Gold, GoldTextDark, 21, null);
@@ -207,12 +212,14 @@ public class LobbyUI
 
         MakeText(botPanel.transform, "MapLabel", "Mapa do treino:", 17, TextMuted,
             TextAlignmentOptions.Center, new Vector2(0f, -34f), new Vector2(520f, 26f));
-        botMapTable = MakeCheckbox(botPanel.transform, "Mesa de RPG", new Vector2(-172f, -68f), true, 160f);
-        botMapForest = MakeCheckbox(botPanel.transform, "Floresta", new Vector2(-2f, -68f), false, 140f);
-        botMapSpace = MakeCheckbox(botPanel.transform, "Espaço", new Vector2(150f, -68f), false, 130f);
-        WireMapRadio(botMapTable, botMapForest, botMapSpace);
-        WireMapRadio(botMapForest, botMapTable, botMapSpace);
-        WireMapRadio(botMapSpace, botMapTable, botMapForest);
+        botMapTable = MakeCheckbox(botPanel.transform, "Mesa de RPG", new Vector2(-185f, -68f), true, 150f);
+        botMapForest = MakeCheckbox(botPanel.transform, "Floresta", new Vector2(-45f, -68f), false, 120f);
+        botMapSpace = MakeCheckbox(botPanel.transform, "Espaço", new Vector2(73f, -68f), false, 105f);
+        botMapTeste = MakeCheckbox(botPanel.transform, "Teste", new Vector2(180f, -68f), false, 100f);
+        WireMapRadio(botMapTable, botMapForest, botMapSpace, botMapTeste);
+        WireMapRadio(botMapForest, botMapTable, botMapSpace, botMapTeste);
+        WireMapRadio(botMapSpace, botMapTable, botMapForest, botMapTeste);
+        WireMapRadio(botMapTeste, botMapTable, botMapForest, botMapSpace);
 
         MakeButton(botPanel.transform, "Voltar", new Vector2(0f, -158f),
             new Vector2(220f, 44f), Slate, TextLight, 17, () => HideAll());
@@ -221,7 +228,8 @@ public class LobbyUI
     void StartBot(int difficulty)
     {
         int map = (botMapSpace != null && botMapSpace.isOn) ? 0
-                : (botMapForest != null && botMapForest.isOn) ? 2 : 1;
+                : (botMapForest != null && botMapForest.isOn) ? 2
+                : (botMapTeste != null && botMapTeste.isOn) ? 3 : 1;
         HideAll();
         if (onBotStart != null) onBotStart(difficulty, map);
     }
@@ -389,17 +397,20 @@ public class LobbyUI
 
     // Liga um toggle do grupo de mapas aos outros dois (comportamento de rádio:
     // marcar um desmarca os demais; desmarcar o único marcado o re-marca)
-    void WireMapRadio(Toggle self, Toggle other1, Toggle other2)
+    void WireMapRadio(Toggle self, params Toggle[] others)
     {
         self.onValueChanged.AddListener(on =>
         {
             if (on)
             {
-                other1.SetIsOnWithoutNotify(false);
-                other2.SetIsOnWithoutNotify(false);
+                foreach (Toggle other in others)
+                    if (other != null) other.SetIsOnWithoutNotify(false);
             }
-            else if (!other1.isOn && !other2.isOn)
+            else
             {
+                // Desmarcou o único marcado: re-marca (sempre há UM mapa ativo)
+                foreach (Toggle other in others)
+                    if (other != null && other.isOn) return;
                 self.SetIsOnWithoutNotify(true);
             }
         });

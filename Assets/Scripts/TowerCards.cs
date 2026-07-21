@@ -35,7 +35,7 @@ public static class TowerCards
     {
         // Torre Tank (Bastião)
         new TowerCard(Muralha,     (int)CardClass.Tank, "Muralha", "A torre ganha +10 de vida"),
-        new TowerCard(Guarnicao,   (int)CardClass.Tank, "Guarnição", "Aliados nas 2 fileiras de casa ganham +1 de armadura a cada round"),
+        new TowerCard(Guarnicao,   (int)CardClass.Tank, "Guarnição", "Aliados nas 2 fileiras de casa ganham +1 de armadura a cada round (até +4 por aliado)"),
         new TowerCard(Represalia,  (int)CardClass.Tank, "Represália", "Quando a torre toma dano, o atacante leva 2 de dano de volta"),
 
         // Torre Healer (Santuário)
@@ -44,8 +44,8 @@ public static class TowerCards
         new TowerCard(VinculoSagrado, (int)CardClass.Healer, "Vínculo Sagrado", "Sempre que um aliado for curado, a torre recupera 1 de vida"),
 
         // Torre Mago (Obelisco)
-        new TowerCard(Tempestade,  (int)CardClass.Mago, "Tempestade Arcana", "A cada 3 rounds, um raio causa 2 de dano num inimigo aleatório e 1 nos adjacentes"),
-        new TowerCard(Nevasca,     (int)CardClass.Mago, "Nevasca", "A cada 3 rounds, congela um inimigo aleatório"),
+        new TowerCard(Tempestade,  (int)CardClass.Mago, "Tempestade Arcana", "A cada 2 rounds, um raio causa 2 de dano num inimigo à sua escolha e 1 nos adjacentes"),
+        new TowerCard(Nevasca,     (int)CardClass.Mago, "Nevasca", "A cada 2 rounds, congela um inimigo à sua escolha"),
         new TowerCard(Sobrecarga,  (int)CardClass.Mago, "Sobrecarga", "Seus magos ganham +1 de ataque (os em campo e os que entrarem)"),
 
         // Torre Arqueiro (Atalaia)
@@ -58,9 +58,9 @@ public static class TowerCards
         new TowerCard(Muros,         -1, "Muros Reforçados", "A torre ganha +5 de vida"),
         new TowerCard(Estandarte,    -1, "Estandarte de Guerra", "Suas cartas entram em campo com +1 de vida"),
         new TowerCard(MercadoNegro,  -1, "Mercado Negro", "A primeira compra do seu turno custa 1 a menos"),
-        new TowerCard(Canhoneira,    -1, "Canhoneira", "A cada 3 rounds, a torre dá 2 de dano no inimigo mais avançado"),
-        new TowerCard(Ressurgimento, -1, "Ressurgimento", "Quando sua torre ficar abaixo de 15 de vida, seus aliados ganham +1 de ataque (1x)"),
-        new TowerCard(Recrutamento,  -1, "Recrutamento", "Ao equipar, ganhe 3 de ouro"),
+        new TowerCard(Canhoneira,    -1, "Canhoneira", "A cada 2 rounds, a torre dá 2 de dano no inimigo mais avançado"),
+        new TowerCard(Ressurgimento, -1, "Ressurgimento", "Quando sua torre ficar abaixo de 15 de vida, seus aliados ganham +2 de ataque (1x)"),
+        new TowerCard(Recrutamento,  -1, "Recrutamento", "Ao equipar, ganhe 6 de ouro"),
     };
 
     public static TowerCard Get(int id)

@@ -19,5 +19,5 @@ MonoBehaviour:
   attack: 5
   shield: 0
   health: 6
-  effectDescription: "Lan\xE7a uma bola de fogo: 5 de dano no alvo e 2 nos inimigos
+  effectDescription: "Lan\xE7a uma bola de fogo: 5 de dano num inimigo \xE0 sua escolha e 2 nos inimigos
     adjacentes a ele. Aumente o ataque de todos os magos sempre que resetar o turno"

@@ -679,10 +679,21 @@ public class BotController : MonoBehaviour
         int currentDist = Mathf.Abs(goalRow - myRow) + Mathf.Abs(goalCol - myCol);
         if (chosen != null && currentDist <= stopAt) return null; // Já no alcance
 
-        // Candidatos: 4 vizinhos ortogonais livres; escolhe o que mais aproxima
-        int[][] steps = {
-            new[] { -1, 0 }, new[] { 1, 0 }, new[] { 0, -1 }, new[] { 0, 1 }
+        // Candidatos (regras v4.2, espelham GameManager.IsValidMovement):
+        // cruz de 1 e de 2 casas (a de 2 exige o meio livre) para todos;
+        // diagonal de 1 casa para Tank/Healer. Escolhe o que mais aproxima.
+        bool diagonals = cd.card != null &&
+            (cd.card.cardClass == CardClass.Tank || cd.card.cardClass == CardClass.Healer);
+
+        var steps = new List<int[]> {
+            new[] { -1, 0 }, new[] { 1, 0 }, new[] { 0, -1 }, new[] { 0, 1 },
+            new[] { -2, 0 }, new[] { 2, 0 }, new[] { 0, -2 }, new[] { 0, 2 }
         };
+        if (diagonals)
+        {
+            steps.Add(new[] { -1, -1 }); steps.Add(new[] { -1, 1 });
+            steps.Add(new[] { 1, -1 }); steps.Add(new[] { 1, 1 });
+        }
 
         CardTile best = null;
         int bestDist = currentDist; // Só anda se ficar estritamente mais perto
@@ -692,6 +703,13 @@ public class BotController : MonoBehaviour
             int r = myRow + s[0], c = myCol + s[1];
             CardTile tile = board.GetTile(r, c);
             if (tile == null || tile.occupiedCard != null) continue;
+
+            // Passo de 2 casas: a casa do meio precisa estar livre
+            if (Mathf.Abs(s[0]) == 2 || Mathf.Abs(s[1]) == 2)
+            {
+                CardTile mid = board.GetTile(myRow + s[0] / 2, myCol + s[1] / 2);
+                if (mid == null || mid.occupiedCard != null) continue;
+            }
 
             int d = Mathf.Abs(goalRow - r) + Mathf.Abs(goalCol - c);
             if (d < bestDist)
@@ -840,6 +858,36 @@ public class BotController : MonoBehaviour
             Instance.StartCoroutine(Instance.EffectChoiceRoutine(source, effectType, candidates));
     }
 
+    // Alvo dos efeitos de TORRE do bot (Tempestade/Nevasca): mesma ideia dos
+    // efeitos de carta, mas a escolha volta pelo RPC_TowerEffectTarget
+    public static void AutoChooseTowerEffectTarget(int ownerPlayer, int towerCardId, List<CardDisplay> candidates)
+    {
+        if (Instance != null)
+            Instance.StartCoroutine(Instance.TowerEffectChoiceRoutine(ownerPlayer, towerCardId, candidates));
+    }
+
+    IEnumerator TowerEffectChoiceRoutine(int player, int towerCardId, List<CardDisplay> candidates)
+    {
+        yield return new WaitForSeconds(0.6f);
+        if (candidates == null) yield break;
+        candidates.RemoveAll(c => c == null || c.currentTile == null);
+        if (candidates.Count == 0) yield break;
+
+        // Nevasca (congelar) → maior ataque; Tempestade (dano) → maior ameaça
+        CardDisplay target;
+        if (BotMode.Difficulty == 0)
+            target = StrongestOf(candidates);
+        else if (towerCardId == TowerCards.Nevasca)
+            target = HighestAttackOf(candidates);
+        else
+            target = HighestThreatOf(candidates);
+
+        if (target == null || target.currentTile == null) yield break;
+
+        PhotonGameManager.Instance.SendTowerEffectTargetRPC(player, towerCardId,
+            target.currentTile.row, target.currentTile.column);
+    }
+
     IEnumerator EffectChoiceRoutine(CardDisplay source, int effectType, List<CardDisplay> candidates)
     {
         yield return new WaitForSeconds(0.6f);
@@ -854,6 +902,8 @@ public class BotController : MonoBehaviour
         //   7 = duplicar stats de aliado → o maior ataque (dobrar dano)
         //   8 = invulnerabilidade        → o aliado mais valioso
         //   9 = +3 armadura em Mago      → o mago mais forte
+        //   10/13/14 = danos escolhidos  → a maior ameaça (v4.2: eram aleatórios)
+        //   11/12/15/16 = congelamentos  → o maior ataque (tira um golpe do turno)
         CardDisplay target;
         if (BotMode.Difficulty == 0)
         {
@@ -867,6 +917,8 @@ public class BotController : MonoBehaviour
                 case 6: target = BiggestBonusOf(candidates); break;
                 case 7: target = HighestAttackOf(candidates); break;
                 case 8: target = HighestThreatOf(candidates); break;
+                case 10: case 13: case 14: target = HighestThreatOf(candidates); break;
+                case 11: case 12: case 15: case 16: target = HighestAttackOf(candidates); break;
                 default: target = StrongestOf(candidates); break; // 4, 9 e novos
             }
         }

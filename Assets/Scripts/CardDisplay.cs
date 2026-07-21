@@ -11,6 +11,7 @@ public class CardDisplay : MonoBehaviour
     public bool isInHand = false;
     public bool isOnBoard = false;
     public bool isInShop = true; // Começa na loja (fase de compra)
+    public bool isLockedInShop = false; // "Travar cartas": sobrevive ao refresh da loja (aura dourada)
     public CardTile currentTile; // Tile onde a carta está atualmente
     public int ownerPlayerNumber = 0; // 0 = sem dono (loja), 1 = Player1, 2 = Player2
     public int lastMovedRound = -1; // Em qual round a carta se moveu pela última vez (-1 = nunca)
@@ -65,6 +66,16 @@ public class CardDisplay : MonoBehaviour
     // Stats atuais (mudam durante o jogo)
     public int currentHealth;
     public int currentShield;
+
+    // Nasceu de EFEITO (cópia, eco, invocação) e não da mão do jogador.
+    // A Devoção de Classe só conta cartas de verdade — cópias não contam
+    public bool isEffectSpawn = false;
+
+    // ── Tetos anti-tartaruga (v4.2): crescimento permanente TEM limite ──
+    // Sem teto, defesa acumulava sem fim e as partidas travavam (feedback
+    // do Carlos: "jogo parado e congestionado")
+    public int garrisonShieldGrants = 0;   // Guarnição da torre: máx. 4 por unidade
+    public int matriarcaMaxHpGrants = 0;   // Matriarca (+1 vida máx.): máx. 3 por unidade
     public int currentAttack;
 
     // Escalas padrão por zona (o tabuleiro tem tiles 6x6, cartas pequenas ficavam ilegíveis).
@@ -88,6 +99,7 @@ public class CardDisplay : MonoBehaviour
     private Vector3 preHoverScale = Vector3.zero;    // Escala antes do hover (restaurada ao sair)
     private Vector3 preHoverPosition = Vector3.zero; // Posição antes do hover (cartas da loja sobem)
     private bool hoverLifted = false;
+    private int hoverZone = 0; // Onde o hover começou: 0 = nenhum, 1 = loja, 2 = tabuleiro
     private bool isMouseOver = false; // Flag para saber se o mouse está sobre a carta
 
     // Verso da carta: na mão do OPONENTE você não vê a frente, só o verso
@@ -854,9 +866,11 @@ public class CardDisplay : MonoBehaviour
     void ApplyCardTheme()
     {
         // Borda colorida pelo dono: azul = Jogador 1, vermelho = Jogador 2, ardósia = loja
-        // (o quase-preto antigo sumia contra o fundo espacial escuro)
+        // (o quase-preto antigo sumia contra o fundo espacial escuro).
+        // Carta TRAVADA na loja: borda dourada (a "aura" de trancada)
         Color borderColor;
-        if (ownerPlayerNumber == 1) borderColor = new Color(0.15f, 0.40f, 1.00f);
+        if (isInShop && isLockedInShop) borderColor = new Color(0.96f, 0.77f, 0.32f);
+        else if (ownerPlayerNumber == 1) borderColor = new Color(0.15f, 0.40f, 1.00f);
         else if (ownerPlayerNumber == 2) borderColor = new Color(0.95f, 0.25f, 0.20f);
         else borderColor = new Color(0.30f, 0.29f, 0.42f);
         SetQuadColor("Border", borderColor);
@@ -878,7 +892,7 @@ public class CardDisplay : MonoBehaviour
             string n = child.name;
             if (n == "CardNameText" || n == "AttackText" || n == "ShieldText" ||
                 n == "HealthText" || n == "TierText" || n == "EffectText" ||
-                n == "ClassText") continue;
+                n == "ClassText" || n == "ShopLockLabel") continue;
             child.gameObject.SetActive(false);
         }
     }
@@ -942,10 +956,13 @@ public class CardDisplay : MonoBehaviour
         // A barra de tier vira um medalhão redondo no canto do cabeçalho
         // (o CardDisplay já pinta "TierBar" com a cor do tier)
         StyleRoundedPanel("TierBar", 0.32f, 0.32f, 0.16f, -0.68f, -1.02f, 0.009f);
-        // Stats: três chips coloridos (ATK / DEF / HP)
-        StyleRoundedPanel("AtkChip", 0.50f, 0.32f, 0.10f, -0.56f, 1.01f, 0.009f);
+        // Stats: três chips coloridos (ATK / DEF / HP).
+        // ATENÇÃO: a carta nasce com rotação Y=180 (CardManager), então o X
+        // local aparece ESPELHADO na tela — x positivo = lado esquerdo pro
+        // jogador. ATK em +0.56 para a ordem visual ser ATK / DEF / HP.
+        StyleRoundedPanel("AtkChip", 0.50f, 0.32f, 0.10f, 0.56f, 1.01f, 0.009f);
         StyleRoundedPanel("ShieldChip", 0.50f, 0.32f, 0.10f, 0f, 1.01f, 0.009f);
-        StyleRoundedPanel("HpChip", 0.50f, 0.32f, 0.10f, 0.56f, 1.01f, 0.009f);
+        StyleRoundedPanel("HpChip", 0.50f, 0.32f, 0.10f, -0.56f, 1.01f, 0.009f);
 
         // Elementos do layout antigo que não existem mais
         HideChild("StatsBackground");
@@ -967,11 +984,11 @@ public class CardDisplay : MonoBehaviour
             new Vector2(0.32f, 0.30f), 1.6f, 2.5f, Color.white, false);
         StyleText(classText, new Vector3(0f, 0.016f, 0.10f),
             new Vector2(0.66f, 0.18f), 0.9f, 1.45f, new Color(0.93f, 0.93f, 0.96f), false);
-        StyleText(attackText, new Vector3(-0.56f, 0.013f, 1.01f),
+        StyleText(attackText, new Vector3(0.56f, 0.013f, 1.01f),
             new Vector2(0.46f, 0.28f), 2.0f, 3.1f, Color.white, false);
         StyleText(shieldText, new Vector3(0f, 0.013f, 1.01f),
             new Vector2(0.46f, 0.28f), 2.0f, 3.1f, Color.white, false);
-        StyleText(healthText, new Vector3(0.56f, 0.013f, 1.01f),
+        StyleText(healthText, new Vector3(-0.56f, 0.013f, 1.01f),
             new Vector2(0.46f, 0.28f), 2.0f, 3.1f, Color.white, false);
         StyleText(effectText, new Vector3(0f, 0.012f, 0.51f),
             new Vector2(1.46f, 0.48f), 0.9f, 1.9f, new Color(0.90f, 0.90f, 0.86f), true);
@@ -1148,13 +1165,307 @@ public class CardDisplay : MonoBehaviour
         return null;
     }
 
+    // ===== FIGURAS KAYKIT (modelos leves, com rig e ARMA NA MÃO) =====
+    // Os personagens do KayKit Adventurers têm ossos-soquete "handslot.r" e
+    // "handslot.l" feitos para encaixar equipamento: a arma vira filha do osso
+    // e acompanha as animações sozinha. Os mesmos modelos servem o lobby
+    // (DecorProps.PlaceChar) — nada é duplicado.
+    //
+    // ╔════════════════════════════════════════════════════════════════╗
+    // ║  true  = personagens KayKit (com armas)                        ║
+    // ║  false = modelos antigos em Models/personagem_<classe>.obj     ║
+    // ╚════════════════════════════════════════════════════════════════╝
+    public const bool UseKayKitFigures = true;
+
+    const string KayKitCharPath = "decor/kaykit/chars/";
+    const string KayKitWeaponPath = "decor/kaykit/weapons/";
+
+    // Modelo e textura de cada classe
+    static string KayKitCharName(CardClass cardClass)
+    {
+        switch (cardClass)
+        {
+            case CardClass.Tank: return "Knight";
+            case CardClass.Mago: return "Mage";
+            case CardClass.Healer: return "Rogue_Hooded";
+            case CardClass.Arqueiro: return "Ranger";
+        }
+        return null;
+    }
+
+    static string KayKitTextureName(CardClass cardClass)
+    {
+        switch (cardClass)
+        {
+            case CardClass.Tank: return "knight_texture";
+            case CardClass.Mago: return "mage_texture";
+            case CardClass.Healer: return "rogue_texture";
+            case CardClass.Arqueiro: return "ranger_texture";
+        }
+        return null;
+    }
+
+    // Item de mão: modelo, textura própria e em qual soquete encaixa.
+    // Cada arma vem com a textura do "tema" dela (a espada usa knight_texture,
+    // o cajado usa mage_texture...) — por isso a textura é declarada aqui.
+    struct HandItem
+    {
+        public string model, texture, bone;
+        public Vector3 euler;   // giro extra dentro da mão (0,0,0 = pose do soquete)
+        public Vector3 offset;  // deslocamento extra dentro da mão
+
+        public HandItem(string model, string texture, string bone)
+        { this.model = model; this.texture = texture; this.bone = bone; euler = Vector3.zero; offset = Vector3.zero; }
+
+        // Versão com ajuste fino (quando a pose padrão do soquete não serve
+        // para aquele item — o arco, por exemplo, nasce virado de lado)
+        public HandItem(string model, string texture, string bone, Vector3 euler)
+        { this.model = model; this.texture = texture; this.bone = bone; this.euler = euler; offset = Vector3.zero; }
+
+        public HandItem(string model, string texture, string bone, Vector3 euler, Vector3 offset)
+        { this.model = model; this.texture = texture; this.bone = bone; this.euler = euler; this.offset = offset; }
+    }
+
+    const string HandRight = "handslot.r";
+    const string HandLeft = "handslot.l";
+
+    static readonly HandItem[] NoItems = new HandItem[0];
+
+    // ── EQUIPAMENTO POR CLASSE (é só mexer aqui para trocar de arma) ─────
+    // Disponíveis em decor/kaykit/weapons: sword_1handed, shield_round, staff,
+    // bow_withString, wand, spellbook_closed, dagger, quiver
+    static HandItem[] KayKitHandItems(CardClass cardClass)
+    {
+        switch (cardClass)
+        {
+            case CardClass.Tank:
+                return new[] {
+                    new HandItem("sword_1handed", "knight_texture", HandRight),
+                    new HandItem("shield_round",  "knight_texture", HandLeft),
+                };
+            case CardClass.Arqueiro:
+                // O arco nasce de lado no soquete: 90° no eixo do cabo deixa
+                // a curvatura virada para frente. Se ainda sair torto, tentar
+                // o mesmo 90 (ou -90) em outro eixo do Vector3 abaixo.
+                return new[] {
+                    new HandItem("bow_withString", "ranger_texture", HandLeft, new Vector3(0f, 90f, 0f)),
+                };
+            case CardClass.Mago:
+                return new[] {
+                    new HandItem("staff", "mage_texture", HandRight),
+                };
+            case CardClass.Healer:
+                return new[] {
+                    new HandItem("wand",             "mage_texture", HandRight),
+                    new HandItem("spellbook_closed", "mage_texture", HandLeft),
+                };
+        }
+        return NoItems;
+    }
+
+    static bool IsKayKitClass(CardClass cardClass)
+    {
+        return UseKayKitFigures && KayKitCharName(cardClass) != null;
+    }
+
+    // ── Ajuste de PEÇAS do modelo ────────────────────────────────────────
+    // Os personagens KayKit vêm em partes separadas (Mage_Hat, Mage_Cape,
+    // Knight_Helmet...). Vista de cima no tabuleiro, uma peça alta tapa o
+    // personagem inteiro — o chapéu pontudo do mago era o caso.
+    struct PartTweak
+    {
+        public string nameContains;
+        public float scale;
+        public PartTweak(string nameContains, float scale)
+        { this.nameContains = nameContains; this.scale = scale; }
+    }
+
+    static readonly PartTweak[] NoTweaks = new PartTweak[0];
+
+    // ── PEÇAS ENCOLHIDAS POR CLASSE (mexer aqui para calibrar) ───────────
+    static PartTweak[] KayKitPartTweaks(CardClass cardClass)
+    {
+        switch (cardClass)
+        {
+            case CardClass.Mago:
+                // Chapéu a 55%: dá para ver a cara e o cajado dele de cima
+                return new[] { new PartTweak("Hat", 0.55f) };
+        }
+        return NoTweaks;
+    }
+
+    // Encolhe as peças configuradas. Rodar ANTES do FitFigureOnCard: assim a
+    // normalização de altura já mede a silhueta corrigida e o corpo cresce.
+    static void ApplyPartTweaks(GameObject figure, CardClass cardClass)
+    {
+        if (figure == null) return;
+
+        PartTweak[] tweaks = KayKitPartTweaks(cardClass);
+        if (tweaks.Length == 0) return;
+
+        foreach (PartTweak tweak in tweaks)
+        {
+            foreach (Renderer r in figure.GetComponentsInChildren<Renderer>(true))
+            {
+                if (r.name.IndexOf(tweak.nameContains, System.StringComparison.OrdinalIgnoreCase) < 0)
+                    continue;
+
+                SkinnedMeshRenderer skinned = r as SkinnedMeshRenderer;
+                if (skinned != null && skinned.sharedMesh != null)
+                {
+                    // Peça colada no esqueleto: escalar o transform não faz
+                    // efeito (a skin manda), então encolhemos a MALHA
+                    skinned.sharedMesh = GetShrunkMesh(skinned.sharedMesh, tweak.scale);
+                }
+                else
+                {
+                    // Peça solta pendurada num osso: basta escalar
+                    r.transform.localScale = r.transform.localScale * tweak.scale;
+                }
+            }
+        }
+    }
+
+    // Cópia da malha encolhida na direção da BASE da peça (o chapéu continua
+    // apoiado na cabeça). Cacheada: todas as cartas da classe compartilham a
+    // mesma malha, e a original do projeto nunca é modificada.
+    static readonly System.Collections.Generic.Dictionary<string, Mesh> shrunkMeshCache =
+        new System.Collections.Generic.Dictionary<string, Mesh>();
+
+    static Mesh GetShrunkMesh(Mesh source, float factor)
+    {
+        string key = source.name + "|" + factor.ToString("0.###");
+        Mesh cached;
+        if (shrunkMeshCache.TryGetValue(key, out cached) && cached != null) return cached;
+
+        Mesh copy = Instantiate(source); // NUNCA mexer na malha original
+        copy.name = source.name + "_x" + factor.ToString("0.##");
+
+        Bounds b = source.bounds;
+        Vector3 pivot = new Vector3(b.center.x, b.min.y, b.center.z); // base da peça
+
+        Vector3[] verts = copy.vertices;
+        for (int i = 0; i < verts.Length; i++)
+            verts[i] = pivot + (verts[i] - pivot) * factor;
+        copy.vertices = verts;
+        copy.RecalculateBounds();
+
+        shrunkMeshCache[key] = copy;
+        return copy;
+    }
+
+    // Encaixa o equipamento nos ossos-soquete. Chamar SEMPRE DEPOIS do
+    // FitFigureOnCard: as armas entrariam na medição dos bounds e encolheriam
+    // o personagem (um arco é mais alto que o arqueiro).
+    static void AttachHandItems(GameObject figure, CardClass cardClass)
+    {
+        if (figure == null) return;
+
+        HandItem[] items = KayKitHandItems(cardClass);
+        if (items.Length == 0) return;
+
+        // Mapeia os soquetes uma vez só (o rig tem centenas de ossos)
+        Transform right = null, left = null;
+        foreach (Transform t in figure.GetComponentsInChildren<Transform>(true))
+        {
+            if (right == null && t.name.Equals(HandRight, System.StringComparison.OrdinalIgnoreCase)) right = t;
+            else if (left == null && t.name.Equals(HandLeft, System.StringComparison.OrdinalIgnoreCase)) left = t;
+            if (right != null && left != null) break;
+        }
+
+        if (right == null && left == null)
+        {
+            Debug.LogWarning($"[Figure] {cardClass}: soquetes de mão não encontrados no rig — sem arma.");
+            return;
+        }
+
+        foreach (HandItem item in items)
+        {
+            Transform socket = item.bone == HandLeft ? left : right;
+            if (socket == null) continue;
+
+            GameObject prefab = GetWeaponPrefab(item.model);
+            if (prefab == null) continue;
+
+            GameObject weapon = Instantiate(prefab, socket);
+            weapon.name = "Hand_" + item.model;
+            // O soquete já entrega a pose certa; euler/offset são o ajuste
+            // fino de itens que fogem do padrão. A escala vem do personagem,
+            // que já foi dimensionado pelo FitFigureOnCard.
+            weapon.transform.localPosition = item.offset;
+            weapon.transform.localRotation = Quaternion.Euler(item.euler);
+            weapon.transform.localScale = Vector3.one;
+
+            foreach (Collider c in weapon.GetComponentsInChildren<Collider>(true))
+                Destroy(c);
+
+            Material mat = GetWeaponMaterial(item.texture);
+            if (mat != null)
+            {
+                foreach (Renderer r in weapon.GetComponentsInChildren<Renderer>(true))
+                    r.sharedMaterial = mat;
+            }
+        }
+    }
+
+    static readonly System.Collections.Generic.Dictionary<string, GameObject> weaponPrefabCache =
+        new System.Collections.Generic.Dictionary<string, GameObject>();
+
+    static GameObject GetWeaponPrefab(string model)
+    {
+        GameObject cached;
+        if (weaponPrefabCache.TryGetValue(model, out cached)) return cached;
+
+        GameObject prefab = Resources.Load<GameObject>(KayKitWeaponPath + model);
+        if (prefab == null) Debug.LogWarning($"[Figure] Arma não encontrada: {KayKitWeaponPath}{model}");
+        weaponPrefabCache[model] = prefab;
+        return prefab;
+    }
+
+    // Um material por textura de arma, compartilhado por todas as instâncias
+    static readonly System.Collections.Generic.Dictionary<string, Material> weaponMatCache =
+        new System.Collections.Generic.Dictionary<string, Material>();
+
+    static Material GetWeaponMaterial(string textureName)
+    {
+        Material cached;
+        if (weaponMatCache.TryGetValue(textureName, out cached)) return cached;
+
+        Material mat = null;
+        Shader s = Shader.Find("Universal Render Pipeline/Unlit")
+                ?? Shader.Find("Universal Render Pipeline/Lit")
+                ?? Shader.Find("Sprites/Default");
+        if (s != null)
+        {
+            mat = new Material(s);
+            Texture2D tex = Resources.Load<Texture2D>(KayKitCharPath + textureName);
+            if (tex != null)
+            {
+                mat.mainTexture = tex;
+                mat.SetTexture("_BaseMap", tex);
+            }
+        }
+        weaponMatCache[textureName] = mat;
+        return mat;
+    }
+
     static GameObject GetFigurePrefab(CardClass cardClass)
     {
         GameObject cached;
         if (figurePrefabCache.TryGetValue(cardClass, out cached)) return cached;
 
-        string resourceName = FigureResourceName(cardClass);
-        GameObject prefab = resourceName != null ? Resources.Load<GameObject>(resourceName) : null;
+        GameObject prefab = null;
+
+        // KayKit primeiro; se faltar o arquivo, cai no modelo antigo
+        if (IsKayKitClass(cardClass))
+            prefab = Resources.Load<GameObject>(KayKitCharPath + KayKitCharName(cardClass));
+
+        if (prefab == null)
+        {
+            string resourceName = FigureResourceName(cardClass);
+            prefab = resourceName != null ? Resources.Load<GameObject>(resourceName) : null;
+        }
+
         figurePrefabCache[cardClass] = prefab;
         return prefab;
     }
@@ -1195,6 +1506,38 @@ public class CardDisplay : MonoBehaviour
         return null;
     }
 
+    // Todos os clipes dos FBX de animação do KayKit (carregado uma vez só)
+    static AnimationClip[] kaykitClips;
+
+    static AnimationClip[] GetKayKitClips()
+    {
+        if (kaykitClips != null) return kaykitClips;
+
+        var all = new System.Collections.Generic.List<AnimationClip>();
+        all.AddRange(Resources.LoadAll<AnimationClip>("decor/kaykit/anim/Rig_Medium_General"));
+        all.AddRange(Resources.LoadAll<AnimationClip>("decor/kaykit/anim/Rig_Medium_MovementBasic"));
+        kaykitClips = all.ToArray();
+
+        if (kaykitClips.Length == 0)
+            Debug.LogWarning("[Figure] Nenhum clipe KayKit em decor/kaykit/anim — figuras usarão animação procedural.");
+        return kaykitClips;
+    }
+
+    // Primeiro clipe cujo nome casa com uma das palavras (na ordem dada)
+    static AnimationClip PickClip(AnimationClip[] pool, params string[] keys)
+    {
+        if (pool == null) return null;
+        foreach (string key in keys)
+        {
+            foreach (AnimationClip c in pool)
+            {
+                if (c != null && c.name.IndexOf(key, System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    return c;
+            }
+        }
+        return null;
+    }
+
     // Escolhe o FBX que traz a MALHA (SkinnedMeshRenderer): normalmente o idle
     // "With Skin", mas em alguns downloads a pele veio só na death/attack
     static GameObject FindRiggedModel(string baseName)
@@ -1221,6 +1564,38 @@ public class CardDisplay : MonoBehaviour
         if (riggedSetCache.TryGetValue(cardClass, out cached)) return cached;
 
         RiggedSet set = null;
+
+        // ── KayKit: um único conjunto de animações serve os 4 personagens ──
+        // (todos usam o mesmo esqueleto "Rig_Medium"), então os clipes vêm dos
+        // FBX compartilhados e são escolhidos pelo NOME.
+        if (IsKayKitClass(cardClass))
+        {
+            GameObject model = Resources.Load<GameObject>(KayKitCharPath + KayKitCharName(cardClass));
+            if (model != null)
+            {
+                AnimationClip[] pool = GetKayKitClips();
+                set = new RiggedSet
+                {
+                    model = model,
+                    idle = PickClip(pool, "Idle_A", "Idle"),
+                    walk = PickClip(pool, "Walking_A", "Walking", "Running"),
+                    // O pack grátis não traz ataque; se um dia vier um pack com
+                    // ataque, estes nomes o encontram sozinhos
+                    attack = PickClip(pool, "Attack", "Melee", "Slice", "Chop", "Shoot", "Use_Item"),
+                    death = PickClip(pool, "Death_A", "Death"),
+                    react = PickClip(pool, "Hit_A", "Hit"),
+                };
+                Debug.Log($"[Figure] KayKit {cardClass}: idle={set.idle != null}, walk={set.walk != null}, " +
+                          $"attack={set.attack != null}, death={set.death != null}, react={set.react != null}");
+
+                // Sem idle nem walk o rig não tem o que tocar (ficaria em pose
+                // de bind): melhor cair na animação procedural
+                if (set.idle == null && set.walk == null) set = null;
+            }
+            riggedSetCache[cardClass] = set;
+            return set;
+        }
+
         string baseName = FigureResourceName(cardClass); // "Models/personagem_arqueiro"
         if (baseName != null)
         {
@@ -1259,8 +1634,17 @@ public class CardDisplay : MonoBehaviour
         Texture2D cached;
         if (figureTexCache.TryGetValue(cardClass, out cached)) return cached;
 
-        string baseName = FigureResourceName(cardClass);
-        Texture2D tex = baseName != null ? Resources.Load<Texture2D>(baseName + "_tex") : null;
+        Texture2D tex = null;
+
+        if (IsKayKitClass(cardClass))
+            tex = Resources.Load<Texture2D>(KayKitCharPath + KayKitTextureName(cardClass));
+
+        if (tex == null)
+        {
+            string baseName = FigureResourceName(cardClass);
+            tex = baseName != null ? Resources.Load<Texture2D>(baseName + "_tex") : null;
+        }
+
         figureTexCache[cardClass] = tex;
         return tex;
     }
@@ -1296,14 +1680,19 @@ public class CardDisplay : MonoBehaviour
             foreach (Collider c in boardFigure.GetComponentsInChildren<Collider>())
                 Destroy(c);
 
+            // Peças desproporcionais (chapéu do mago) antes de medir a altura
+            if (IsKayKitClass(card.cardClass)) ApplyPartTweaks(boardFigure, card.cardClass);
+
             FitFigureOnCard();
+
+            bool kaykit = IsKayKitClass(card.cardClass);
 
             if (rig != null)
             {
-                // Se o modelo NÃO trouxe textura própria (Meshy sem textura
-                // embutida), reaplica a da classe num material URP. Se trouxe
-                // (boneco padrão do Mixamo com pele embutida), mantém a dele.
-                if (!ModelHasOwnTexture(boardFigure)) ApplyFigureMaterial();
+                // KayKit: sempre reaplica a textura da classe (o material vindo
+                // do FBX fica magenta no build URP). Nos outros modelos, só
+                // quando o próprio modelo não trouxe textura embutida.
+                if (kaykit || !ModelHasOwnTexture(boardFigure)) ApplyFigureMaterial();
 
                 // Animação skeletal: anda só ao mover, pose de espera parado,
                 // golpe ao atacar, react ao levar dano e morte ao morrer
@@ -1312,12 +1701,16 @@ public class CardDisplay : MonoBehaviour
                 // não conta como "andar"; só o movimento real de casa dispara.
                 ra.Initialize(rig.walk, rig.attack, rig.idle, rig.death, rig.react, transform);
 
-                // Armas desenhadas por código, grudadas na mão (acompanham as
-                // animações): arco para o arqueiro, maça para o healer.
-                if (card.cardClass == CardClass.Arqueiro)
-                    ProceduralBow.Attach(boardFigure);
-                else if (card.cardClass == CardClass.Healer)
-                    ProceduralMace.Attach(boardFigure);
+                // Armas: modelos reais do KayKit encaixados nos ossos-soquete
+                // das mãos (acompanham as animações). Sem KayKit, as antigas
+                // armas desenhadas por código.
+                if (!kaykit)
+                {
+                    if (card.cardClass == CardClass.Arqueiro)
+                        ProceduralBow.Attach(boardFigure);
+                    else if (card.cardClass == CardClass.Healer)
+                        ProceduralMace.Attach(boardFigure);
+                }
             }
             else
             {
@@ -1331,6 +1724,11 @@ public class CardDisplay : MonoBehaviour
                 figAnim.Initialize();
                 figAnim.PlayEntrance();
             }
+
+            // Arma na mão por último: o FitFigureOnCard já mediu o personagem
+            // sozinho (se a arma entrasse antes, um arco mais alto que o
+            // arqueiro encolheria ele para caber)
+            if (kaykit) AttachHandItems(boardFigure, card.cardClass);
         }
 
         // Tom do dono (azul = P1, vermelho = P2). Como agora há textura, é um
@@ -1635,6 +2033,7 @@ public class CardDisplay : MonoBehaviour
 
         preHoverScale = transform.localScale;
         hoverLifted = false;
+        hoverZone = isInShop ? 1 : 2;
 
         if (isInShop)
         {
@@ -1680,19 +2079,30 @@ public class CardDisplay : MonoBehaviour
         // Mouse saiu: a figura 3D volta a ficar sólida
         SetFigureGhost(false);
 
-        // Se a carta foi comprada durante o hover, a mão já definiu escala/posição
-        if (isInHand) return;
-
-        if (preHoverScale != Vector3.zero)
+        // Restaura APENAS se a carta continua na mesma "zona" de quando o hover
+        // começou. Se ela mudou de lugar nesse meio-tempo (comprada, colocada no
+        // tabuleiro, movida), quem manda é a nova posição/escala. Sem isso, um
+        // estado velho da época da LOJA era despejado numa carta já em campo —
+        // era o bug das cartas com efeito de seleção: o popup "Entendi" bloqueia
+        // o OnMouseEnter (pointer sobre UI) de renovar o estado, e o OnMouseExit
+        // (que roda SEM guarda de UI) teleportava a carta para o slot da loja
+        // em tamanho de loja. O estado é SEMPRE limpo ao sair, em qualquer caso.
+        bool sameZone = (hoverZone == 1 && isInShop) ||
+                        (hoverZone == 2 && isOnBoard && !isInHand);
+        if (sameZone)
         {
-            transform.localScale = preHoverScale;
-        }
-        if (hoverLifted)
-        {
-            transform.position = preHoverPosition;
-            hoverLifted = false;
+            if (preHoverScale != Vector3.zero)
+            {
+                transform.localScale = preHoverScale;
+            }
+            if (hoverLifted)
+            {
+                transform.position = preHoverPosition;
+            }
         }
         preHoverScale = Vector3.zero;
+        hoverLifted = false;
+        hoverZone = 0;
     }
 
     void OnMouseDown()
@@ -1780,6 +2190,14 @@ public class CardDisplay : MonoBehaviour
         // Se a carta está na loja (fase de compra)
         if (isInShop)
         {
+            // Modo "Travar cartas" ligado: o clique SELECIONA a carta para não
+            // renovar no próximo refresh (aura dourada), em vez de comprar
+            if (GameUIManager.Instance != null && GameUIManager.Instance.IsShopLockMode() &&
+                TurnManager.Instance != null && TurnManager.Instance.gameState != GameState.Lobby)
+            {
+                TryToggleShopLock();
+                return;
+            }
             TryBuyCard();
             return;
         }
@@ -1925,6 +2343,78 @@ public class CardDisplay : MonoBehaviour
         ExecuteBuy(currentPlayer.playerNumber);
     }
 
+    // ========== TRAVAR CARTA NA LOJA (não renova no refresh) ==========
+
+    // Alterna a trava desta carta (clique com o modo "Travar cartas" ligado).
+    // Em multiplayer vai por RPC: os 2 clientes marcam o MESMO slot, então o
+    // refresh pula os mesmos sorteios dos dois lados (lockstep intacto)
+    void TryToggleShopLock()
+    {
+        if (CardManager.Instance == null) return;
+        int shopIndex = CardManager.Instance.GetShopCardIndex(gameObject);
+        if (shopIndex < 0) return; // não está na SUA loja
+
+        bool newState = !isLockedInShop;
+        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
+        {
+            // AllViaServer: volta para este cliente também, na ordem global
+            PhotonGameManager.Instance.SendShopCardLockRPC(
+                PhotonGameManager.Instance.myPlayerNumber, shopIndex, newState);
+            return;
+        }
+        SetShopLock(newState); // offline: aplica direto
+    }
+
+    // Aplica a trava + visual (borda dourada e selo "TRAVADA")
+    public void SetShopLock(bool locked)
+    {
+        if (isLockedInShop == locked) return;
+        isLockedInShop = locked;
+        UpdateCardDisplay(); // repinta a borda (dourada quando travada)
+        UpdateShopLockLabel();
+        if (card != null)
+            Debug.Log($"[CardDisplay] {card.cardName}: {(locked ? "TRAVADA na loja (não renova)" : "destravada")}");
+    }
+
+    // Selo "« TRAVADA »" sobre a arte da carta enquanto ela estiver travada
+    void UpdateShopLockLabel()
+    {
+        Transform t = transform.Find("ShopLockLabel");
+        if (!isLockedInShop)
+        {
+            if (t != null) t.gameObject.SetActive(false);
+            return;
+        }
+
+        if (t != null)
+        {
+            t.gameObject.SetActive(true);
+            return;
+        }
+
+        GameObject go = new GameObject("ShopLockLabel");
+        go.transform.SetParent(transform, false);
+        // Sobre a arte (z -0.35), levemente acima da superfície da carta.
+        // Rotação copiada de um texto existente: os TMP da carta têm a rotação
+        // certa para "deitar" sobre a face dela
+        go.transform.localPosition = new Vector3(0f, 0.02f, -0.35f);
+        go.transform.localRotation = cardNameText != null
+            ? cardNameText.transform.localRotation : Quaternion.identity;
+
+        TextMeshPro tmp = go.AddComponent<TextMeshPro>();
+        tmp.text = "« TRAVADA »";
+        tmp.fontSize = 2.2f;
+        tmp.fontStyle = FontStyles.Bold;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.color = new Color(0.96f, 0.77f, 0.32f);
+        tmp.outlineWidth = 0.25f;
+        tmp.outlineColor = new Color32(0, 0, 0, 230);
+        tmp.rectTransform.sizeDelta = new Vector2(3f, 0.5f);
+        tmp.textWrappingMode = TextWrappingModes.NoWrap;
+        // Por cima da arte da carta (mesmo truque dos textos flutuantes)
+        if (tmp.fontMaterial != null) tmp.fontMaterial.renderQueue = 4000;
+    }
+
     // Executa a compra de fato (chamado localmente em offline, ou via RPC nos dois clientes)
     public void ExecuteBuy(int buyerPlayerNumber)
     {
@@ -1970,6 +2460,8 @@ public class CardDisplay : MonoBehaviour
 
         // Remove da loja e adiciona à mão DO JOGADOR CORRETO
         isInShop = false;
+        isLockedInShop = false; // comprada: a trava (e o selo) somem
+        UpdateShopLockLabel();
         ownerPlayerNumber = buyerPlayerNumber; // Define o dono da carta
         UpdateCardDisplay(); // Atualiza a borda com a cor do dono
 
@@ -2286,6 +2778,28 @@ public class CardDisplay : MonoBehaviour
             }
         }
 
+        // Auras de ATAQUE dos tanks (Capitão de Ferro +1 na frente, Baluarte
+        // +2 com combo) — v4.2, no lugar das antigas reduções de dano
+        modifiedDamage += AuraAttackBonus();
+
+        // DEVOÇÃO — Matilha dos Arqueiros (3+/5 arqueiros jogados da mão):
+        // degrau 1 = +1 ATK contra alvo já ferido; degrau 2 = quebra 1 de
+        // escudo do alvo antes do golpe. Determinístico (estado do tabuleiro)
+        if (card.cardClass == CardClass.Arqueiro && ownerPlayerNumber != 0)
+        {
+            int matilha = ClassDevotion.TierOf(ownerPlayerNumber, CardClass.Arqueiro);
+            if (matilha >= 1 && target.currentHealth < target.card.health + target.maxHealthBonus)
+            {
+                modifiedDamage += 1;
+                Debug.Log($"[Devoção/Matilha] {card.cardName}: +1 ATK contra alvo ferido ({modifiedDamage})");
+            }
+            if (matilha >= 2 && target.currentShield > 0)
+            {
+                target.currentShield -= 1;
+                Debug.Log($"[Devoção/Matilha] {card.cardName}: quebrou 1 de escudo de {target.card.cardName}");
+            }
+        }
+
         // Tile do alvo capturado ANTES do dano — se o alvo morrer, o tile é
         // liberado e o respingo do Mago 3 (3/5) perderia a referência
         CardTile targetTileForSplash = target.currentTile;
@@ -2477,25 +2991,16 @@ public class CardDisplay : MonoBehaviour
                             CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
                             if (effect != null)
                             {
-                                bool interceptHalved = false;
-                                int reductionPercent = effect.GetTankTier4Effect2Reduction();
-                                if (reductionPercent > 0)
-                                {
-                                    // 50% menos, arredondando para CIMA (1 não vira 0)
-                                    damage = (damage + 1) / 2;
-                                    interceptHalved = true;
-                                    Debug.Log($"[TankTier4Effect2] {ally.card.cardName}: Interceptou ataque e recebeu 50% menos dano! ({damage} de dano)");
-                                }
-                                else
-                                {
-                                    Debug.Log($"[TankTier4Effect2] {ally.card.cardName}: Interceptou ataque em lugar de {card.cardName}!");
-                                }
+                                // v4.2: o desconto de 25% SAIU — o Quebra-Golpes
+                                // intercepta tomando o dano CHEIO (a identidade
+                                // de guarda-costas fica, o jogo destrava)
+                                Debug.Log($"[TankTier4Effect2] {ally.card.cardName}: Interceptou ataque em lugar de {card.cardName}!");
                                 // Marca o uso ANTES de aplicar o dano; TakeRedirectedDamage
                                 // aplica as defesas do próprio tank sem disparar novos
-                                // redirecionamentos em cadeia (e sem somar outro 50%)
+                                // redirecionamentos em cadeia
                                 ally.tankTier4Effect2LastUsedRound = TurnManager.Instance.currentRound;
                                 FloatingTextFX.ShowAboveCard(ally, "INTERCEPTOU!", FloatingTextFX.EffectColor, 4.2f);
-                                ally.TakeRedirectedDamage(damage, attacker, interceptHalved);
+                                ally.TakeRedirectedDamage(damage, attacker, false);
                                 return; // Tank recebeu o ataque
                             }
                         }
@@ -2504,9 +3009,8 @@ public class CardDisplay : MonoBehaviour
             }
         }
 
-        // Reduções de dano dos Tanks (aura do Tank 3, 50% do Tank 4 3/7/8).
-        // halvedOnce viaja junto do dano: reduções de 50% NÃO se acumulam,
-        // nem entre si nem com o 50% de um redirecionamento posterior
+        // v4.2: as reduções de dano dos tanks saíram (ver AuraAttackBonus) —
+        // a chamada fica como ponto de extensão e o flag hoje é inerte
         bool halvedOnce = false;
         damage = ApplyTankDamageReductions(damage, ref halvedOnce);
 
@@ -2695,7 +3199,7 @@ public class CardDisplay : MonoBehaviour
         }
     }
 
-    // Healer 3 (ATK 2, HP 4): "sempre que um tanque receber dano, cure em 3".
+    // Healer 3 (ATK 2, HP 4): "sempre que um tanque receber dano, cure em 1".
     // Roda DEPOIS do dano ser aplicado de verdade (antes rodava antes do dano:
     // num tank de vida cheia a cura era 100% desperdiçada)
     public void TriggerHealerCureOnTankDamaged()
@@ -2765,7 +3269,7 @@ public class CardDisplay : MonoBehaviour
     // ADJACENTE atacado (até 1 casa — escolta tem que andar junto do time)
     // que esteja DO LADO ou ATRÁS dele (quem passa na frente fica sem escolta).
     // O dono escolhe via popup sincronizado. Retorna true se a decisão ficou
-    // pendente. alreadyHalved: o dano já levou um 50% — não soma outro.
+    // pendente. alreadyHalved: o dano já levou uma redução — não soma outra.
     bool TryTankAssumeAnyDamage(int damage, CardDisplay attacker, bool alreadyHalved = false)
     {
         // Só ATAQUES podem ser assumidos ("caso qualquer carta seja atacada")
@@ -2809,64 +3313,65 @@ public class CardDisplay : MonoBehaviour
     }
 
     // Reduções de dano dos Tanks, compartilhadas por TakeDamage e pelo dano
-    // redirecionado: aura do Tank 3 (2/3/6, todos os tanks tomam 50% a menos)
-    // e a redução própria do Tank 4 (3/7/8) com Healer+Mago+Arqueiro.
-    // REGRA: reduções de 50% NÃO se acumulam — a primeira que pegar trava as
-    // demais via alreadyHalved (25% de dano nunca acontece)
+    // v4.2: as REDUÇÕES DE DANO dos tanks SAÍRAM por completo (o jogo travava
+    // — pedido do Carlos). O Capitão de Ferro e o Baluarte viraram cartas de
+    // PRESSÃO (bônus de ataque — ver AuraAttackBonus). A assinatura e os
+    // chamadores ficam (fluxos de redirecionamento intactos); alreadyHalved
+    // hoje não faz nada, mantido só para não mexer em todas as assinaturas.
     int ApplyTankDamageReductions(int damage, ref bool alreadyHalved)
     {
+        return damage;
+    }
+
+    // Bônus de ATAQUE por auras dos tanks (v4.2 — no lugar das reduções):
+    // · Capitão de Ferro (2/3/6 T3): tanks aliados na LINHA DE FRENTE atacam
+    //   com +1 (o Capitão também precisa estar na frente, liderando o avanço)
+    // · Baluarte (3/7/8 T4): com Healer+Mago+Arqueiro em campo, ataca com +2
+    // Vale para ataques em CARTAS e na TORRE (os dois caminhos somam isto)
+    public int AuraAttackBonus()
+    {
         if (card == null || card.cardClass != CardClass.Tank || ownerPlayerNumber == 0)
-            return damage;
+            return 0;
+
+        int bonus = 0;
 
         BoardManager board = BoardManager.Instance;
-        if (board != null && !alreadyHalved)
+        if (board != null && IsOnFrontLines(this))
         {
-            var allies = board.GetCardsByOwner(ownerPlayerNumber);
-            foreach (var ally in allies)
+            foreach (var ally in board.GetCardsByOwner(ownerPlayerNumber))
             {
-                if (ally != null && ally.card.cardClass == CardClass.Tank &&
-                    ally.card.attack == 2 && ally.card.shield == 3 && ally.card.health == 6 &&
-                    ally.card.tier == CardTier.Tier3)
-                {
-                    // A aura só emana da LINHA DE FRENTE (fora das 2 fileiras
-                    // de casa) — o tank capitão precisa liderar o avanço
-                    if (!IsOnFrontLines(ally)) continue;
-                    if (!DuplicateEffectGate.TryActivate(ally)) continue;
-                    CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
-                    if (effect != null)
-                    {
-                        damage = effect.ReduceTankDamage(damage);
-                        alreadyHalved = true;
-                        Debug.Log($"[TankTier3Effect2] {card.cardName}: Dano reduzido em 50% ({damage} de dano)");
-                    }
-                    break;
-                }
+                if (ally == null || ally.card == null) continue;
+                if (ally.card.cardClass != CardClass.Tank) continue;
+                if (!(ally.card.attack == 2 && ally.card.shield == 3 && ally.card.health == 6 &&
+                      ally.card.tier == CardTier.Tier3)) continue;
+                if (!IsOnFrontLines(ally)) continue;    // a aura emana da frente
+                if (!DuplicateEffectGate.TryActivate(ally)) continue;
+
+                bonus += 1;
+                Debug.Log($"[TankTier3Effect2] {card.cardName}: +1 de dano pela aura do Capitão de Ferro");
+                break;
             }
         }
 
-        // Tank 4 (3/7/8): 50% a menos com Healer+Mago+Arqueiro em campo
-        // (arredonda para CIMA como o Tank 3 — 1 de dano nunca vira 0)
-        if (!alreadyHalved &&
-            card.attack == 3 && card.shield == 7 && card.health == 8 &&
+        if (card.attack == 3 && card.shield == 7 && card.health == 8 &&
             card.tier == CardTier.Tier4)
         {
             CardEffectSimple selfEffect = GetComponent<CardEffectSimple>();
             if (selfEffect != null && selfEffect.TankTier4Effect4_HasCombo())
             {
-                damage = (damage + 1) / 2;
-                alreadyHalved = true;
-                Debug.Log($"[TankTier4Effect4] {card.cardName}: Healer+Mago+Arqueiro em campo - dano reduzido em 50% ({damage})");
+                bonus += 2;
+                Debug.Log($"[TankTier4Effect4] {card.cardName}: +2 de dano (combo Healer+Mago+Arqueiro)");
             }
         }
 
-        return damage;
+        return bonus;
     }
 
     // Dano redirecionado/assumido/interceptado por um Tank: aplica as defesas
     // do PRÓPRIO tank (invulnerabilidade e reduções) antes de aplicar — os
     // redirecionamentos antigos pulavam essas defesas e o tank tomava cheio.
-    // alreadyHalved: o dano já levou um 50% no caminho (intercepto com healer
-    // ou aura na vítima) — as reduções daqui não somam outro
+    // alreadyHalved: o dano já levou uma redução no caminho (intercepto com
+    // healer ou aura na vítima) — as reduções daqui não somam outra
     public void TakeRedirectedDamage(int damage, CardDisplay attacker = null, bool alreadyHalved = false)
     {
         if (invulnerableRoundsLeft > 0)
@@ -2882,6 +3387,11 @@ public class CardDisplay : MonoBehaviour
 
     public void ApplyDamageNormally(int damage, CardDisplay attacker = null)
     {
+        // DEVOÇÃO — Falange dos Tanks (degrau 1): ATAQUES causam -1 (mín. 1).
+        // Dano de efeito (attacker nulo) passa cheio
+        if (attacker != null)
+            damage = ClassDevotion.ReduceAttackDamageOnTank(this, damage);
+
         // Telemetria: dano EFETIVO = escudo consumido + vida perdida (sem contar
         // overkill). A fonte é o atacante ou, em dano de efeito, o EffectSource
         int effectiveDamage = Mathf.Min(currentShield, damage)
@@ -2931,6 +3441,10 @@ public class CardDisplay : MonoBehaviour
         // cobre dano interceptado/redirecionado, que antes nunca disparava a cura)
         TriggerHealerCureOnTankDamaged();
 
+        // DEVOÇÃO — Falange (degrau 2): atacante corpo a corpo leva 1 de volta
+        // (entra com attacker nulo lá dentro — sem correntes de reflexo)
+        ClassDevotion.TryReflect(this, attacker);
+
         // Verifica se a carta morreu (repassa o atacante para os efeitos "ao matar")
         if (currentHealth <= 0)
         {
@@ -2977,6 +3491,23 @@ public class CardDisplay : MonoBehaviour
         {
             CardEffectSimple killerFx = attackerCardDisplay.GetComponent<CardEffectSimple>();
             if (killerFx != null) killerFx.ActivateShieldOnKill();
+        }
+
+        // Inquisidora — Archer 4 (ATK 5, HP 3): matou um HEALER → pode se
+        // mover de novo. Fica AQUI (e não na checagem logo após as flechadas)
+        // porque o dano pode ser ADIADO por popup (anular ataque, tank
+        // assumindo/interceptando) — nesses casos o healer "ainda estava vivo"
+        // na checagem antiga e o bônus se perdia em silêncio
+        if (attackerCardDisplay != null &&
+            card != null && card.cardClass == CardClass.Healer &&
+            attackerCardDisplay.card.cardClass == CardClass.Arqueiro &&
+            attackerCardDisplay.card.attack == 5 &&
+            attackerCardDisplay.card.health == 3 &&
+            attackerCardDisplay.card.tier == CardTier.Tier4)
+        {
+            attackerCardDisplay.lastMovedRound = -1;
+            FloatingTextFX.ShowAboveCard(attackerCardDisplay, "MOVA DE NOVO!", FloatingTextFX.EffectColor, 3.6f);
+            Debug.Log($"[ArcherTier4Effect1] {attackerCardDisplay.card.cardName}: Matou o Healer — pode se mover novamente!");
         }
 
         // Libera o tile se a carta estiver no tabuleiro

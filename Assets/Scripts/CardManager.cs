@@ -28,23 +28,11 @@ public class CardManager : MonoBehaviour
     };
     private int[] shopSpawnCounts = new int[3]; // Spawns por loja (deriva seed única por spawn)
 
-    // Loja TRAVADA (checkbox "Travar loja"): não renova automaticamente na
-    // virada do round; o reset pago continua funcionando. SINCRONIZADO via RPC:
-    // os 2 clientes pulam a MESMA loja, então o consumo do pool e os contadores
-    // de seed continuam idênticos (lockstep intacto).
-    private bool[] shopLocked = new bool[3];
-
-    public void SetShopLocked(int shopNumber, bool locked)
-    {
-        if (shopNumber < 0 || shopNumber > 2) return;
-        shopLocked[shopNumber] = locked;
-        Debug.Log($"[CardManager] Loja {shopNumber} {(locked ? "TRAVADA (não renova no round)" : "destravada (volta a renovar)")}");
-    }
-
-    public bool IsShopLocked(int shopNumber)
-    {
-        return shopNumber >= 0 && shopNumber <= 2 && shopLocked[shopNumber];
-    }
+    // Travar cartas: cada carta da loja pode ser travada individualmente
+    // (CardDisplay.isLockedInShop, via checkbox "Travar cartas" + clique).
+    // No refresh, as travadas ficam no MESMO slot e só os outros renovam.
+    // SINCRONIZADO via RPC_SetShopCardLock: os 2 clientes pulam os MESMOS
+    // slots, então o consumo do pool e a seed continuam idênticos (lockstep).
     private Vector3 currentSpawnPosition;
     private bool verticalLayout = false; // Se true, cartas ficam uma abaixo da outra
 
@@ -136,16 +124,13 @@ public class CardManager : MonoBehaviour
         {
             // Ordem FIXA (P1 depois P2): os dois clientes consomem o pool de cartas
             // na mesma sequência, então as duas lojas saem idênticas nos dois lados.
-            // Loja travada é PULADA (nos 2 clientes igualmente — flag sincronizada)
-            if (!shopLocked[1]) SpawnShopForPlayer(1);
-            else Debug.Log("[CardManager] Loja P1 travada — não renovou");
-            if (!shopLocked[2]) SpawnShopForPlayer(2);
-            else Debug.Log("[CardManager] Loja P2 travada — não renovou");
+            // Cartas travadas de cada loja são preservadas dentro do spawn.
+            SpawnShopForPlayer(1);
+            SpawnShopForPlayer(2);
         }
         else
         {
-            if (!shopLocked[0]) SpawnShopForPlayer(0);
-            else Debug.Log("[CardManager] Loja travada — não renovou");
+            SpawnShopForPlayer(0);
         }
     }
 
@@ -175,7 +160,23 @@ public class CardManager : MonoBehaviour
 
         List<GameObject> shop = GetShopList(shopNumber);
 
-        // Limpa cartas anteriores desta loja
+        // Cartas TRAVADAS pelo dono (checkbox "Travar cartas"): sobrevivem ao
+        // refresh no MESMO slot; só os outros slots renovam. Coletadas ANTES da
+        // limpeza (a limpeza pula elas, mas esvazia a lista)
+        Dictionary<int, GameObject> lockedBySlot = null;
+        for (int i = 0; i < shop.Count; i++)
+        {
+            GameObject go = shop[i];
+            if (go == null) continue;
+            CardDisplay lockedCd = go.GetComponent<CardDisplay>();
+            if (lockedCd != null && lockedCd.isInShop && lockedCd.isLockedInShop)
+            {
+                if (lockedBySlot == null) lockedBySlot = new Dictionary<int, GameObject>();
+                lockedBySlot[i] = go;
+            }
+        }
+
+        // Limpa cartas anteriores desta loja (preserva as travadas)
         ClearShopCards(shop);
 
         if (cardPool == null)
@@ -207,49 +208,82 @@ public class CardManager : MonoBehaviour
             cardPool.EnsureLobbyQueues(PhotonGameManager.Instance.currentGameSeed * 31 + 17);
         }
 
-        // Spawna cartas aleatórias
+        // Cartas que o dono desta loja JÁ TEM (mão ou campo): não são oferecidas
+        // de novo até serem destruídas. Determinístico: os dois clientes veem as
+        // mesmas mãos/tabuleiro no momento do refresh (compra/colocação/morte
+        // chegam por RPC aos dois lados)
+        System.Collections.Generic.HashSet<string> ownedNames =
+            (UsePerPlayerShops() && shopNumber != 0) ? CollectOwnedCardNames(shopNumber) : null;
+
+        // Cartas travadas também bloqueiam cópias nos novos sorteios (não faz
+        // sentido a loja oferecer a mesma carta ao lado da travada)
+        if (lockedBySlot != null)
+        {
+            foreach (var kv in lockedBySlot)
+            {
+                CardDisplay lockedCd = kv.Value != null ? kv.Value.GetComponent<CardDisplay>() : null;
+                if (lockedCd == null || lockedCd.card == null) continue;
+                if (ownedNames == null) ownedNames = new System.Collections.Generic.HashSet<string>();
+                ownedNames.Add(lockedCd.card.cardName);
+            }
+        }
+
+        // Spawna cartas aleatórias (slots travados mantêm a carta que já estava)
         for (int i = 0; i < cardsToSpawn; i++)
         {
+            Vector3 position;
+
+            if (verticalLayout)
+            {
+                // Layout vertical: cartas uma abaixo da outra (eixo Z)
+                float totalDepth = (cardsToSpawn - 1) * cardSpacing;
+                Vector3 startPosition = currentSpawnPosition - new Vector3(0, 0, totalDepth / 2f);
+                position = startPosition + new Vector3(0, 0, i * cardSpacing);
+            }
+            else if (lobbyPhase)
+            {
+                // Fase inicial: 2 fileiras de 5 (10 numa fileira só ficava gigante).
+                // Primeiras 5 na fileira da frente, últimas 5 na de trás
+                int perRow = Mathf.CeilToInt(cardsToSpawn / 2f);
+                int rowIndex = i / perRow;
+                int colIndex = i % perRow;
+                float rowGap = 10f; // Separação em Z entre as fileiras
+
+                float totalWidth = (perRow - 1) * cardSpacing;
+                Vector3 startPosition = currentSpawnPosition - new Vector3(totalWidth / 2f, 0, 0);
+                float rowZ = rowIndex == 0 ? -rowGap / 2f : rowGap / 2f;
+                position = startPosition + new Vector3(colIndex * cardSpacing, 0, rowZ);
+            }
+            else
+            {
+                // Layout horizontal: cartas lado a lado (eixo X)
+                float totalWidth = (cardsToSpawn - 1) * cardSpacing;
+                Vector3 startPosition = currentSpawnPosition - new Vector3(totalWidth / 2f, 0, 0);
+                position = startPosition + new Vector3(i * cardSpacing, 0, 0);
+            }
+
+            // Slot travado: mantém a carta que já estava, sem consumir sorteio.
+            // Os 2 clientes têm as MESMAS flags (RPC), então tiram o MESMO número
+            // de cartas do pool — a sequência do Random continua idêntica
+            GameObject kept;
+            if (lockedBySlot != null && lockedBySlot.TryGetValue(i, out kept) && kept != null)
+            {
+                kept.transform.position = position;
+                shop.Add(kept);
+                CardDisplay keptCd = kept.GetComponent<CardDisplay>();
+                Debug.Log($"Slot {i} (loja {shopNumber}): TRAVADO, manteve {(keptCd != null && keptCd.card != null ? keptCd.card.cardName : "?")}");
+                continue;
+            }
+
             // Sorteio com porcentagens de tier (TierOdds): no lobby a fila já foi
             // montada com as chances; na partida a chance evolui com o round
             int currentRound = TurnManager.Instance != null ? TurnManager.Instance.currentRound : 1;
             CardInstance randomCard = useLobbyQueues
-                ? cardPool.DrawFromLobbyQueue(shopNumber)
-                : cardPool.DrawRandomCard(lobbyPhase, currentRound);
+                ? cardPool.DrawFromLobbyQueue(shopNumber, ownedNames)
+                : cardPool.DrawRandomCard(lobbyPhase, currentRound, ownedNames);
 
             if (randomCard != null)
             {
-                Vector3 position;
-
-                if (verticalLayout)
-                {
-                    // Layout vertical: cartas uma abaixo da outra (eixo Z)
-                    float totalDepth = (cardsToSpawn - 1) * cardSpacing;
-                    Vector3 startPosition = currentSpawnPosition - new Vector3(0, 0, totalDepth / 2f);
-                    position = startPosition + new Vector3(0, 0, i * cardSpacing);
-                }
-                else if (lobbyPhase)
-                {
-                    // Fase inicial: 2 fileiras de 5 (10 numa fileira só ficava gigante).
-                    // Primeiras 5 na fileira da frente, últimas 5 na de trás
-                    int perRow = Mathf.CeilToInt(cardsToSpawn / 2f);
-                    int rowIndex = i / perRow;
-                    int colIndex = i % perRow;
-                    float rowGap = 10f; // Separação em Z entre as fileiras
-
-                    float totalWidth = (perRow - 1) * cardSpacing;
-                    Vector3 startPosition = currentSpawnPosition - new Vector3(totalWidth / 2f, 0, 0);
-                    float rowZ = rowIndex == 0 ? -rowGap / 2f : rowGap / 2f;
-                    position = startPosition + new Vector3(colIndex * cardSpacing, 0, rowZ);
-                }
-                else
-                {
-                    // Layout horizontal: cartas lado a lado (eixo X)
-                    float totalWidth = (cardsToSpawn - 1) * cardSpacing;
-                    Vector3 startPosition = currentSpawnPosition - new Vector3(totalWidth / 2f, 0, 0);
-                    position = startPosition + new Vector3(i * cardSpacing, 0, 0);
-                }
-
                 GameObject cardObject = SpawnCard(randomCard.cardData, position);
                 if (cardObject == null) continue;
                 if (hiddenShop) cardObject.SetActive(false);
@@ -258,6 +292,40 @@ public class CardManager : MonoBehaviour
                 Debug.Log($"Spawnou (loja {shopNumber}): {randomCard.cardData.cardName} (ID: {randomCard.instanceId})");
             }
         }
+
+        // Segurança: travada num slot que não existe mais (ex.: transição da loja
+        // de 10 do lobby para a de 5 da partida) volta ao pool e é destruída
+        if (lockedBySlot != null)
+        {
+            foreach (var kv in lockedBySlot)
+            {
+                if (kv.Key < cardsToSpawn || kv.Value == null) continue;
+                CardDisplay lostCd = kv.Value.GetComponent<CardDisplay>();
+                if (cardPool != null && lostCd != null && lostCd.card != null)
+                    cardPool.ReturnCardCopyToDeck(lostCd.card);
+                Destroy(kv.Value);
+            }
+        }
+    }
+
+    // Nomes das cartas que o jogador tem na MÃO ou em CAMPO (para a loja dele
+    // não oferecer cópia repetida). Nulo quando não há nenhuma — o filtro nem
+    // roda. Nome basta como identidade: desde os nomes temáticos, cada carta
+    // tem nome único (cópias/ecos em campo também bloqueiam, de propósito).
+    System.Collections.Generic.HashSet<string> CollectOwnedCardNames(int playerNumber)
+    {
+        System.Collections.Generic.HashSet<string> owned = null;
+
+        foreach (CardDisplay cd in FindObjectsOfType<CardDisplay>())
+        {
+            if (cd == null || cd.card == null) continue;
+            if (cd.ownerPlayerNumber != playerNumber) continue;
+            if (!cd.isInHand && !cd.isOnBoard) continue;
+
+            if (owned == null) owned = new System.Collections.Generic.HashSet<string>();
+            owned.Add(cd.card.cardName);
+        }
+        return owned;
     }
 
     // Quantidade de cartas na loja LOCAL (a fase inicial tem 10; a partida, 5)
@@ -335,6 +403,14 @@ public class CardManager : MonoBehaviour
                     continue;
                 }
 
+                // Carta TRAVADA continua na loja: não destrói nem devolve ao pool
+                // (o SpawnShopForPlayer recoloca ela no mesmo slot)
+                if (cardDisplay != null && cardDisplay.isInShop && cardDisplay.isLockedInShop)
+                {
+                    preserved++;
+                    continue;
+                }
+
                 // Devolve a cópia não comprada ao pool — com duas lojas, o consumo
                 // dobrou e sem isso o pool esvaziava no fim da partida
                 if (cardPool != null && cardDisplay != null && cardDisplay.card != null)
@@ -363,7 +439,6 @@ public class CardManager : MonoBehaviour
     {
         DestroyAllCards();
         shopSpawnCounts = new int[3];
-        shopLocked = new bool[3]; // revanche começa com as lojas destravadas
         currentSpawnPosition = centerPosition;
         verticalLayout = false;
     }
@@ -462,6 +537,10 @@ public class CardManager : MonoBehaviour
             cardDisplay.isInShop = false;
             cardDisplay.isInHand = false;
             cardDisplay.ownerPlayerNumber = ownerPlayerNumber;
+            // SpawnCardOnTile SÓ é usado por efeitos (cópias, ecos, invocações)
+            // — cartas jogadas da mão seguem outro caminho. A marca exclui
+            // estas unidades da contagem da Devoção de Classe
+            cardDisplay.isEffectSpawn = true;
             cardDisplay.UpdateDisplay(); // Atualiza a borda com a cor do dono
 
             // Aplica o efeito de entrada em campo

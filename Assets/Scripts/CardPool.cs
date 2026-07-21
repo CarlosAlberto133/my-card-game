@@ -177,10 +177,21 @@ public class CardPool : MonoBehaviour
 
     // Pega uma carta aleatória respeitando as porcentagens de tier (TierOdds).
     // Determinístico: as chamadas de Random acontecem na mesma ordem nos dois
-    // clientes (fluxo da loja já re-semeado com Random.InitState)
-    public CardInstance DrawRandomCard(bool lobbyPhase, int round)
+    // clientes (fluxo da loja já re-semeado com Random.InitState).
+    // excludeNames: cartas que o DONO da loja já tem (mão/campo) não são
+    // oferecidas — se o filtro esvaziar o pool, cai no sorteio sem filtro
+    // (slot vazio na loja é pior do que oferecer uma cópia repetida)
+    public CardInstance DrawRandomCard(bool lobbyPhase, int round, HashSet<string> excludeNames = null)
     {
         List<CardInstance> available = GetAvailableCards();
+
+        if (excludeNames != null && excludeNames.Count > 0)
+        {
+            List<CardInstance> filtered = available.Where(
+                c => !excludeNames.Contains(c.cardData.cardName)).ToList();
+            if (filtered.Count > 0) available = filtered;
+        }
+
         CardInstance drawn = PickWithOdds(available, lobbyPhase, round, max => Random.Range(0, max));
         if (drawn != null) drawn.isInDeck = false;
         return drawn;
@@ -265,13 +276,24 @@ public class CardPool : MonoBehaviour
         Debug.Log($"[CardPool] Filas da fase inicial: P1={lobbyQueueP1.Count}, P2={lobbyQueueP2.Count} cartas");
     }
 
-    public CardInstance DrawFromLobbyQueue(int playerNumber)
+    // excludeNames: pula na fila as cartas que o jogador já tem (mão/campo).
+    // Se a fila inteira estiver bloqueada, entrega a primeira mesmo assim
+    public CardInstance DrawFromLobbyQueue(int playerNumber, HashSet<string> excludeNames = null)
     {
         List<CardInstance> queue = playerNumber == 2 ? lobbyQueueP2 : lobbyQueueP1;
         if (queue == null || queue.Count == 0) return null;
 
-        CardInstance drawn = queue[0];
-        queue.RemoveAt(0);
+        int pick = 0;
+        if (excludeNames != null && excludeNames.Count > 0)
+        {
+            for (int i = 0; i < queue.Count; i++)
+            {
+                if (!excludeNames.Contains(queue[i].cardData.cardName)) { pick = i; break; }
+            }
+        }
+
+        CardInstance drawn = queue[pick];
+        queue.RemoveAt(pick);
         drawn.isInDeck = false;
         return drawn;
     }

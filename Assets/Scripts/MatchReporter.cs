@@ -189,7 +189,8 @@ public class MatchReporter : MonoBehaviour
     {
         return BoardThemeManager.Current == BoardTheme.Tabletop ? "mesa"
              : BoardThemeManager.Current == BoardTheme.Space ? "espaco"
-             : BoardThemeManager.Current == BoardTheme.Forest ? "floresta" : "?";
+             : BoardThemeManager.Current == BoardTheme.Forest ? "floresta"
+             : BoardThemeManager.Current == BoardTheme.Teste ? "teste" : "?";
     }
 
     // ── Sessão: renovação ÚNICA e só quando precisa ──────────────────────
@@ -504,8 +505,38 @@ public class MatchReporter : MonoBehaviour
         yield return EnsureFreshSession(s => session = s);
         if (session == null) { if (onDone != null) onDone(result); yield break; }
 
-        string url = SupabaseUrl + "/rest/v1/matches?user_id=eq." + session.user_id +
-                     "&select=i_won,duration_seconds,rounds,status,map&order=created_at.desc&limit=" + limit;
+        // Tentativas em ordem de preferência. Bancos antigos podem não ter
+        // "created_at" (o PostgREST devolve 400 nesse caso), então caímos para
+        // a ordenação por id e, no pior caso, para a consulta sem ordem.
+        string cols = "&select=i_won,duration_seconds,rounds,status,map";
+        string[] attempts =
+        {
+            cols + "&order=created_at.desc&limit=" + limit,   // ideal: mais recentes
+            cols + "&order=id.desc&limit=" + limit,           // sem created_at: id serve
+            cols + "&limit=" + limit,                         // sem ordem nenhuma
+            "&select=i_won,duration_seconds,status&limit=" + limit, // sem rounds/map
+        };
+
+        bool ok = false;
+        foreach (string attempt in attempts)
+        {
+            result.Clear();
+            yield return TryFetchRecent(session, attempt, result, r => ok = r);
+            if (ok) break;
+            Debug.LogWarning("[MatchReporter] Histórico: tentando consulta mais simples...");
+        }
+
+        // null = não deu para buscar (diferente de "buscou e não há partidas")
+        if (onDone != null) onDone(ok ? result : null);
+    }
+
+    // Roda uma consulta ao histórico e preenche a lista. Em caso de erro,
+    // registra o TEXTO devolvido pelo Supabase — é lá que vem o motivo real
+    // (ex.: 'column matches.created_at does not exist').
+    IEnumerator TryFetchRecent(SessionData session, string query,
+        System.Collections.Generic.List<MatchSummary> result, Action<bool> onResult)
+    {
+        string url = SupabaseUrl + "/rest/v1/matches?user_id=eq." + session.user_id + query;
         using (UnityWebRequest req = UnityWebRequest.Get(url))
         {
             req.SetRequestHeader("apikey", SupabaseKey);
@@ -513,29 +544,35 @@ public class MatchReporter : MonoBehaviour
             req.timeout = 20;
             yield return req.SendWebRequest();
 
-            if (req.result == UnityWebRequest.Result.Success)
+            if (req.result != UnityWebRequest.Result.Success)
             {
-                RecentList list = null;
-                try { list = JsonUtility.FromJson<RecentList>("{\"items\":" + req.downloadHandler.text + "}"); }
-                catch (Exception e) { Debug.LogWarning($"[MatchReporter] Histórico: JSON inesperado: {e.Message}"); }
+                string body = req.downloadHandler != null ? req.downloadHandler.text : "";
+                Debug.LogWarning($"[MatchReporter] Histórico: falha ({req.responseCode}) em {query}\n{body}");
+                onResult(false);
+                yield break;
+            }
 
-                if (list != null && list.items != null)
-                {
-                    foreach (RecentItem m in list.items)
-                        result.Add(new MatchSummary
-                        {
-                            iWon = m.i_won, status = m.status, map = m.map,
-                            durationSeconds = Mathf.Max(0, m.duration_seconds), rounds = m.rounds,
-                        });
-                }
-            }
-            else
+            RecentList list = null;
+            try { list = JsonUtility.FromJson<RecentList>("{\"items\":" + req.downloadHandler.text + "}"); }
+            catch (Exception e)
             {
-                Debug.LogWarning($"[MatchReporter] Histórico: falha ({req.responseCode}).");
+                Debug.LogWarning($"[MatchReporter] Histórico: JSON inesperado: {e.Message}");
+                onResult(false);
+                yield break;
             }
+
+            if (list != null && list.items != null)
+            {
+                foreach (RecentItem m in list.items)
+                    result.Add(new MatchSummary
+                    {
+                        iWon = m.i_won, status = m.status, map = m.map,
+                        durationSeconds = Mathf.Max(0, m.duration_seconds), rounds = m.rounds,
+                    });
+            }
+            Debug.Log($"[MatchReporter] Histórico: {result.Count} partida(s) via {query}");
+            onResult(true);
         }
-
-        if (onDone != null) onDone(result);
     }
 
     // ── HTTP / sessão ────────────────────────────────────────────────────

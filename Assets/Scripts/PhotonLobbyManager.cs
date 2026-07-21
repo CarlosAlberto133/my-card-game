@@ -14,7 +14,9 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
     // Versão do jogo — separa builds incompatíveis no matchmaking do Photon E
     // marca a telemetria de balanceamento (card_stats). Subir a cada mudança
     // de simulação. "4.1" = rebalance das 4 classes (tanks/arqueiros/healers/magos).
-    public const string GameVersion = "4.1";
+    // 4.2: travar cartas individuais na loja mudou o refresh (sorteios dependem
+    // das travas) + RPC novo — builds 4.1 não podem parear com esta
+    public const string GameVersion = "4.2";
 
     public Button createRoomButton;
     public Button joinRoomButton;
@@ -80,6 +82,13 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         Canvas canvas = createRoomButton != null
             ? createRoomButton.GetComponentInParent<Canvas>()
             : FindObjectOfType<Canvas>();
+
+        // RESPONSIVIDADE: a UI inteira do lobby é desenhada em referência
+        // 1920x1080. O Canvas da cena estava em "Constant Pixel Size" (800x600)
+        // — em telas menores (notebook 1366x768) nada encolhia e os painéis
+        // transbordavam. Escala pela tela, como a cena da partida já faz.
+        EnsureResponsiveScaler(canvas);
+
         ui = new LobbyUI(canvas);
         ui.OnListClosed = () => { state = State.Idle; };
 
@@ -100,6 +109,24 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
 
         if (!PhotonNetwork.insideLobby)
             ui.Toast("Conectando ao servidor...");
+    }
+
+    // Escala a UI pela resolução da tela (referência 1920x1080). match 0.5
+    // equilibra largura/altura: em 16:9 é idêntico, e em telas 16:10/4:3
+    // encolhe um pouco dos dois lados sem sobrepor o título com o perfil
+    // (match 1.0 preservaria a altura e faria os painéis laterais invadirem
+    // o centro em telas mais quadradas)
+    public static void EnsureResponsiveScaler(Canvas canvas)
+    {
+        if (canvas == null) return;
+
+        UnityEngine.UI.CanvasScaler scaler = canvas.GetComponent<UnityEngine.UI.CanvasScaler>();
+        if (scaler == null) scaler = canvas.gameObject.AddComponent<UnityEngine.UI.CanvasScaler>();
+
+        scaler.uiScaleMode = UnityEngine.UI.CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.screenMatchMode = UnityEngine.UI.CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+        scaler.matchWidthOrHeight = 0.5f;
     }
 
     // Habilita Create/Join somente quando estamos no lobby do Photon
@@ -178,18 +205,22 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         HowToPlayUI.Show(canvas);
     }
 
-    // Monta a coluna do menu no tema taverna: uma tabuleta de madeira atrás e
-    // os 4 botões (Criar Sala em dourado; os demais em madeira escura) com
-    // cantos arredondados, moldura dourada e realce ao passar o mouse.
-    // Ancora tudo na posição original do Create Room (referência da cena).
+    // Monta a coluna do menu como na arte de referência: painel escuro
+    // ornamentado CENTRALIZADO na parte de baixo da tela (sobre o tabuleiro),
+    // "Criar Sala" dourado e os demais botões escuros com moldura dourada.
     void LayoutMenuColumn()
     {
         if (createRoomButton == null) return;
 
         RectTransform baseRt = createRoomButton.GetComponent<RectTransform>();
-        Vector2 basePos = baseRt.anchoredPosition;
-        Vector2 btnSize = new Vector2(340f, 62f);
-        float gap = 80f;
+        Vector2 btnSize = new Vector2(350f, 60f);
+        float gap = 76f;
+
+        // Posição fixa no centro-baixo do quadro (independente da cena)
+        baseRt.anchorMin = new Vector2(0.5f, 0.5f);
+        baseRt.anchorMax = new Vector2(0.5f, 0.5f);
+        baseRt.pivot = new Vector2(0.5f, 0.5f);
+        Vector2 basePos = new Vector2(0f, -96f);
 
         // Tabuleta de fundo (desenhada antes dos botões = atrás deles)
         GameObject board = new GameObject("MenuBoard", typeof(RectTransform), typeof(Image));
@@ -199,19 +230,37 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         brt.anchorMin = baseRt.anchorMin;
         brt.anchorMax = baseRt.anchorMax;
         brt.pivot = baseRt.pivot;
-        // 5 botões agora (Criar / Procurar / Treinar / Como Jogar / Fechar)
+        // 5 botões (Criar / Procurar / Treinar / Como Jogar / Fechar)
         brt.anchoredPosition = basePos + new Vector2(0f, -gap * 2f);
-        brt.sizeDelta = new Vector2(btnSize.x + 64f, gap * 4f + btnSize.y + 60f);
+        brt.sizeDelta = new Vector2(btnSize.x + 58f, gap * 4f + btnSize.y + 58f);
         Image boardImg = board.GetComponent<Image>();
-        LobbySprites.MakeRounded(boardImg, new Color(0.10f, 0.07f, 0.045f, 0.90f));
+        LobbySprites.MakeRounded(boardImg, new Color(0.055f, 0.040f, 0.028f, 0.94f));
         boardImg.raycastTarget = false;
-        LobbySprites.AddRing(board.transform, new Color(0.96f, 0.77f, 0.32f, 0.35f));
+        LobbySprites.AddRing(board.transform, new Color(0.96f, 0.77f, 0.32f, 0.75f));
+
+        // Losangos decorativos no topo e na base do painel (como na arte)
+        MakeMenuDiamond(board.transform, new Vector2(0f, brt.sizeDelta.y / 2f), 16f);
+        MakeMenuDiamond(board.transform, new Vector2(0f, -brt.sizeDelta.y / 2f), 16f);
 
         StyleMenuButton(createRoomButton, "Criar Sala", true, basePos, btnSize, baseRt);
         StyleMenuButton(joinRoomButton, "Procurar Salas", false, basePos + new Vector2(0f, -gap), btnSize, baseRt);
         StyleMenuButton(botButtonRef, "Treinar vs Bot", false, basePos + new Vector2(0f, -gap * 2f), btnSize, baseRt);
         StyleMenuButton(howToButtonRef, "Como Jogar", false, basePos + new Vector2(0f, -gap * 3f), btnSize, baseRt);
         StyleMenuButton(quitButtonRef, "Fechar Jogo", false, basePos + new Vector2(0f, -gap * 4f), btnSize, baseRt);
+    }
+
+    // Losango dourado decorativo (quadrado arredondado girado 45°)
+    static void MakeMenuDiamond(Transform parent, Vector2 pos, float size)
+    {
+        GameObject go = new GameObject("Diamond", typeof(RectTransform), typeof(Image));
+        go.transform.SetParent(parent, false);
+        RectTransform rt = go.GetComponent<RectTransform>();
+        rt.sizeDelta = new Vector2(size, size);
+        rt.anchoredPosition = pos;
+        rt.localRotation = Quaternion.Euler(0f, 0f, 45f);
+        Image img = go.GetComponent<Image>();
+        LobbySprites.MakeRounded(img, new Color(0.96f, 0.77f, 0.32f));
+        img.raycastTarget = false;
     }
 
     // Reconstrói o visual de um botão: sprite arredondado, moldura dourada,
@@ -221,7 +270,7 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         if (b == null) return;
 
         Color gold = new Color(0.96f, 0.77f, 0.32f);
-        Color woodDark = new Color(0.16f, 0.115f, 0.075f, 0.98f);
+        Color woodDark = new Color(0.105f, 0.078f, 0.052f, 0.98f);
         Color textDark = new Color(0.14f, 0.10f, 0.03f);
         Color textLight = new Color(0.95f, 0.91f, 0.82f);
         Color fill = primary ? gold : woodDark;
@@ -243,7 +292,7 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
             if (b.transform.Find("Ring") == null)
                 LobbySprites.AddRing(b.transform, primary
                     ? new Color(1f, 0.92f, 0.66f, 0.9f)
-                    : new Color(0.96f, 0.77f, 0.32f, 0.55f));
+                    : new Color(0.96f, 0.77f, 0.32f, 0.70f));
 
             // Hover/clique: clareia/escurece a cor do próprio botão
             b.targetGraphic = img;
