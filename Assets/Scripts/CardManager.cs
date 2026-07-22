@@ -596,48 +596,84 @@ public class CardManager : MonoBehaviour
         }
     }
 
-    // Invoca um Mago Lendário aleatório quando os 3 Magos tier-2 estão em campo
-    public void InvokeRandomLegendaryMage(int ownerPlayerNumber, CardTile nearTile)
+    // ═══════════ LENDÁRIOS DAS TRÍADES (v4.3) ═══════════
+    // Cartas EXCLUSIVAS: não existem no pool nem na loja — só nascem quando a
+    // tríade tier-2 da classe fecha. Criadas em runtime (ScriptableObject) de
+    // propósito: nenhum sorteio/refresh as conhece. Arte emprestada de um T5
+    // da classe (allBaseCards é o catálogo — nunca esvazia como o pool).
+    // Stats únicos dentro de classe+tier (regra do dispatch por stats):
+    //   Arcanor  Mago   T5 6/0/7 (T5 existentes: 5/5, 4/6, 5/6)
+    //   Serafina Healer T5 3/0/8 (T5 existentes: 3/6, 2/7, 3/7)
+    static Card arcanorCard;
+    static Card serafinaCard;
+
+    Card GetTriadLegendaryCard(CardClass cls)
+    {
+        if (cls == CardClass.Mago && arcanorCard != null) return arcanorCard;
+        if (cls == CardClass.Healer && serafinaCard != null) return serafinaCard;
+
+        Card c = ScriptableObject.CreateInstance<Card>();
+        if (cls == CardClass.Mago)
+        {
+            c.cardName = "Arcanor, o Primordial";
+            c.cardClass = CardClass.Mago;
+            c.tier = CardTier.Tier5;
+            c.attack = 6; c.shield = 0; c.health = 7;
+            c.effectDescription = "Lendário da tríade. Ao entrar: Cataclisma — 2 de dano em TODOS os inimigos. Todo round, dispara um raio de 2 de dano num inimigo à sua escolha";
+            arcanorCard = c;
+        }
+        else
+        {
+            c.cardName = "Serafina, a Eterna";
+            c.cardClass = CardClass.Healer;
+            c.tier = CardTier.Tier5;
+            c.attack = 3; c.shield = 0; c.health = 8;
+            c.effectDescription = "Lendária da tríade. Todo round, cura 2 em todos os aliados";
+            serafinaCard = c;
+        }
+        c.artwork = BorrowTier5Artwork(cls);
+        return c;
+    }
+
+    Sprite BorrowTier5Artwork(CardClass cls)
     {
         CardPool cardPool = FindObjectOfType<CardPool>();
-        if (cardPool == null) return;
+        if (cardPool == null) return null;
+        foreach (Card b in cardPool.allBaseCards)
+            if (b != null && b.cardClass == cls && b.tier == CardTier.Tier5 && b.artwork != null)
+                return b.artwork;
+        return null;
+    }
 
+    // Invoca o lendário exclusivo da tríade num tile vazio perto da carta que
+    // fechou o combo. Determinístico: carta fixa (sem sorteio) +
+    // FindAdjacentEmptyTile (varredura em ordem fixa) — roda no fluxo do RPC
+    // de colocar a 3ª carta, idêntico nos dois clientes.
+    public void InvokeTriadLegendary(CardClass cls, int ownerPlayerNumber, CardTile nearTile)
+    {
         BoardManager board = BoardManager.Instance;
         if (board == null) return;
 
-        // Procura por Magos nos tiers 3-4 (lendários)
-        var allCards = cardPool.GetAvailableCards();
-        var legendaryMages = allCards.FindAll(c =>
-            c.cardData.cardClass == CardClass.Mago &&
-            (c.cardData.tier == CardTier.Tier3 || c.cardData.tier == CardTier.Tier4));
-
-        if (legendaryMages.Count == 0)
-        {
-            Debug.Log("[InvokeLegendaryMage] Nenhum Mago Lendário disponível para invocar!");
-            return;
-        }
-
-        // Escolhe um Mago aleatório
-        CardInstance invokedCard = legendaryMages[Random.Range(0, legendaryMages.Count)];
-
-        // Encontra um tile vazio próximo para spawnar
         CardTile spawnTile = nearTile;
         if (nearTile != null && nearTile.IsOccupied())
         {
             spawnTile = board.FindAdjacentEmptyTile(nearTile, ownerPlayerNumber);
         }
 
-        if (spawnTile != null)
+        if (spawnTile == null)
         {
-            CardDisplay mageDisplay = SpawnCardOnTile(invokedCard.cardData, spawnTile, ownerPlayerNumber);
-            if (mageDisplay != null)
-            {
-                Debug.Log($"[InvokeLegendaryMage] Invocado {mageDisplay.card.cardName}!");
-            }
+            Debug.Log("[TriadLegendary] Nenhum tile vazio disponível para spawnar!");
+            return;
         }
-        else
+
+        Card legend = GetTriadLegendaryCard(cls);
+        CardDisplay display = SpawnCardOnTile(legend, spawnTile, ownerPlayerNumber);
+        if (display != null)
         {
-            Debug.Log("[InvokeLegendaryMage] Nenhum tile vazio disponível para spawnar!");
+            FloatingTextFX.ShowAboveCard(display,
+                cls == CardClass.Mago ? "ARCANOR DESPERTA!" : "SERAFINA DESPERTA!",
+                FloatingTextFX.EffectColor, 4.6f);
+            Debug.Log($"[TriadLegendary] Invocado {legend.cardName}!");
         }
     }
 }

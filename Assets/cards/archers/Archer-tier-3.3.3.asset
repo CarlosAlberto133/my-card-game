@@ -19,5 +19,5 @@ MonoBehaviour:
   attack: 3
   shield: 0
   health: 2
-  effectDescription: "Cause 2 de cado \xE0 torre inimiga. Caso tenha um mago em campo
-    pode se movimentar 2 vezes"
+  effectDescription: "Cause 2 de dano \xE0 torre inimiga. Caso tenha um mago em campo
+    pode se movimentar 2 vezes. Ponta perfurante: seus ataques quebram 1 de armadura extra do alvo"

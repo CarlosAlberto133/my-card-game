@@ -2800,6 +2800,21 @@ public class CardDisplay : MonoBehaviour
             }
         }
 
+        // PONTA PERFURANTE (v4.3): a linha anti-tank do early/mid game —
+        // Sanguinária T1 (2/3), Couraçada T3 (4/3) e Sabotadora T3 (3/2)
+        // quebram 1 de armadura extra do alvo antes do golpe. Contra alvo sem
+        // escudo não faz nada; empilha com a Matilha (degrau 2 = 2 de escudo).
+        // Determinístico (só estado do tabuleiro), roda no fluxo do RPC de ataque
+        if (card.cardClass == CardClass.Arqueiro && target.currentShield > 0 &&
+            ((card.tier == CardTier.Tier1 && card.attack == 2 && card.health == 3) ||
+             (card.tier == CardTier.Tier3 && card.attack == 4 && card.health == 3) ||
+             (card.tier == CardTier.Tier3 && card.attack == 3 && card.health == 2)))
+        {
+            target.currentShield -= 1;
+            FloatingTextFX.ShowAboveCard(target, "PERFUROU! -1 ARMADURA", FloatingTextFX.EffectColor, 3.6f);
+            Debug.Log($"[PontaPerfurante] {card.cardName}: quebrou 1 de armadura de {target.card.cardName}");
+        }
+
         // Tile do alvo capturado ANTES do dano — se o alvo morrer, o tile é
         // liberado e o respingo do Mago 3 (3/5) perderia a referência
         CardTile targetTileForSplash = target.currentTile;
@@ -3146,6 +3161,13 @@ public class CardDisplay : MonoBehaviour
             return; // Pausa o dano enquanto aguarda resposta
         }
 
+        // Telemetria: dano EFETIVO = escudo consumido + vida perdida (sem contar
+        // overkill). BUGFIX: este caminho (o principal, de TODO ataque direto)
+        // nunca registrava — só o ApplyDamageNormally (danos adiados por popup)
+        // registrava, então o "Mais dano" do dashboard via só uma fração do real
+        int shieldPart = skipShield ? 0 : Mathf.Min(currentShield, damage);
+        int effectiveDamage = shieldPart + Mathf.Max(0, Mathf.Min(currentHealth, damage - shieldPart));
+
         // Primeiro o escudo absorve o dano (a menos que a flecha ignore armadura)
         if (!skipShield && currentShield > 0)
         {
@@ -3159,6 +3181,9 @@ public class CardDisplay : MonoBehaviour
         {
             currentHealth -= damage;
         }
+
+        MatchStatsTracker.RecordDamage(attacker != null ? attacker : MatchStatsTracker.EffectSource,
+                                       this, effectiveDamage);
 
         // Atualiza a UI
         UpdateCardDisplay();

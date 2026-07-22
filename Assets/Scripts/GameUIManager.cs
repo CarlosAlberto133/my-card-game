@@ -1089,9 +1089,9 @@ public class GameUIManager : MonoBehaviour
         sb.AppendLine("<b>Tríades (as 3 em campo ativam o bônus):</b>");
         AppendOneTriad(sb, myCards, "Arqueiros (+5 ATK a todos os aliados)", CardClass.Arqueiro,
             new int[][] { new[] { 2, 0, 2 }, new[] { 3, 0, 2 }, new[] { 2, 0, 3 } });
-        AppendOneTriad(sb, myCards, "Healers (ouro e vida da torre no máximo)", CardClass.Healer,
+        AppendOneTriad(sb, myCards, "Healers (invocam Serafina, a Eterna)", CardClass.Healer,
             new int[][] { new[] { 1, 0, 4 }, new[] { 0, 0, 4 }, new[] { 0, 0, 3 } });
-        AppendOneTriad(sb, myCards, "Magos (invoca Mago Lendário)", CardClass.Mago,
+        AppendOneTriad(sb, myCards, "Magos (invocam Arcanor, o Primordial)", CardClass.Mago,
             new int[][] { new[] { 2, 0, 4 }, new[] { 2, 0, 3 }, new[] { 3, 0, 3 } });
         AppendOneTriad(sb, myCards, "Tanks (+10 armadura a todos os aliados)", CardClass.Tank,
             new int[][] { new[] { 1, 2, 4 }, new[] { 1, 3, 3 }, new[] { 0, 3, 4 } });

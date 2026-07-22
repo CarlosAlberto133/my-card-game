@@ -917,7 +917,7 @@ public class BotController : MonoBehaviour
                 case 6: target = BiggestBonusOf(candidates); break;
                 case 7: target = HighestAttackOf(candidates); break;
                 case 8: target = HighestThreatOf(candidates); break;
-                case 10: case 13: case 14: target = HighestThreatOf(candidates); break;
+                case 10: case 13: case 14: case 17: target = HighestThreatOf(candidates); break;
                 case 11: case 12: case 15: case 16: target = HighestAttackOf(candidates); break;
                 default: target = StrongestOf(candidates); break; // 4, 9 e novos
             }

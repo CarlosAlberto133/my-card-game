@@ -1426,6 +1426,7 @@ public class GameManager : MonoBehaviour
             case 14: effect.ActivateFireballChosen(target); break;        // Mago 5 (5/6): bola de fogo 5+2
             case 15: effect.ActivateFreezePerRoundChosen(target, true); break;  // Mago 5 (5/5): 1º congelamento
             case 16: effect.ActivateFreezePerRoundChosen(target, false); break; // Mago 5 (5/5): 2º congelamento (Tank)
+            case 17: effect.ActivateArcanorRayChosen(target); break;            // Arcanor (lendário): raio de 2 por round
             default:
                 Debug.LogError($"[GameManager] Tipo de efeito com alvo desconhecido: {effectType}");
                 break;

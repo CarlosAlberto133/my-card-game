@@ -250,7 +250,7 @@ const $ = (id) => document.getElementById(id);
 const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const state = { posts: [], reports: [], reportsLoaded: false, filter: 'tudo', admin: false, editingId: null, expandedId: null,
-  stats: [], statsLoaded: false, statMetric: 'damage_dealt', statGroup: 'card', statVersion: 'all', statShowAll: false };
+  stats: [], statsLoaded: false, statMetric: 'damage_dealt', statGroup: 'card', statVersion: 'all', statShowAll: false, statClass: 'all' };
 let currentUser = null;
 
 function isAdmin() {
@@ -536,13 +536,27 @@ function renderStatControls(versions) {
     '<button data-group="class"' + (state.statGroup === 'class' ? ' class="on"' : '') + '>Por classe</button>';
   const verOpts = ['<option value="all"' + (state.statVersion === 'all' ? ' selected' : '') + '>Todas as versões</option>']
     .concat(versions.map((v) => '<option value="' + esc(v) + '"' + (v === state.statVersion ? ' selected' : '') + '>Versão ' + esc(v) + '</option>')).join('');
-  return '<div class="stat-controls"><div class="seg">' + groupSeg + '</div>' +
+  // Filtro de classe: só na visão por carta (na visão por classe é redundante)
+  let classSeg = '';
+  if (state.statGroup === 'card') {
+    classSeg = '<div class="seg">' +
+      '<button data-cls="all"' + (state.statClass === 'all' ? ' class="on"' : '') + '>Todas</button>' +
+      STAT_CLASSES.map((c) =>
+        '<button data-cls="' + c + '"' + (c === state.statClass ? ' class="on"' : '') + '>' + c + 's</button>').join('') +
+      '</div>';
+  }
+  return '<div class="stat-controls"><div class="seg">' + groupSeg + '</div>' + classSeg +
     '<select id="statVer">' + verOpts + '</select></div>' +
     '<div class="stat-controls"><div class="seg">' + metricSeg + '</div></div>';
 }
 
+const STAT_CLASSES = ['Tank', 'Mago', 'Healer', 'Arqueiro'];
+
 function barsHtml(list) {
   const metric = state.statMetric;
+  // Filtro de classe (só faz sentido na visão por carta)
+  if (state.statGroup === 'card' && state.statClass !== 'all')
+    list = list.filter((e) => e.cls === state.statClass);
   let entries;
   if (metric === 'winrate') {
     // Win rate precisa de amostra mínima pra não virar ruído (100% de 1 partida)
@@ -616,7 +630,8 @@ async function renderStats() {
     '</div>';
 
   const section =
-    '<div class="stat-section"><h3>' + esc(metricLabel) + ' · ' + (state.statGroup === 'card' ? 'por carta' : 'por classe') + '</h3>' +
+    '<div class="stat-section"><h3>' + esc(metricLabel) + ' · ' + (state.statGroup === 'card' ? 'por carta' : 'por classe') +
+    (state.statGroup === 'card' && state.statClass !== 'all' ? ' · só ' + esc(state.statClass) + 's' : '') + '</h3>' +
     barsHtml(list) + '</div>';
 
   box.innerHTML = renderStatControls(versions) + tiles + section;
@@ -624,6 +639,7 @@ async function renderStats() {
   // Handlers dos controles
   box.querySelectorAll('[data-metric]').forEach((b) => (b.onclick = () => { state.statMetric = b.getAttribute('data-metric'); render(); }));
   box.querySelectorAll('[data-group]').forEach((b) => (b.onclick = () => { state.statGroup = b.getAttribute('data-group'); render(); }));
+  box.querySelectorAll('[data-cls]').forEach((b) => (b.onclick = () => { state.statClass = b.getAttribute('data-cls'); render(); }));
   const verSel = $('statVer');
   if (verSel) verSel.onchange = () => { state.statVersion = verSel.value; render(); };
   const more = $('seeMore');

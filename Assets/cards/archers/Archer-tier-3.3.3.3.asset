@@ -19,4 +19,4 @@ MonoBehaviour:
   attack: 4
   shield: 0
   health: 3
-  effectDescription: Caso tenha um tanque em campo, ao entrar ganhe 4 de armadura
+  effectDescription: Caso tenha um tanque em campo, ao entrar ganhe 4 de armadura. Ponta perfurante: seus ataques quebram 1 de armadura extra do alvo

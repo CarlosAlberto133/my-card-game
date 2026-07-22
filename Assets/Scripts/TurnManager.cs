@@ -332,6 +332,11 @@ public class TurnManager : MonoBehaviour
             try { ClassDevotion.OnRoundChanged(); }
             catch (System.Exception e) { Debug.LogError($"[EndTurn] ClassDevotion: {e}"); }
 
+            // Lendários das tríades (v4.3): raio do Arcanor (alvo à escolha
+            // do dono) + cura em área da Serafina — 1x por round, nos 2 clientes
+            try { ActivateTriadLegendaryPeriodics(); }
+            catch (System.Exception e) { Debug.LogError($"[EndTurn] TriadLegendaries: {e}"); }
+
             // Torres: efeitos periódicos + janela da loja mágica. DEPOIS da
             // renda do round — a loja mágica abre lendo o ouro JÁ atualizado
             // (antes o botão Comprar travava com o saldo velho). Roda dentro
@@ -663,6 +668,41 @@ public class TurnManager : MonoBehaviour
                     {
                         effect.ActivateMageBoostPerTurn();
                     }
+                }
+            }
+        }
+    }
+
+    // Efeitos por round dos lendários de tríade (Arcanor Mago 6/0/7, Serafina
+    // Healer 3/0/8 — cartas exclusivas, v4.3). Roda DENTRO do bloco de virada
+    // de round do EndTurn: exatamente 1x por round, idêntico nos 2 clientes.
+    // (Sem DuplicateEffectGate: cada tríade só fecha 1x por partida, então
+    // existe no máximo 1 lendário por classe por jogador.)
+    void ActivateTriadLegendaryPeriodics()
+    {
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        for (int playerNum = 1; playerNum <= 2; playerNum++)
+        {
+            var playerAllies = board.GetCardsByOwner(playerNum);
+            if (playerAllies.Count == 0) continue;
+
+            foreach (var card in playerAllies)
+            {
+                if (card == null || card.card == null) continue;
+
+                if (card.card.cardClass == CardClass.Mago && card.card.tier == CardTier.Tier5 &&
+                    card.card.attack == 6 && card.card.health == 7)
+                {
+                    CardEffectSimple effect = card.GetComponent<CardEffectSimple>();
+                    if (effect != null) effect.ActivateArcanorRay();
+                }
+                else if (card.card.cardClass == CardClass.Healer && card.card.tier == CardTier.Tier5 &&
+                    card.card.attack == 3 && card.card.health == 8)
+                {
+                    CardEffectSimple effect = card.GetComponent<CardEffectSimple>();
+                    if (effect != null) effect.ActivateSerafinaHeal();
                 }
             }
         }

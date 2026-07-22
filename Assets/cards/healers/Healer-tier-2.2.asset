@@ -19,5 +19,5 @@ MonoBehaviour:
   attack: 1
   shield: 0
   health: 4
-  effectDescription: "Carta triade. Caso tenha os outros healers em campo, restaure
-    o m\xE1ximo de ouro e vida da torre"
+  effectDescription: "Carta triade. Caso tenha os outros healers em campo, invoque
+    Serafina, a Eterna"

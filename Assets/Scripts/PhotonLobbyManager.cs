@@ -16,7 +16,12 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
     // de simulação. "4.1" = rebalance das 4 classes (tanks/arqueiros/healers/magos).
     // 4.2: travar cartas individuais na loja mudou o refresh (sorteios dependem
     // das travas) + RPC novo — builds 4.1 não podem parear com esta
-    public const string GameVersion = "4.2";
+    // 4.3: Ponta Perfurante (Sanguinária/Couraçada/Sabotadora quebram 1 de
+    // armadura ao atacar) muda a simulação + telemetria de dano corrigida
+    // (TakeDamage não registrava — números de dano antigos são subcontados)
+    // + lendários das tríades (Arcanor 6/0/7 cataclisma/raio tipo 17;
+    // Serafina 3/0/8 cura em área por round) no lugar dos payoffs antigos
+    public const string GameVersion = "4.3";
 
     public Button createRoomButton;
     public Button joinRoomButton;

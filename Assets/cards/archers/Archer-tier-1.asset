@@ -19,4 +19,4 @@ MonoBehaviour:
   attack: 2
   shield: 0
   health: 3
-  effectDescription: Perca 2 de vida para fanhar +1 de ataque
+  effectDescription: Perca 2 de vida para ganhar +1 de ataque. Ponta perfurante: seus ataques quebram 1 de armadura extra do alvo

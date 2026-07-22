@@ -113,6 +113,32 @@ public class CardEffectSimple : MonoBehaviour
             HealerTier5Effect2_PeriodicAllyHeal();
         else if (baseAtk == 3 && baseHp == 7)
             HealerTier5Effect3_DoubleAllyStats();
+        else if (baseAtk == 3 && baseHp == 8)
+            Debug.Log("[Serafina] Pronta para curar todos os aliados a cada round"); // lendária da tríade (v4.3), hook no TurnManager
+    }
+
+    // ═══════════ SERAFINA, A ETERNA (lendária da tríade, v4.3) ═══════════
+    // Carta exclusiva 3/0/8 que só nasce da tríade das Healers tier-2.
+    // Todo round (hook na virada de round do TurnManager): cura 2 em TODOS os
+    // aliados (ela inclusa). Heal() clampa no máximo e dispara os gatilhos
+    // "quando curado" — ordem fixa do tabuleiro = determinístico.
+    public void ActivateSerafinaHeal()
+    {
+        if (cardDisplay == null) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
+        int healed = 0;
+        foreach (var ally in allies)
+        {
+            if (ally == null || ally.card == null) continue;
+            ally.Heal(2, cardDisplay);
+            healed++;
+        }
+        if (healed > 0)
+            Debug.Log($"[Serafina] Curou 2 em {healed} aliado(s)");
     }
 
     // Efeito 1: Healer 5 (ATK 3, HP 6) - Ao entrar concede 1 compra grátis.
@@ -1171,33 +1197,28 @@ public class CardEffectSimple : MonoBehaviour
         // Se as 3 Healers tier-2 estão em campo, ativa combo
         if (has14 && has04 && has03)
         {
-            PlayerData player = TurnManager.Instance?.GetPlayer(cardDisplay.ownerPlayerNumber);
-            if (player != null)
-            {
-                // Restaura ouro máximo (10)
-                player.gold = 10;
-                // Restaura a vida máxima da TORRE — contando bônus de magia
-                // (Muralha/Muros). Max() garante que NUNCA reduz: uma torre
-                // com 38/40 não pode voltar para 30 por causa da "cura"
-                player.health = Mathf.Max(player.health,
-                    TowerSystem.MaxTowerHealth(player.playerNumber));
+            // v4.3: invoca SERAFINA, A ETERNA (carta exclusiva 3/0/8) — o
+            // "ouro/vida da torre no máximo" antigo era fraquíssimo (ouro já
+            // em 8 = combo de +2) e saiu
+            CardManager cardManager = CardManager.Instance;
+            if (cardManager != null)
+                cardManager.InvokeTriadLegendary(CardClass.Healer, cardDisplay.ownerPlayerNumber, cardDisplay.currentTile);
 
-                // Marca que o combo foi ativado para todas as 3
-                foreach (var ally in allies)
+            // Marca que o combo foi ativado para todas as 3
+            foreach (var ally in allies)
+            {
+                if (ally != null && ally.card.cardClass == CardClass.Healer && ally.card.tier == CardTier.Tier2)
                 {
-                    if (ally != null && ally.card.cardClass == CardClass.Healer && ally.card.tier == CardTier.Tier2)
+                    if ((ally.card.attack == 1 && ally.card.health == 4) ||
+                        (ally.card.attack == 0 && ally.card.health == 4) ||
+                        (ally.card.attack == 0 && ally.card.health == 3))
                     {
-                        if ((ally.card.attack == 1 && ally.card.health == 4) ||
-                            (ally.card.attack == 0 && ally.card.health == 4) ||
-                            (ally.card.attack == 0 && ally.card.health == 3))
-                        {
-                            ally.healerComboActivated = true;
-                        }
+                        ally.healerComboActivated = true;
                     }
                 }
-
-                Debug.Log($"[HealerCombo] As 3 Healers tier-2 estão em campo! Ouro e Vida restaurados ao máximo!");
             }
+
+            Debug.Log($"[HealerCombo] As 3 Healers tier-2 estão em campo! Invocando Serafina, a Eterna!");
         }
     }
 
@@ -1876,7 +1897,10 @@ public class CardEffectSimple : MonoBehaviour
             CardManager cardManager = CardManager.Instance;
             if (cardManager != null)
             {
-                cardManager.InvokeRandomLegendaryMage(cardDisplay.ownerPlayerNumber, cardDisplay.currentTile);
+                // v4.3: invoca ARCANOR, O PRIMORDIAL (carta exclusiva 6/0/7) —
+                // antes vinha um mago qualquer de tier 3-4 do pool, que não
+                // tinha nada de "lendário"
+                cardManager.InvokeTriadLegendary(CardClass.Mago, cardDisplay.ownerPlayerNumber, cardDisplay.currentTile);
 
                 // Marca que o combo foi ativado para todos os 3
                 foreach (var ally in allies)
@@ -2049,6 +2073,70 @@ public class CardEffectSimple : MonoBehaviour
             MageTier5Effect2_CopyEnemyStats();
         else if (baseAtk == 5 && baseHp == 6)
             MageTier5Effect3_FireballAndMageBoost();
+        else if (baseAtk == 6 && baseHp == 7)
+            ArcanorOnEnter_Cataclysm(); // lendário da tríade (v4.3)
+    }
+
+    // ═══════════ ARCANOR, O PRIMORDIAL (lendário da tríade, v4.3) ═══════════
+    // Carta exclusiva 6/0/7 que só nasce da tríade dos Magos tier-2.
+    // Ao entrar: CATACLISMA — dano em TODOS os inimigos (2 + Escola Arcana).
+    // Alvos coletados ANTES do dano (TakeDamage pode matar e mexer nas listas).
+    // Determinístico: sem sorteio, ordem fixa do tabuleiro, roda no fluxo do
+    // RPC que colocou a 3ª carta da tríade.
+    void ArcanorOnEnter_Cataclysm()
+    {
+        if (cardDisplay == null) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        int damage = 2 + ClassDevotion.MageEffectBonus(cardDisplay.ownerPlayerNumber);
+        int enemyPlayer = cardDisplay.ownerPlayerNumber == 1 ? 2 : 1;
+        var targets = new List<CardDisplay>();
+        foreach (var c in board.GetCardsByOwner(enemyPlayer))
+        {
+            if (c == null || c.card == null || c.currentTile == null) continue;
+            targets.Add(c);
+        }
+
+        Debug.Log($"[Arcanor] CATACLISMA: {damage} de dano em {targets.Count} inimigo(s)!");
+        MatchStatsTracker.EffectSource = cardDisplay;
+        foreach (var t in targets)
+        {
+            EffectProjectileFX.Launch(cardDisplay, t, EffectProjectileFX.Arcane, 0.9f);
+            FloatingTextFX.ShowAboveCard(t, "CATACLISMA!", FloatingTextFX.EffectColor, 3.8f);
+            t.TakeDamage(damage);
+        }
+        MatchStatsTracker.EffectSource = null;
+    }
+
+    // Todo round (hook no bloco de virada de round do TurnManager): o dono
+    // ESCOLHE o alvo do raio — tipo 17 no dispatch do GameManager
+    public void ActivateArcanorRay()
+    {
+        if (cardDisplay == null) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        int enemyPlayerNumber = cardDisplay.ownerPlayerNumber == 1 ? 2 : 1;
+        var enemies = board.GetCardsByOwner(enemyPlayerNumber);
+        if (enemies.Count == 0) return;
+
+        if (GameManager.Instance != null)
+            GameManager.Instance.StartEffectTargetSelection(cardDisplay, 17,
+                new List<CardDisplay>(enemies), "Arcanor: escolha o alvo do raio (2 de dano)");
+    }
+
+    public void ActivateArcanorRayChosen(CardDisplay target)
+    {
+        if (cardDisplay == null || target == null) return;
+
+        int damage = 2 + ClassDevotion.MageEffectBonus(cardDisplay.ownerPlayerNumber);
+        MatchStatsTracker.EffectSource = cardDisplay;
+        target.TakeDamage(damage);
+        MatchStatsTracker.EffectSource = null;
+        Debug.Log($"[Arcanor] Raio de {damage} em {target.card.cardName}!");
     }
 
     // Efeito 1: Mage 5 (ATK 5, HP 5) - Congela um inimigo aleatório por round, duplicado se tem Tank
