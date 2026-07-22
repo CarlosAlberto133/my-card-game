@@ -20,4 +20,4 @@ MonoBehaviour:
   shield: 3
   health: 5
   effectDescription: Carta triade. Caso os outros guerreiros estejam em campo, conceda
-    +10 de armadura a todos
+    +5 de armadura a todos

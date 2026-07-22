@@ -2889,14 +2889,15 @@ public class CardEffectSimple : MonoBehaviour
         }
 
         // Se os 3 Tanks tier-2 defensores estão em campo, ativa combo:
-        // "+10 de armadura a todos" = TODOS os aliados no tabuleiro
+        // "+5 de armadura a todos" = TODOS os aliados no tabuleiro
+        // (v4.3: era +10 — nerf pedido pelo Carlos, engessava demais o jogo)
         if (has124 && has133 && has034)
         {
             foreach (var ally in allies)
             {
                 if (ally == null || ally.card == null) continue;
 
-                ally.currentShield += 10;
+                ally.currentShield += 5;
                 ally.UpdateDisplay();
 
                 // Trava de "1x por partida" SÓ nos 3 defensores da tríade
@@ -2910,7 +2911,7 @@ public class CardEffectSimple : MonoBehaviour
                 }
             }
 
-            Debug.Log($"[TankCombo] Os 3 Tanks tier-2 defensores estão em campo! +10 armadura para TODOS os aliados!");
+            Debug.Log($"[TankCombo] Os 3 Tanks tier-2 defensores estão em campo! +5 de armadura para TODOS os aliados!");
         }
     }
 

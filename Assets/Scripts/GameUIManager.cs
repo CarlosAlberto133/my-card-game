@@ -1123,7 +1123,7 @@ public class GameUIManager : MonoBehaviour
             new int[][] { new[] { 1, 0, 4 }, new[] { 0, 0, 4 }, new[] { 0, 0, 3 } });
         AppendOneTriad(sb, myCards, "Magos (invocam Arcanor, o Primordial)", CardClass.Mago,
             new int[][] { new[] { 2, 0, 4 }, new[] { 2, 0, 3 }, new[] { 3, 0, 3 } });
-        AppendOneTriad(sb, myCards, "Tanks (+10 armadura a todos os aliados)", CardClass.Tank,
+        AppendOneTriad(sb, myCards, "Tanks (+5 de armadura a todos os aliados)", CardClass.Tank,
             new int[][] { new[] { 1, 2, 4 }, new[] { 1, 3, 3 }, new[] { 0, 3, 4 } });
     }
 
