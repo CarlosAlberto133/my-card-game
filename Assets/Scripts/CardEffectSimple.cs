@@ -5,7 +5,12 @@ public class CardEffectSimple : MonoBehaviour
 {
     CardDisplay cardDisplay;
 
-    void Start()
+    // Awake (e NÃO Start): cartas invocadas/copiadas (SpawnCardOnTile) têm o
+    // ApplyCardEffect chamado NO MESMO instante do Instantiate — o Start só
+    // roda no frame seguinte, então TODO efeito de entrada dessas cartas era
+    // engolido em silêncio pelo guard "cardDisplay == null" (foi o Cataclisma
+    // do Arcanor que denunciou). Awake roda dentro do Instantiate: garantido.
+    void Awake()
     {
         cardDisplay = GetComponent<CardDisplay>();
     }
