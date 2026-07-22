@@ -20,4 +20,4 @@ MonoBehaviour:
   shield: 0
   health: 4
   effectDescription: "Escolha um inimigo e decida: congelar por um turno ou causar 1 de dano a
-    cada 2 turnos. Caso tenha um healer e um tanque aliado em campo, fa\xE7a os 2"
+    cada 3 turnos. Caso tenha um healer e um tanque aliado em campo, fa\xE7a os 2"

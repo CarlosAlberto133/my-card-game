@@ -3055,10 +3055,11 @@ public class CardEffectSimple : MonoBehaviour
         else if (c.cardClass == CardClass.Mago && c.tier == CardTier.Tier4 && c.attack == 4 && c.health == 4)
             cardDisplay.StartEffectCounter(2, false, true);
 
-        // Mage 3 (ATK 3, HP 4): congelar OU causar 1 de dano, a cada 2 TURNOS
-        // (delay pedido pelo Carlos — antes disparava todo turno, forte demais)
+        // Mage 3 "Invernal" (ATK 3, HP 4): congelar OU causar 1 de dano, a
+        // cada 3 TURNOS (v4.3: era 2 — Carlos pediu mais respiro; antes disso
+        // já tinha descido de "todo turno" pra 2)
         else if (c.cardClass == CardClass.Mago && c.tier == CardTier.Tier3 && c.attack == 3 && c.health == 4)
-            cardDisplay.StartEffectCounter(2, false, true);
+            cardDisplay.StartEffectCounter(3, false, true);
     }
 
     // Chamado pelo CardDisplay quando o contador periódico chega a 0
