@@ -3297,6 +3297,9 @@ public class CardDisplay : MonoBehaviour
         treeDefenseActive = true;
         treeDefenseUsed = true;
         FloatingTextFX.ShowAboveCard(this, "ESQUIVOU NA ÁRVORE!", FloatingTextFX.EffectColor, 4.2f);
+        // Refresh visual NA HORA: o dano é negado (nada mais redesenha a
+        // carta), então sem esta chamada o selo "NA ÁRVORE" nunca aparecia
+        UpdateDisplay();
         Debug.Log($"[TreeDefense] {card.cardName} ativou o efeito! Esquivando dano neste turno.");
     }
 

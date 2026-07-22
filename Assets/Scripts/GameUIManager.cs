@@ -226,9 +226,39 @@ public class GameUIManager : MonoBehaviour
         ColorText(turnInfoText, info, true);
         ColorText(roundText, new Color(0.96f, 0.77f, 0.32f), true);
 
+        // Cliques ATRAVESSAM o HUD do topo (pedido do Carlos, v4.3): os textos
+        // (TMP tem raycastTarget ligado por padrão) e os painéis de fundo
+        // engoliam o clique — o guard IsPointerOverGameObject() dos cliques 3D
+        // fazia o P2 ter que levantar a câmera pra alcançar as cartas de cima
+        MakeHudClickThrough(player1NameText, player1GoldText, player1HealthText,
+            player2NameText, player2GoldText, player2HealthText,
+            turnInfoText, roundText);
+
         // Os cards são desenhados a partir da ÁREA dos textos — que só existe
         // depois que a UI é preenchida. Espera 2 frames antes de medir.
         StartCoroutine(BuildHudCardsDeferred());
+    }
+
+    // Desliga o raycast dos textos do HUD e das Images dos painéis pais (até o
+    // Canvas), preservando qualquer elemento interativo (Button/Toggle etc.)
+    void MakeHudClickThrough(params TextMeshProUGUI[] members)
+    {
+        foreach (var m in members)
+        {
+            if (m == null) continue;
+            m.raycastTarget = false;
+
+            Transform t = m.transform.parent;
+            while (t != null && t.GetComponent<Canvas>() == null)
+            {
+                foreach (var g in t.GetComponents<UnityEngine.UI.Graphic>())
+                {
+                    if (g.GetComponent<UnityEngine.UI.Selectable>() == null)
+                        g.raycastTarget = false;
+                }
+                t = t.parent;
+            }
+        }
     }
 
     System.Collections.IEnumerator BuildHudCardsDeferred()

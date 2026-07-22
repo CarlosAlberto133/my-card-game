@@ -518,7 +518,13 @@ public class TurnManager : MonoBehaviour
             {
                 if (card == null || card.card == null) continue;
 
-                card.treeDefenseActive = false; // Dodge de árvore do Archer (por turno)
+                // Dodge de árvore do Archer (por turno) — com refresh visual
+                // quando estava ativo, para o selo "NA ÁRVORE" apagar na hora
+                if (card.treeDefenseActive)
+                {
+                    card.treeDefenseActive = false;
+                    card.UpdateDisplay();
+                }
                 card.treeDefensePopupShown = false;
                 card.tankTier4Effect2LastUsedRound = -1; // Intercepto do Tank 4: 1x por TURNO
             }

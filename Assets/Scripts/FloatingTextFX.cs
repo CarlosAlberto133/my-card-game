@@ -34,8 +34,9 @@ public class FloatingTextFX : MonoBehaviour
 
     // Multiplicador GLOBAL do tamanho dos popups (dano/cura/efeitos/debuffs).
     // Pedido do Carlos (jul/2026): estavam pequenos e difíceis de perceber.
-    // Mexer só aqui escala TODOS mantendo as proporções entre eles
-    const float SizeBoost = 1.5f;
+    // Mexer só aqui escala TODOS mantendo as proporções entre eles.
+    // 22/jul: 1.5 ainda estava pequeno → 2.4 ("bem visível")
+    const float SizeBoost = 2.4f;
 
     public static void Show(Vector3 worldPos, string text, Color color, float size = 5f)
     {
@@ -46,7 +47,7 @@ public class FloatingTextFX : MonoBehaviour
             lastSpawnFrame = Time.frameCount;
             spawnsThisFrame = 0;
         }
-        float stackOffset = spawnsThisFrame * 1.1f;
+        float stackOffset = spawnsThisFrame * 1.8f; // espaçamento acompanha o texto maior
         spawnsThisFrame++;
 
         GameObject go = new GameObject("FloatingText");
