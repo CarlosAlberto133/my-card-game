@@ -19,5 +19,5 @@ MonoBehaviour:
   attack: 3
   shield: 8
   health: 9
-  effectDescription: Ao derrotar um monstro, conceda armadura a todas as cartas no
-    tabuleiro. Magos e Arqueiros ganham 1 a mais de ataque
+  effectDescription: Sempre que sobreviver a um ataque, conceda +1 de armadura a todos
+    os aliados. Magos e Arqueiros ganham +1 de ataque junto

@@ -19,5 +19,5 @@ MonoBehaviour:
   attack: 2
   shield: 0
   health: 7
-  effectDescription: "Enquanto est\xE1 carta estiver em campo cure todos os seu aliados
+  effectDescription: "Enquanto esta carta estiver em campo, cure todos os seus aliados
     em 2 de vida e escudo"

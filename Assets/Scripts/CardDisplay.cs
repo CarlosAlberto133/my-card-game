@@ -76,6 +76,7 @@ public class CardDisplay : MonoBehaviour
     // do Carlos: "jogo parado e congestionado")
     public int garrisonShieldGrants = 0;   // Guarnição da torre: máx. 4 por unidade
     public int matriarcaMaxHpGrants = 0;   // Matriarca (+1 vida máx.): máx. 3 por unidade
+    public int canalizadorAtkGrants = 0;   // Canalizador (+1 ATK por cura aliada): máx. 5 (v4.3)
     public int currentAttack;
 
     // Escalas padrão por zona (o tabuleiro tem tiles 6x6, cartas pequenas ficavam ilegíveis).
@@ -595,26 +596,8 @@ public class CardDisplay : MonoBehaviour
             effect.SetupPeriodicCounter();
         }
 
-        // Hook: Mage 4 (ATK 4, HP 6) ganha +1 ATK quando Healer entra em campo
-        if (card.cardClass == CardClass.Healer && ownerPlayerNumber != 0)
-        {
-            BoardManager board = BoardManager.Instance;
-            if (board != null)
-            {
-                var alliedMages = board.GetCardsByOwner(ownerPlayerNumber);
-                foreach (var mage in alliedMages)
-                {
-                    if (mage != null && mage.card.cardClass == CardClass.Mago &&
-                        mage.card.attack == 4 && mage.card.health == 6 && mage.card.tier == CardTier.Tier4)
-                    {
-                        if (!DuplicateEffectGate.TryActivate(mage)) continue;
-                        CardEffectSimple mageEffect = mage.GetComponent<CardEffectSimple>();
-                        if (mageEffect != null)
-                            mageEffect.ActivateBoostOnHealerEnter();
-                    }
-                }
-            }
-        }
+        // (Canalizador — Mago T4 4/6 — v4.3: o gancho "+1 ATK quando healer
+        // entra" virou "+1 ATK quando um aliado é CURADO", dentro do Heal())
     }
 
     void ApplyMageEffect()
@@ -2903,6 +2886,21 @@ public class CardDisplay : MonoBehaviour
             }
         }
 
+        // Canalizador — Mago T4 (4/6), v4.3: +1 ATK sempre que um aliado é
+        // curado (máx. +5). Era "+1 quando healer ENTRA em campo" — dependia
+        // de compras futuras e quase nunca disparava (2 compras, 33% WR)
+        foreach (var ally in allies)
+        {
+            if (ally != null && ally.card.cardClass == CardClass.Mago &&
+                ally.card.attack == 4 && ally.card.health == 6 &&
+                ally.card.tier == CardTier.Tier4)
+            {
+                if (!DuplicateEffectGate.TryActivate(ally)) continue;
+                CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                if (effect != null) effect.ActivateBoostOnAllyHealed();
+            }
+        }
+
         // Tanks "quando curado": só quando ESTA carta (a que foi curada) é o
         // tank. BUGFIX: antes o bônus disparava quando QUALQUER aliado era
         // curado — com um healer periódico os tanks inflavam sem limite
@@ -3206,6 +3204,18 @@ public class CardDisplay : MonoBehaviour
                 effect.ActivateAttackBoostOnDamage_Tier5Effect3();
         }
 
+        // Senhor da Guerra — Tank 5 (3/8/9), v4.3: SOBREVIVEU a um ATAQUE →
+        // +1 armadura a todos os aliados (+1 ATK a magos/arqueiros). Só
+        // ataques (attacker != null) — dano de efeito não conta
+        if (attacker != null && currentHealth > 0 &&
+            card.cardClass == CardClass.Tank && card.attack == 3 && card.shield == 8 && card.health == 9 &&
+            card.tier == CardTier.Tier5)
+        {
+            CardEffectSimple effect = GetComponent<CardEffectSimple>();
+            if (effect != null)
+                effect.ActivateWarlordOnSurvive();
+        }
+
         // Se um Healer toma dano, aplica efeito do Mago
         if (card.cardClass == CardClass.Healer && ownerPlayerNumber != 0)
         {
@@ -3453,6 +3463,12 @@ public class CardDisplay : MonoBehaviour
                     tankFx.ActivateAttackBoostOnDamage_Tier5Effect2();
                 else if (card.attack == 3 && card.shield == 7 && card.health == 11)
                     tankFx.ActivateAttackBoostOnDamage_Tier5Effect3();
+
+                // Senhor da Guerra (3/8/9), v4.3: sobreviveu a um ATAQUE
+                // (dano adiado/redirecionado também conta — attacker viaja junto)
+                if (attacker != null && currentHealth > 0 &&
+                    card.attack == 3 && card.shield == 8 && card.health == 9)
+                    tankFx.ActivateWarlordOnSurvive();
             }
         }
 
@@ -3506,17 +3522,8 @@ public class CardDisplay : MonoBehaviour
             if (killerFx != null) killerFx.ActivateCopyOnKill();
         }
 
-        // Tank 5 (ATK 3, Shield 8, HP 9): concede armadura a aliados ao matar
-        if (attackerCardDisplay != null &&
-            attackerCardDisplay.card.cardClass == CardClass.Tank &&
-            attackerCardDisplay.card.attack == 3 &&
-            attackerCardDisplay.card.shield == 8 &&
-            attackerCardDisplay.card.health == 9 &&
-            attackerCardDisplay.card.tier == CardTier.Tier5)
-        {
-            CardEffectSimple killerFx = attackerCardDisplay.GetComponent<CardEffectSimple>();
-            if (killerFx != null) killerFx.ActivateShieldOnKill();
-        }
+        // (Senhor da Guerra — Tank 5 3/8/9 — v4.3: o gancho "ao matar" virou
+        // "sobreviver a ataque", nos caminhos de dano TakeDamage/ApplyDamageNormally)
 
         // Inquisidora — Archer 4 (ATK 5, HP 3): matou um HEALER → pode se
         // mover de novo. Fica AQUI (e não na checagem logo após as flechadas)

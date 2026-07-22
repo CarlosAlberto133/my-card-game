@@ -19,4 +19,4 @@ MonoBehaviour:
   attack: 0
   shield: 2
   health: 5
-  effectDescription: Ganha +1 de ataque por cada mago em campo
+  effectDescription: Ganha +1 de ataque, e mais +1 por cada mago em campo

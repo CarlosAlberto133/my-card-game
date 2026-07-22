@@ -19,5 +19,5 @@ MonoBehaviour:
   attack: 1
   shield: 2
   health: 4
-  effectDescription: "Se houver um mago em campo, conceda +1 de armadura as cartas
-    na sua m\xE3o"
+  effectDescription: "Se houver um mago em campo, ao entrar conceda +1 de armadura
+    a todos os aliados em campo"

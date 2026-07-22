@@ -19,4 +19,4 @@ MonoBehaviour:
   attack: 4
   shield: 0
   health: 6
-  effectDescription: Ganha +1 de ataque sempre que um healer entrar no tabuleiro
+  effectDescription: Ganha +1 de ataque sempre que um aliado for curado (limite de +5)

@@ -19,4 +19,4 @@ MonoBehaviour:
   attack: 0
   shield: 2
   health: 4
-  effectDescription: Ganha +1 de atque toda vez que ganhar vida
+  effectDescription: Ganha +1 de ataque toda vez que ganhar vida

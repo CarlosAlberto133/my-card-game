@@ -1455,17 +1455,21 @@ public class CardEffectSimple : MonoBehaviour
     {
         if (cardDisplay == null) return;
 
-        // Este efeito é ativado via hook quando um Healer entra em campo
-        Debug.Log($"[MageTier4Effect2] {cardDisplay.card.cardName}: Pronta para ganhar +1 ATK quando Healer entrar");
+        // v4.3: o gatilho virou "aliado CURADO" (hook no CardDisplay.Heal) —
+        // era "healer ENTRAR em campo", que dependia de compras futuras e
+        // quase nunca disparava (33% WR)
+        Debug.Log($"[MageTier4Effect2] {cardDisplay.card.cardName}: Pronta para ganhar +1 ATK por cura aliada (máx. +5)");
     }
 
-    public void ActivateBoostOnHealerEnter()
+    public void ActivateBoostOnAllyHealed()
     {
         if (cardDisplay == null) return;
+        if (cardDisplay.canalizadorAtkGrants >= 5) return; // teto anti-bola-de-neve (padrão Matriarca/Guarnição)
 
+        cardDisplay.canalizadorAtkGrants++;
         cardDisplay.currentAttack += 1;
         cardDisplay.UpdateDisplay();
-        Debug.Log($"[MageTier4Effect2] {cardDisplay.card.cardName}: Ganhou +1 ATK! Total: {cardDisplay.currentAttack}");
+        Debug.Log($"[MageTier4Effect2] {cardDisplay.card.cardName}: +1 ATK por cura aliada ({cardDisplay.canalizadorAtkGrants}/5). Total: {cardDisplay.currentAttack}");
     }
 
     // Efeito 3: Mage 4 (ATK 3, HP 5) - Destruir inimigo de nível inferior, absorve 50% ataque se tem Tank + Healer + Arqueiro
@@ -2237,13 +2241,16 @@ public class CardEffectSimple : MonoBehaviour
     {
         if (cardDisplay == null || targetEnemy == null) return;
 
-        // Copia ataque e vida do inimigo
-        cardDisplay.currentAttack = targetEnemy.currentAttack;
-        cardDisplay.currentHealth = targetEnemy.currentHealth;
+        // v4.3: copia COM +1 em cada — copiar igual deixava um T5 no máximo
+        // empatado com a melhor carta do oponente (25% WR); agora o Metamorfo
+        // sempre supera o alvo copiado
+        cardDisplay.currentAttack = targetEnemy.currentAttack + 1;
+        cardDisplay.currentHealth = targetEnemy.currentHealth + 1;
 
         cardDisplay.UpdateDisplay();
         cardDisplay.mageTier5Effect2Used = true;
-        Debug.Log($"[MageTier5Effect2] {cardDisplay.card.cardName}: Copiou stats de {targetEnemy.card.cardName} (ATK: {targetEnemy.currentAttack}, HP: {targetEnemy.currentHealth})!");
+        FloatingTextFX.ShowAboveCard(cardDisplay, "METAMORFOSE!", FloatingTextFX.EffectColor, 4.0f);
+        Debug.Log($"[MageTier5Effect2] {cardDisplay.card.cardName}: Copiou stats de {targetEnemy.card.cardName} com +1 (ATK: {cardDisplay.currentAttack}, HP: {cardDisplay.currentHealth})!");
     }
 
     // Efeito 3: Mage 5 (ATK 5, HP 6) - Causa 5 de dano ao entrar (alvo à
@@ -2377,16 +2384,18 @@ public class CardEffectSimple : MonoBehaviour
             TankTier5Effect3_AttackOnDamageWithBonus();
     }
 
-    // Efeito 1: Tank 5 (ATK 3, Shield 7, HP 8) - Concede armadura a aliados ao matar inimigo
+    // Efeito 1: Senhor da Guerra — Tank 5 (ATK 3, Shield 8, HP 9).
+    // v4.3: era "ao matar" (2 compras, 33% WR) — tank de ATK 3 quase nunca dá
+    // o golpe final, o efeito não disparava. Agora o gatilho é SOBREVIVER a um
+    // ataque (hook nos 2 caminhos de dano): apanhar vira vantagem de exército.
     void TankTier5Effect1_ShieldOnKill()
     {
         if (cardDisplay == null) return;
 
-        // Este efeito é ativado via hook em AttackAdjacentEnemy ou TakeDamage
-        Debug.Log($"[TankTier5Effect1] {cardDisplay.card.cardName}: Pronta para conceder armadura ao matar");
+        Debug.Log($"[TankTier5Effect1] {cardDisplay.card.cardName}: Pronta para conceder armadura ao sobreviver a ataques");
     }
 
-    public void ActivateShieldOnKill()
+    public void ActivateWarlordOnSurvive()
     {
         if (cardDisplay == null) return;
 
@@ -2396,29 +2405,18 @@ public class CardEffectSimple : MonoBehaviour
         var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
         if (allies.Count == 0) return;
 
-        // Concede armadura a todos os aliados
-        int shieldAmount = 2;
+        // +1 de armadura a todos os aliados; Magos e Arqueiros também +1 ATK
         foreach (var ally in allies)
         {
-            if (ally != null)
-            {
-                ally.currentShield += shieldAmount;
-                ally.UpdateDisplay();
-            }
-        }
-
-        Debug.Log($"[TankTier5Effect1] {cardDisplay.card.cardName}: Concedeu {shieldAmount} de armadura a todos aliados!");
-
-        // Magos e Arqueiros ganham +1 ATK adicional
-        foreach (var ally in allies)
-        {
-            if (ally != null && (ally.card.cardClass == CardClass.Mago || ally.card.cardClass == CardClass.Arqueiro))
-            {
+            if (ally == null || ally.card == null) continue;
+            ally.currentShield += 1;
+            if (ally.card.cardClass == CardClass.Mago || ally.card.cardClass == CardClass.Arqueiro)
                 ally.currentAttack += 1;
-                ally.UpdateDisplay();
-                Debug.Log($"[TankTier5Effect1] {cardDisplay.card.cardName}: {ally.card.cardName} ganhou +1 ATK adicional!");
-            }
+            ally.UpdateDisplay();
         }
+
+        FloatingTextFX.ShowAboveCard(cardDisplay, "GRITO DE GUERRA!", FloatingTextFX.EffectColor, 4.0f);
+        Debug.Log($"[TankTier5Effect1] {cardDisplay.card.cardName}: Sobreviveu ao ataque — +1 armadura a todos (+1 ATK a magos/arqueiros)!");
     }
 
     // Efeito 2: Tank 5 (ATK 3, Shield 6, HP 9) - +1 ATK ao receber dano, concede armadura a cada 2 turnos
@@ -2747,7 +2745,7 @@ public class CardEffectSimple : MonoBehaviour
         {
             GameManager.Instance.StartEffectTargetSelection(cardDisplay, 9,
                 magoAllies,
-                "Escolha qual Mago receberá +3 de armadura");
+                "Escolha qual Mago receberá +3 de armadura e +1 de ataque");
         }
     }
 
@@ -2755,10 +2753,13 @@ public class CardEffectSimple : MonoBehaviour
     {
         if (cardDisplay == null || targetMago == null) return;
 
+        // v4.3: +1 de ataque junto — a casquinha de +3 sozinha era comprada
+        // (parecia boa) mas perdia (33% WR); agora habilita mago agressivo
         targetMago.currentShield += 3;
+        targetMago.currentAttack += 1;
         targetMago.UpdateDisplay();
         cardDisplay.tankTier3Effect4Used = true;
-        Debug.Log($"[TankTier3Effect4] {cardDisplay.card.cardName}: Concedeu +3 de armadura a {targetMago.card.cardName}!");
+        Debug.Log($"[TankTier3Effect4] {cardDisplay.card.cardName}: Concedeu +3 de armadura e +1 ATK a {targetMago.card.cardName}!");
     }
 
     // ===== TANK TIER-2 =====
@@ -2928,7 +2929,9 @@ public class CardEffectSimple : MonoBehaviour
             TankEffect5_ShieldHandIfMagoOnBoard();
     }
 
-    // Efeito 1: Ganha +1 de ataque por cada mago em campo
+    // Efeito 1: +1 de ataque fixo, e mais +1 por cada mago em campo.
+    // v4.3: o +1 base entrou (25% WR) — com ATK 0 e zero magos, a carta era
+    // um peso morto que não ameaçava nada
     void TankEffect1_AttackPerMago()
     {
         if (cardDisplay == null) return;
@@ -2937,12 +2940,12 @@ public class CardEffectSimple : MonoBehaviour
         if (board == null) return;
 
         int magoCount = board.CountCardsByClass(cardDisplay.ownerPlayerNumber, CardClass.Mago);
-        int bonus = magoCount;
+        int bonus = 1 + magoCount;
 
         cardDisplay.currentAttack += bonus;
         cardDisplay.UpdateDisplay();
 
-        Debug.Log($"[TankEffect1] {cardDisplay.card.cardName}: +{bonus} ATK ({magoCount} magos em campo). ATK agora: {cardDisplay.currentAttack}");
+        Debug.Log($"[TankEffect1] {cardDisplay.card.cardName}: +{bonus} ATK (1 base + {magoCount} magos em campo). ATK agora: {cardDisplay.currentAttack}");
     }
 
     // Efeito 2: Ganha +1 de todos os atributos sempre que for curado
@@ -2969,7 +2972,10 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[TankEffect3] {cardDisplay.card.cardName}: +1 ATK. ATK agora: {cardDisplay.currentAttack}");
     }
 
-    // Efeito 5: Se houver um mago em campo, conceda +1 de armadura as cartas na sua mão
+    // Efeito 5: Se houver um mago em campo, ao entrar concede +1 de armadura
+    // a todos os aliados EM CAMPO. v4.3: era "+1 armadura às cartas na MÃO" —
+    // efeito invisível que ninguém percebia (1 compra, 0% WR); agora o buff é
+    // tangível e imediato. Ordem fixa do tabuleiro = determinístico.
     void TankEffect5_ShieldHandIfMagoOnBoard()
     {
         if (cardDisplay == null) return;
@@ -2985,17 +2991,15 @@ public class CardEffectSimple : MonoBehaviour
             return;
         }
 
-        // Aumenta escudo de todas as cartas na mão
-        HandManager[] handManagers = FindObjectsOfType<HandManager>();
-        foreach (HandManager hand in handManagers)
+        int boosted = 0;
+        foreach (var ally in board.GetCardsByOwner(cardDisplay.ownerPlayerNumber))
         {
-            if (hand.playerNumber == cardDisplay.ownerPlayerNumber)
-            {
-                hand.BoostHandShield(cardDisplay.ownerPlayerNumber, 1);
-                Debug.Log($"[TankEffect5] {cardDisplay.card.cardName}: Concedeu +1 Shield a todas as cartas na mão");
-                break;
-            }
+            if (ally == null || ally.card == null || ally == cardDisplay) continue;
+            ally.currentShield += 1;
+            ally.UpdateDisplay();
+            boosted++;
         }
+        Debug.Log($"[TankEffect5] {cardDisplay.card.cardName}: Concedeu +1 de armadura a {boosted} aliado(s) em campo");
     }
 
     // Checa e aplica efeitos periódicos (chamado a cada round).

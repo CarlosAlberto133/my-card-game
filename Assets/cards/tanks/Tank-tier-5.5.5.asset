@@ -20,4 +20,4 @@ MonoBehaviour:
   shield: 7
   health: 11
   effectDescription: Sempre que esta carta sofrer dano, ela aumenta o seu ataque
-    em +1, ganha atmadura se houver um healer ou um mago em campo
+    em +1, ganha armadura se houver um healer ou um mago em campo

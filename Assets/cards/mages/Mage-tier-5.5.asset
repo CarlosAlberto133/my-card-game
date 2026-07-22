@@ -20,4 +20,4 @@ MonoBehaviour:
   shield: 0
   health: 6
   effectDescription: Uma vez por partida pode escolher uma carta inimiga no campo
-    e copiar seus status de ataque e vida
+    e copiar seus status de ataque e vida com +1 em cada

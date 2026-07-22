@@ -19,4 +19,4 @@ MonoBehaviour:
   attack: 2
   shield: 4
   health: 7
-  effectDescription: Ao entrar em campo, conceda +3 de armadura a um mago a sua escolha
+  effectDescription: Ao entrar em campo, conceda +3 de armadura e +1 de ataque a um mago a sua escolha
