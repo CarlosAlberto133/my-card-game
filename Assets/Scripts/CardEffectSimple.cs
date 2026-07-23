@@ -29,6 +29,30 @@ public class CardEffectSimple : MonoBehaviour
             ArcherTier5Effect2_RemoveEnemyArmor();
         else if (baseAtk == 5 && baseHp == 4)
             ArcherTier5Effect3_IgnoreArmorAndExecute();
+        else if (baseAtk == 7 && baseHp == 5)
+            LyraOnEnter_AttackAll(); // lendária da tríade (v4.3.1)
+    }
+
+    // ═══════════ LYRA, A CERTEIRA (lendária da tríade, v4.3.1) ═══════════
+    // Carta exclusiva 7/0/5 que só nasce da tríade dos Arqueiros tier-2.
+    // Ao entrar: +5 de ataque a todos os OUTROS aliados (o poder que antes
+    // era da tríade agora vem com ela — sem se incluir, senão viraria buff).
+    // Determinístico: ordem fixa do tabuleiro, roda no fluxo do RPC da tríade.
+    void LyraOnEnter_AttackAll()
+    {
+        if (cardDisplay == null) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        foreach (var ally in board.GetCardsByOwner(cardDisplay.ownerPlayerNumber))
+        {
+            if (ally == null || ally.card == null || ally == cardDisplay) continue;
+            ally.currentAttack += 5;
+            ally.UpdateDisplay();
+            FloatingTextFX.ShowAboveCard(ally, "+5 ataque", FloatingTextFX.AttackColor);
+        }
+        Debug.Log("[Lyra] Entrou: +5 de ataque a todos os outros aliados!");
     }
 
     // Efeito 4: Archer 5 (ATK 6, HP 3, subiu do tier 4) - Cria cópia de si ao
@@ -631,7 +655,7 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[ArcherTier2Effect3] {cardDisplay.card.cardName}: Stuneu {attackingCard.card.cardName}!");
     }
 
-    // Combo: Quando as 3 Archers tier-2 estão em campo, todas ganham +5 ATK
+    // Combo: Quando as 3 Archers tier-2 estão em campo, invocam Lyra, a Certeira
     void CheckArcherTier2Combo()
     {
         BoardManager board = BoardManager.Instance;
@@ -656,19 +680,15 @@ public class CardEffectSimple : MonoBehaviour
         }
 
         // Se os 3 Archers tier-2 estão em campo, ativa combo:
-        // "+5 de ataque a todos" = TODOS os aliados no tabuleiro
+        // v4.3.1: invoca LYRA, A CERTEIRA (carta exclusiva 7/0/5) — o +5 de
+        // ataque agora é o efeito de ENTRADA da própria Lyra
         if (has23 && has32 && has22)
         {
+            // A trava de "1x por partida" fica SÓ nos membros da tríade —
+            // marcar ANTES de invocar (a flag é reutilizada por Mago/Tank)
             foreach (var ally in allies)
             {
                 if (ally == null || ally.card == null) continue;
-
-                ally.currentAttack += 5;
-                ally.UpdateDisplay();
-
-                // A trava de "1x por partida" fica SÓ nos membros da tríade:
-                // a flag é reutilizada pelas tríades de Mago/Tank — marcá-la
-                // em outras cartas bloquearia as outras tríades
                 if (ally.card.cardClass == CardClass.Arqueiro && ally.card.tier == CardTier.Tier2 &&
                     ((ally.card.attack == 2 && ally.card.health == 3) ||
                      (ally.card.attack == 3 && ally.card.health == 2) ||
@@ -678,7 +698,11 @@ public class CardEffectSimple : MonoBehaviour
                 }
             }
 
-            Debug.Log($"[ArcherCombo] Os 3 Archers tier-2 estão em campo! +5 ATK para TODOS os aliados!");
+            CardManager cardManager = CardManager.Instance;
+            if (cardManager != null)
+                cardManager.InvokeTriadLegendary(CardClass.Arqueiro, cardDisplay.ownerPlayerNumber, cardDisplay.currentTile);
+
+            Debug.Log($"[ArcherCombo] Os 3 Archers tier-2 estão em campo! Invocando Lyra, a Certeira!");
         }
     }
 
@@ -2413,6 +2437,30 @@ public class CardEffectSimple : MonoBehaviour
             TankTier5Effect2_AttackOnDamageAndPeriodicShield();
         else if (baseAtk == 3 && baseShield == 7 && baseHp == 11)
             TankTier5Effect3_AttackOnDamageWithBonus();
+        else if (baseAtk == 2 && baseShield == 8 && baseHp == 10)
+            AtlasOnEnter_ShieldAll(); // lendário da tríade (v4.3.1)
+    }
+
+    // ═══════════ ATLAS, O BALUARTE (lendário da tríade, v4.3.1) ═══════════
+    // Carta exclusiva 2/8/10 que só nasce da tríade dos Tanks tier-2.
+    // Ao entrar: +5 de armadura a todos os OUTROS aliados (o poder que antes
+    // era da tríade agora vem com ele — sem se incluir, senão viraria buff).
+    // Determinístico: ordem fixa do tabuleiro, roda no fluxo do RPC da tríade.
+    void AtlasOnEnter_ShieldAll()
+    {
+        if (cardDisplay == null) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        foreach (var ally in board.GetCardsByOwner(cardDisplay.ownerPlayerNumber))
+        {
+            if (ally == null || ally.card == null || ally == cardDisplay) continue;
+            ally.currentShield += 5;
+            ally.UpdateDisplay();
+            FloatingTextFX.ShowAboveCard(ally, "+5 armadura", FloatingTextFX.ShieldColor);
+        }
+        Debug.Log("[Atlas] Entrou: +5 de armadura a todos os outros aliados!");
     }
 
     // Efeito 1: Senhor da Guerra — Tank 5 (ATK 3, Shield 8, HP 9).
@@ -2915,19 +2963,15 @@ public class CardEffectSimple : MonoBehaviour
         }
 
         // Se os 3 Tanks tier-2 defensores estão em campo, ativa combo:
-        // "+5 de armadura a todos" = TODOS os aliados no tabuleiro
-        // (v4.3: era +10 — nerf pedido pelo Carlos, engessava demais o jogo)
+        // v4.3.1: invoca ATLAS, O BALUARTE (carta exclusiva 2/8/10) — o +5 de
+        // armadura agora é o efeito de ENTRADA do próprio Atlas
         if (has124 && has133 && has034)
         {
+            // Trava de "1x por partida" SÓ nos 3 defensores da tríade — marcar
+            // ANTES de invocar (a flag é compartilhada com Arqueiro/Mago)
             foreach (var ally in allies)
             {
                 if (ally == null || ally.card == null) continue;
-
-                ally.currentShield += 5;
-                ally.UpdateDisplay();
-
-                // Trava de "1x por partida" SÓ nos 3 defensores da tríade
-                // (a flag é compartilhada com as tríades de Arqueiro/Mago)
                 if (ally.card.cardClass == CardClass.Tank && ally.card.tier == CardTier.Tier2 &&
                     ((ally.card.attack == 1 && ally.card.shield == 2 && ally.card.health == 5) ||
                      (ally.card.attack == 1 && ally.card.shield == 3 && ally.card.health == 4) ||
@@ -2937,7 +2981,11 @@ public class CardEffectSimple : MonoBehaviour
                 }
             }
 
-            Debug.Log($"[TankCombo] Os 3 Tanks tier-2 defensores estão em campo! +5 de armadura para TODOS os aliados!");
+            CardManager cardManager = CardManager.Instance;
+            if (cardManager != null)
+                cardManager.InvokeTriadLegendary(CardClass.Tank, cardDisplay.ownerPlayerNumber, cardDisplay.currentTile);
+
+            Debug.Log($"[TankCombo] Os 3 Tanks tier-2 defensores estão em campo! Invocando Atlas, o Baluarte!");
         }
     }
 

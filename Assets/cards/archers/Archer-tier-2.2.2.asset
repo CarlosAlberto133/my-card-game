@@ -19,5 +19,4 @@ MonoBehaviour:
   attack: 2
   shield: 0
   health: 2
-  effectDescription: Carta triade. Caso os outros arqueiros estejam em campo, conceda
-    +5 de ataque a todos
+  effectDescription: Carta triade. Caso os outros arqueiros estejam em campo, invoque Lyra, a Certeira

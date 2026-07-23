@@ -602,34 +602,52 @@ public class CardManager : MonoBehaviour
     // propósito: nenhum sorteio/refresh as conhece. Arte emprestada de um T5
     // da classe (allBaseCards é o catálogo — nunca esvazia como o pool).
     // Stats únicos dentro de classe+tier (regra do dispatch por stats):
-    //   Arcanor  Mago   T5 6/0/7 (T5 existentes: 5/5, 4/6, 5/6)
-    //   Serafina Healer T5 3/0/8 (T5 existentes: 3/6, 2/7, 3/7)
+    //   Arcanor  Mago     T5 6/0/7  (T5 existentes: 5/5, 4/6, 5/6)
+    //   Serafina Healer   T5 3/0/8  (T5 existentes: 3/6, 2/7, 3/7)
+    //   Atlas    Tank     T5 2/8/10 (T5 existentes: 3/8/9, 3/7/10, 3/7/11)
+    //   Lyra     Arqueiro T5 7/0/5  (T5 existentes: 6/3, 6/4, 5/4)
     static Card arcanorCard;
     static Card serafinaCard;
+    static Card atlasCard;
+    static Card lyraCard;
 
     Card GetTriadLegendaryCard(CardClass cls)
     {
         if (cls == CardClass.Mago && arcanorCard != null) return arcanorCard;
         if (cls == CardClass.Healer && serafinaCard != null) return serafinaCard;
+        if (cls == CardClass.Tank && atlasCard != null) return atlasCard;
+        if (cls == CardClass.Arqueiro && lyraCard != null) return lyraCard;
 
         Card c = ScriptableObject.CreateInstance<Card>();
+        c.cardClass = cls;
+        c.tier = CardTier.Tier5;
         if (cls == CardClass.Mago)
         {
             c.cardName = "Arcanor, o Primordial";
-            c.cardClass = CardClass.Mago;
-            c.tier = CardTier.Tier5;
             c.attack = 6; c.shield = 0; c.health = 7;
             c.effectDescription = "Lendário da tríade. Ao entrar: Cataclisma — 1 de dano em TODOS os inimigos. Todo round, dispara um raio de 1 de dano num inimigo à sua escolha";
             arcanorCard = c;
         }
-        else
+        else if (cls == CardClass.Healer)
         {
             c.cardName = "Serafina, a Eterna";
-            c.cardClass = CardClass.Healer;
-            c.tier = CardTier.Tier5;
             c.attack = 3; c.shield = 0; c.health = 8;
             c.effectDescription = "Lendária da tríade. Ao entrar: cura 1 em todos os aliados e concede 5 de ouro. Todo round, cura 1 em todos os aliados";
             serafinaCard = c;
+        }
+        else if (cls == CardClass.Tank)
+        {
+            c.cardName = "Atlas, o Baluarte";
+            c.attack = 2; c.shield = 8; c.health = 10;
+            c.effectDescription = "Lendário da tríade. Ao entrar: concede +5 de armadura a todos os outros aliados em campo";
+            atlasCard = c;
+        }
+        else
+        {
+            c.cardName = "Lyra, a Certeira";
+            c.attack = 7; c.shield = 0; c.health = 5;
+            c.effectDescription = "Lendária da tríade. Ao entrar: concede +5 de ataque a todos os outros aliados em campo";
+            lyraCard = c;
         }
         c.artwork = BorrowTier5Artwork(cls);
         return c;
@@ -670,9 +688,11 @@ public class CardManager : MonoBehaviour
         CardDisplay display = SpawnCardOnTile(legend, spawnTile, ownerPlayerNumber);
         if (display != null)
         {
-            FloatingTextFX.ShowAboveCard(display,
-                cls == CardClass.Mago ? "ARCANOR DESPERTA!" : "SERAFINA DESPERTA!",
-                FloatingTextFX.EffectColor, 4.6f);
+            string banner = cls == CardClass.Mago ? "ARCANOR DESPERTA!"
+                : cls == CardClass.Healer ? "SERAFINA DESPERTA!"
+                : cls == CardClass.Tank ? "ATLAS DESPERTA!"
+                : "LYRA DESPERTA!";
+            FloatingTextFX.ShowAboveCard(display, banner, FloatingTextFX.EffectColor, 4.6f);
             Debug.Log($"[TriadLegendary] Invocado {legend.cardName}!");
         }
     }
