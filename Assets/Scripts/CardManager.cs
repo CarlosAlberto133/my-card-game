@@ -619,7 +619,7 @@ public class CardManager : MonoBehaviour
             c.cardClass = CardClass.Mago;
             c.tier = CardTier.Tier5;
             c.attack = 6; c.shield = 0; c.health = 7;
-            c.effectDescription = "Lendário da tríade. Ao entrar: Cataclisma — 2 de dano em TODOS os inimigos. Todo round, dispara um raio de 2 de dano num inimigo à sua escolha";
+            c.effectDescription = "Lendário da tríade. Ao entrar: Cataclisma — 1 de dano em TODOS os inimigos. Todo round, dispara um raio de 1 de dano num inimigo à sua escolha";
             arcanorCard = c;
         }
         else
@@ -628,7 +628,7 @@ public class CardManager : MonoBehaviour
             c.cardClass = CardClass.Healer;
             c.tier = CardTier.Tier5;
             c.attack = 3; c.shield = 0; c.health = 8;
-            c.effectDescription = "Lendária da tríade. Todo round, cura 2 em todos os aliados";
+            c.effectDescription = "Lendária da tríade. Ao entrar: cura 1 em todos os aliados e concede 5 de ouro. Todo round, cura 1 em todos os aliados";
             serafinaCard = c;
         }
         c.artwork = BorrowTier5Artwork(cls);

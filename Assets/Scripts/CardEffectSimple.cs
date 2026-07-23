@@ -119,31 +119,57 @@ public class CardEffectSimple : MonoBehaviour
         else if (baseAtk == 3 && baseHp == 7)
             HealerTier5Effect3_DoubleAllyStats();
         else if (baseAtk == 3 && baseHp == 8)
-            Debug.Log("[Serafina] Pronta para curar todos os aliados a cada round"); // lendária da tríade (v4.3), hook no TurnManager
+            SerafinaOnEnter(); // lendária da tríade (v4.3), cura por round via hook no TurnManager
     }
 
     // ═══════════ SERAFINA, A ETERNA (lendária da tríade, v4.3) ═══════════
     // Carta exclusiva 3/0/8 que só nasce da tríade das Healers tier-2.
-    // Todo round (hook na virada de round do TurnManager): cura 2 em TODOS os
-    // aliados (ela inclusa). Heal() clampa no máximo e dispara os gatilhos
-    // "quando curado" — ordem fixa do tabuleiro = determinístico.
-    public void ActivateSerafinaHeal()
+    // Ao entrar: cura 1 em todos os aliados + 5 de ouro pro dono.
+    // Roda no fluxo do RPC que colocou a 3ª carta da tríade — idêntico nos 2
+    // clientes (AddGold é determinístico como nos outros efeitos de ouro).
+    void SerafinaOnEnter()
     {
         if (cardDisplay == null) return;
 
+        HealAllAllies(1);
+
+        PlayerData player = TurnManager.Instance.GetPlayer(cardDisplay.ownerPlayerNumber);
+        if (player != null)
+        {
+            player.AddGold(5);
+            MatchStatsTracker.RecordGold(cardDisplay, 5);
+            FloatingTextFX.ShowAboveCard(cardDisplay, "+5 ouro", FloatingTextFX.GoldColor);
+            Debug.Log($"[Serafina] Entrou: curou 1 em todos os aliados e concedeu 5 de ouro");
+        }
+    }
+
+    // Todo round (hook na virada de round do TurnManager): cura 1 em TODOS os
+    // aliados (ela inclusa).
+    public void ActivateSerafinaHeal()
+    {
+        int healed = HealAllAllies(1);
+        if (healed > 0)
+            Debug.Log($"[Serafina] Curou 1 em {healed} aliado(s)");
+    }
+
+    // Heal() clampa no máximo e dispara os gatilhos "quando curado" — ordem
+    // fixa do tabuleiro = determinístico.
+    int HealAllAllies(int amount)
+    {
+        if (cardDisplay == null) return 0;
+
         BoardManager board = BoardManager.Instance;
-        if (board == null) return;
+        if (board == null) return 0;
 
         var allies = board.GetCardsByOwner(cardDisplay.ownerPlayerNumber);
         int healed = 0;
         foreach (var ally in allies)
         {
             if (ally == null || ally.card == null) continue;
-            ally.Heal(2, cardDisplay);
+            ally.Heal(amount, cardDisplay);
             healed++;
         }
-        if (healed > 0)
-            Debug.Log($"[Serafina] Curou 2 em {healed} aliado(s)");
+        return healed;
     }
 
     // Efeito 1: Healer 5 (ATK 3, HP 6) - Ao entrar concede 1 compra grátis.
@@ -2088,7 +2114,7 @@ public class CardEffectSimple : MonoBehaviour
 
     // ═══════════ ARCANOR, O PRIMORDIAL (lendário da tríade, v4.3) ═══════════
     // Carta exclusiva 6/0/7 que só nasce da tríade dos Magos tier-2.
-    // Ao entrar: CATACLISMA — dano em TODOS os inimigos (2 + Escola Arcana).
+    // Ao entrar: CATACLISMA — dano em TODOS os inimigos (1 + Escola Arcana).
     // Alvos coletados ANTES do dano (TakeDamage pode matar e mexer nas listas).
     // Determinístico: sem sorteio, ordem fixa do tabuleiro, roda no fluxo do
     // RPC que colocou a 3ª carta da tríade.
@@ -2099,7 +2125,7 @@ public class CardEffectSimple : MonoBehaviour
         BoardManager board = BoardManager.Instance;
         if (board == null) return;
 
-        int damage = 2 + ClassDevotion.MageEffectBonus(cardDisplay.ownerPlayerNumber);
+        int damage = 1 + ClassDevotion.MageEffectBonus(cardDisplay.ownerPlayerNumber);
         int enemyPlayer = cardDisplay.ownerPlayerNumber == 1 ? 2 : 1;
         var targets = new List<CardDisplay>();
         foreach (var c in board.GetCardsByOwner(enemyPlayer))
@@ -2134,14 +2160,14 @@ public class CardEffectSimple : MonoBehaviour
 
         if (GameManager.Instance != null)
             GameManager.Instance.StartEffectTargetSelection(cardDisplay, 17,
-                new List<CardDisplay>(enemies), "Arcanor: escolha o alvo do raio (2 de dano)");
+                new List<CardDisplay>(enemies), "Arcanor: escolha o alvo do raio (1 de dano)");
     }
 
     public void ActivateArcanorRayChosen(CardDisplay target)
     {
         if (cardDisplay == null || target == null) return;
 
-        int damage = 2 + ClassDevotion.MageEffectBonus(cardDisplay.ownerPlayerNumber);
+        int damage = 1 + ClassDevotion.MageEffectBonus(cardDisplay.ownerPlayerNumber);
         MatchStatsTracker.EffectSource = cardDisplay;
         target.TakeDamage(damage);
         MatchStatsTracker.EffectSource = null;
