@@ -10,7 +10,7 @@
 ; ============================================================
 
 #define AppName    "Card Game"
-#define AppVersion "1.0.0"
+#define AppVersion "1.0.1"
 #define AppExe     "Play Card Game.vbs"
 #define LauncherSrc "..\launcher\card-game-launcher"
 
