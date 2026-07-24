@@ -255,6 +255,50 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
         }
     }
 
+    // Executa a VENDA da fase inicial nos DOIS clientes. A carta é identificada
+    // pelo índice na mão do vendedor — as mãos são espelhadas (toda compra
+    // executa via RPC nos 2 clientes, na mesma ordem), então o índice bate
+    [PunRPC]
+    public void RPC_SellCard(int handIndex, int sellerPlayerNumber)
+    {
+        Debug.Log($"[PhotonGame] RPC_SellCard: mão[{handIndex}] de P{sellerPlayerNumber}");
+
+        foreach (HandManager hm in FindObjectsOfType<HandManager>())
+        {
+            if (hm.playerNumber != sellerPlayerNumber) continue;
+
+            GameObject cardObject = hm.GetCardAtIndex(handIndex);
+            if (cardObject == null)
+            {
+                Debug.LogError($"[PhotonGame] Carta {handIndex} da mão do P{sellerPlayerNumber} não encontrada!");
+                return;
+            }
+            CardDisplay cardDisplay = cardObject.GetComponent<CardDisplay>();
+            if (cardDisplay != null)
+            {
+                cardDisplay.ExecuteSell(sellerPlayerNumber);
+            }
+            return;
+        }
+        Debug.LogError($"[PhotonGame] HandManager do P{sellerPlayerNumber} não encontrado!");
+    }
+
+    public void SendSellCardRPC(int handIndex, int sellerPlayerNumber)
+    {
+        if (!PhotonNetwork.connected)
+        {
+            Debug.LogWarning("[PhotonGame] Não conectado ao Photon! RPC não enviado.");
+            return;
+        }
+
+        PhotonView photonView = GetComponent<PhotonView>();
+        if (photonView != null)
+        {
+            photonView.RPC("RPC_SellCard", PhotonTargets.All, handIndex, sellerPlayerNumber);
+            Debug.Log($"[PhotonGame] Enviado RPC: Venda mão[{handIndex}] [P{sellerPlayerNumber}]");
+        }
+    }
+
     // ========== DECISÕES DE EFEITO (popups sincronizados) ==========
 
     // Decisões pendentes: registradas NOS DOIS clientes na mesma ordem (dentro de ações RPC),

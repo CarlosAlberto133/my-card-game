@@ -107,6 +107,7 @@ public class GameUIManager : MonoBehaviour
         CreateShopButton();
         CreateLogsButton();
         CreateShopLockToggle();
+        CreateSellModeToggle();
         StyleGameButtons();
         StyleTopHud();
     }
@@ -453,6 +454,97 @@ public class GameUIManager : MonoBehaviour
         {
             shopLockLabel.text = on ? "Clique p/ travar" : "Travar cartas";
             shopLockLabel.color = on ? new Color(0.96f, 0.77f, 0.32f) : Color.white;
+        }
+    }
+
+    // ── Checkbox "Vender carta" (fase inicial) ───────────────────────────
+    // Marcado: clicar numa carta da SUA mão a VENDE — devolve (custo - 2) de
+    // ouro e libera 1 do limite de 5 compras. Ocupa o mesmo lugar do "Travar
+    // cartas" (um só aparece no lobby, o outro só na partida). O modo é local;
+    // cada venda vai por RPC no CardDisplay.
+    private GameObject sellModeObj;
+    private UnityEngine.UI.Toggle sellModeToggle;
+    private TextMeshProUGUI sellModeLabel;
+    private bool sellCardMode = false;
+
+    // CardDisplay consulta no clique: true = clique em carta da mão vende
+    public bool IsSellCardMode()
+    {
+        return sellCardMode && sellModeObj != null && sellModeObj.activeInHierarchy;
+    }
+
+    void CreateSellModeToggle()
+    {
+        if (endTurnButton == null) return;
+        RectTransform btnRt = endTurnButton.GetComponent<RectTransform>();
+        if (btnRt == null) return;
+
+        sellModeObj = new GameObject("SellModeToggle",
+            typeof(RectTransform), typeof(Image), typeof(UnityEngine.UI.Toggle));
+        sellModeObj.transform.SetParent(btnRt.parent, false);
+
+        RectTransform rt = sellModeObj.GetComponent<RectTransform>();
+        rt.anchorMin = btnRt.anchorMin;
+        rt.anchorMax = btnRt.anchorMax;
+        rt.pivot = btnRt.pivot;
+        float btnH = btnRt.sizeDelta.y > 1f ? btnRt.sizeDelta.y : 40f;
+        float btnW = btnRt.sizeDelta.x > 1f ? btnRt.sizeDelta.x : 160f;
+        rt.sizeDelta = new Vector2(Mathf.Min(btnW, 220f), 32f);
+        rt.anchoredPosition = btnRt.anchoredPosition + new Vector2(0f, (btnH + 32f) * 0.5f + 6f);
+
+        Image bg = sellModeObj.GetComponent<Image>();
+        bg.color = new Color(0.10f, 0.12f, 0.20f, 0.85f);
+
+        GameObject box = new GameObject("Box", typeof(RectTransform), typeof(Image));
+        box.transform.SetParent(sellModeObj.transform, false);
+        RectTransform boxRt = box.GetComponent<RectTransform>();
+        boxRt.anchorMin = new Vector2(0f, 0.5f);
+        boxRt.anchorMax = new Vector2(0f, 0.5f);
+        boxRt.pivot = new Vector2(0f, 0.5f);
+        boxRt.anchoredPosition = new Vector2(6f, 0f);
+        boxRt.sizeDelta = new Vector2(22f, 22f);
+        box.GetComponent<Image>().color = new Color(0.20f, 0.22f, 0.34f, 1f);
+
+        GameObject check = new GameObject("Check", typeof(RectTransform), typeof(Image));
+        check.transform.SetParent(box.transform, false);
+        RectTransform chkRt = check.GetComponent<RectTransform>();
+        chkRt.anchorMin = new Vector2(0.18f, 0.18f);
+        chkRt.anchorMax = new Vector2(0.82f, 0.82f);
+        chkRt.offsetMin = Vector2.zero;
+        chkRt.offsetMax = Vector2.zero;
+        check.GetComponent<Image>().color = new Color(1f, 0.85f, 0.30f); // dourado (ouro)
+
+        GameObject lbl = new GameObject("Label", typeof(RectTransform));
+        lbl.transform.SetParent(sellModeObj.transform, false);
+        RectTransform lblRt = lbl.GetComponent<RectTransform>();
+        lblRt.anchorMin = new Vector2(0f, 0f);
+        lblRt.anchorMax = new Vector2(1f, 1f);
+        lblRt.offsetMin = new Vector2(34f, 0f);
+        lblRt.offsetMax = new Vector2(-4f, 0f);
+        TextMeshProUGUI tmp = lbl.AddComponent<TextMeshProUGUI>();
+        tmp.text = "Vender carta";
+        tmp.fontSize = 16f;
+        tmp.alignment = TextAlignmentOptions.Left;
+        tmp.color = Color.white;
+        tmp.raycastTarget = false;
+        sellModeLabel = tmp;
+
+        sellModeToggle = sellModeObj.GetComponent<UnityEngine.UI.Toggle>();
+        sellModeToggle.targetGraphic = bg;
+        sellModeToggle.graphic = check.GetComponent<Image>();
+        sellModeToggle.isOn = false;
+        sellModeToggle.onValueChanged.AddListener(OnSellModeToggled);
+
+        sellModeObj.SetActive(false); // só aparece na fase inicial
+    }
+
+    void OnSellModeToggled(bool on)
+    {
+        sellCardMode = on;
+        if (sellModeLabel != null)
+        {
+            sellModeLabel.text = on ? "Clique na carta da mão" : "Vender carta";
+            sellModeLabel.color = on ? new Color(1f, 0.85f, 0.30f) : Color.white;
         }
     }
 
@@ -1374,6 +1466,16 @@ public class GameUIManager : MonoBehaviour
             if (shopLockObj.activeSelf != playing) shopLockObj.SetActive(playing);
             if (!playing && shopLockToggle != null && shopLockToggle.isOn)
                 shopLockToggle.SetIsOnWithoutNotify(false);
+        }
+
+        // Checkbox "Vender carta": só na fase inicial de compras; ao começar a
+        // partida some e desmarca
+        if (sellModeObj != null)
+        {
+            bool lobby = TurnManager.Instance.gameState == GameState.Lobby;
+            if (sellModeObj.activeSelf != lobby) sellModeObj.SetActive(lobby);
+            if (!lobby && sellModeToggle != null && sellModeToggle.isOn)
+                sellModeToggle.SetIsOnWithoutNotify(false);
         }
     }
 

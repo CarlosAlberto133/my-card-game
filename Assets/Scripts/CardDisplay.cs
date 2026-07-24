@@ -2131,6 +2131,18 @@ public class CardDisplay : MonoBehaviour
             return;
         }
 
+        // Modo "Vender carta" (fase inicial): clicar numa carta da SUA mão a
+        // vende (devolve custo - 2 de ouro e libera 1 do limite de compras).
+        // ANTES da checagem de dono vs. jogador do turno — na fase inicial as
+        // compras são simultâneas e o P2 não é o "jogador atual"
+        if (isInHand && TurnManager.Instance != null &&
+            TurnManager.Instance.gameState == GameState.Lobby &&
+            GameUIManager.Instance != null && GameUIManager.Instance.IsSellCardMode())
+        {
+            TrySellCard();
+            return;
+        }
+
         // Se a carta NÃO está na loja (está na mão ou tabuleiro), verifica se pertence ao jogador atual
         if (!isInShop && TurnManager.Instance != null)
         {
@@ -2324,6 +2336,80 @@ public class CardDisplay : MonoBehaviour
 
         // Modo offline: executa direto
         ExecuteBuy(currentPlayer.playerNumber);
+    }
+
+    // ========== VENDER CARTA (fase inicial) ==========
+
+    // Taxa fixa da venda: o jogador recebe de volta (custo - 2), mínimo 0.
+    // Ex.: carta de custo 3 devolve 1 de ouro. Só existe na fase inicial.
+    public const int SellFee = 2;
+
+    void TrySellCard()
+    {
+        if (TurnManager.Instance == null || TurnManager.Instance.gameState != GameState.Lobby) return;
+
+        // Vendedor = jogador LOCAL (fase inicial é simultânea, sem turnos)
+        int seller = (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
+            ? PhotonGameManager.Instance.myPlayerNumber
+            : TurnManager.Instance.GetCurrentPlayer().playerNumber;
+
+        if (ownerPlayerNumber != seller)
+        {
+            Debug.Log("[CardDisplay] Só é possível vender cartas da SUA mão!");
+            return;
+        }
+
+        // Quem já clicou "Iniciar Partida" não mexe mais na mão
+        bool alreadyReady =
+            (seller == 1 && TurnManager.Instance.player1Ready) ||
+            (seller == 2 && TurnManager.Instance.player2Ready);
+        if (alreadyReady)
+        {
+            Debug.Log("[CardDisplay] Você já clicou em Iniciar Partida — não pode mais vender!");
+            return;
+        }
+
+        // Em multiplayer vai por RPC: a carta é identificada pelo índice na mão
+        // do vendedor (mãos são espelhadas nos 2 clientes)
+        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
+        {
+            HandManager sellerHand = GetHandManagerForPlayer(seller);
+            int handIndex = sellerHand != null ? sellerHand.GetCardIndex(gameObject) : -1;
+            if (handIndex < 0)
+            {
+                Debug.LogError("[CardDisplay] Carta não encontrada na mão para vender!");
+                return;
+            }
+            PhotonGameManager.Instance.SendSellCardRPC(handIndex, seller);
+            return;
+        }
+
+        // Modo offline: executa direto
+        ExecuteSell(seller);
+    }
+
+    // Executa a venda de fato (chamado localmente em offline, ou via RPC nos
+    // dois clientes): devolve (custo - 2) de ouro com o teto da fase inicial
+    // (20) e libera 1 slot do limite de 5 compras
+    public void ExecuteSell(int sellerPlayerNumber)
+    {
+        if (card == null || TurnManager.Instance == null) return;
+        PlayerData sellerData = TurnManager.Instance.GetPlayer(sellerPlayerNumber);
+        if (sellerData == null) return;
+
+        int refund = Mathf.Max(0, card.GetGoldCost() - SellFee);
+        if (refund > 0)
+            sellerData.AddGold(refund, PlayerData.LobbyStartingGold);
+        sellerData.cardsBoughtThisTurn = Mathf.Max(0, sellerData.cardsBoughtThisTurn - 1);
+
+        HandManager sellerHand = GetHandManagerForPlayer(sellerPlayerNumber);
+        if (sellerHand != null) sellerHand.RemoveCardFromHand(gameObject);
+
+        SoundManager.Play(SoundManager.Sound.Buy);
+        FloatingTextFX.Show(transform.position, $"VENDIDA! +{refund} ouro", FloatingTextFX.GoldColor, 5f);
+        Debug.Log($"[CardDisplay] {sellerData.playerName} vendeu {card.cardName} (custo {card.GetGoldCost()}): +{refund} de ouro, 1 compra liberada. Ouro: {sellerData.gold}, compras: {sellerData.cardsBoughtThisTurn}/{PlayerData.MaxCardsInLobby}");
+
+        Destroy(gameObject);
     }
 
     // ========== TRAVAR CARTA NA LOJA (não renova no refresh) ==========
