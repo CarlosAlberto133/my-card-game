@@ -1,11 +1,18 @@
 # ============================================================
-#  Card Game - Launcher  (v2)
+#  Card Game - Launcher  (v3)
 #  Baixa automaticamente a versao mais nova publicada no
 #  GitHub Releases e abre o jogo.
 #
 #  v2: o jogo agora e instalado em %LOCALAPPDATA%\CardGame
 #  (fora do OneDrive/Desktop sincronizado, que travava a
 #  extracao), download mais robusto e log em launcher.log.
+#
+#  v3: NAO usa mais a api.github.com (limite de 60 req/hora
+#  por IP -> dava "403 Proibido" que virava "sem conexao",
+#  ainda pior com varios amigos no mesmo provedor/CGNAT).
+#  Agora le a versao pelo REDIRECT da pagina de releases
+#  (github.com/.../releases/latest -> .../tag/vXX), que nao
+#  tem esse limite, e monta a URL de download pela convencao.
 # ============================================================
 
 # ---------- CONFIGURACAO (edite se mudar o repositorio) ----------
@@ -384,22 +391,44 @@ function Start-GoogleLogin {
     $script:authTimer.Start()
 }
 
+# Descobre a tag mais nova SEM a API: a pagina github.com/.../releases/latest
+# devolve um 302 apontando para .../releases/tag/vXX. Lemos so o cabecalho
+# Location (sem seguir o redirect) e pegamos o ultimo pedaco da URL = a tag.
+# Isso nao conta no limite de 60 req/hora da api.github.com.
+function Get-LatestTag {
+    $url = "https://github.com/$RepoOwner/$RepoName/releases/latest"
+    $req = [System.Net.HttpWebRequest]::Create($url)
+    $req.UserAgent        = "CardGameLauncher"
+    $req.Method           = "GET"
+    $req.AllowAutoRedirect = $false   # queremos LER o redirect, nao segui-lo
+    $req.Timeout          = 15000
+    $resp = $req.GetResponse()        # 302 nao lanca excecao (so 4xx/5xx lancam)
+    try { $loc = $resp.Headers["Location"] } finally { $resp.Close() }
+    if (-not $loc) { throw "releases/latest nao redirecionou (repo sem releases?)" }
+    return ($loc -split "/")[-1]       # .../releases/tag/v30  ->  v30
+}
+
+# Tamanho do arquivo (para o progresso) via HEAD, seguindo o redirect ate o CDN
+function Get-RemoteSize([string]$url) {
+    try {
+        $req = [System.Net.HttpWebRequest]::Create($url)
+        $req.UserAgent        = "CardGameLauncher"
+        $req.Method           = "HEAD"
+        $req.AllowAutoRedirect = $true
+        $req.Timeout          = 15000
+        $resp = $req.GetResponse()
+        try { return [long]$resp.ContentLength } finally { $resp.Close() }
+    } catch { return 0 }
+}
+
 # Consulta a release mais recente e decide se precisa baixar
 function Check-Updates {
     try {
-        $api = "https://api.github.com/repos/$RepoOwner/$RepoName/releases/latest"
-        $rel = Invoke-RestMethod -Uri $api -Headers @{ "User-Agent" = "CardGameLauncher" }
-
-        $script:latestTag = $rel.tag_name
-        $asset = $rel.assets | Where-Object { $_.name -eq $AssetName } | Select-Object -First 1
-        if (-not $asset) {
-            Write-Log "Release $($rel.tag_name) sem o asset $AssetName"
-            Set-Status "Release sem o arquivo $AssetName."
-            if (Get-GameExe) { $playBtn.Enabled = $true }
-            return
-        }
-        $script:assetUrl  = $asset.browser_download_url
-        $script:assetSize = [long]$asset.size
+        $script:latestTag = Get-LatestTag
+        # URL de download por convencao (o asset se chama sempre $AssetName).
+        # Downloads de release NAO tem o limite da api.github.com.
+        $script:assetUrl  = "https://github.com/$RepoOwner/$RepoName/releases/download/$($script:latestTag)/$AssetName"
+        $script:assetSize = Get-RemoteSize $script:assetUrl
 
         $installed = ""
         if (Test-Path $VersionFile) { $installed = (Get-Content $VersionFile -Raw).Trim() }
@@ -411,7 +440,7 @@ function Check-Updates {
             Set-Ready ("Atualizado (versao " + $script:latestTag + ")")
         }
     } catch {
-        Write-Log "Sem conexao / erro na API: $($_.Exception.Message)"
+        Write-Log "Sem conexao / erro: $($_.Exception.Message)"
         if (Get-GameExe) {
             Set-Ready "Sem conexao - jogando versao instalada"
         } else {
