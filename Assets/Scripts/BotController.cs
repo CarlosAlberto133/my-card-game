@@ -450,6 +450,7 @@ public class BotController : MonoBehaviour
             foreach (CardDisplay e in enemies)
             {
                 if (e == null || e.currentTile == null) continue;
+                if (cd.IsTaunted() && e != cd.tauntedBy) continue; // provocada: só o provocador
                 int ehp = e.currentShield + e.currentHealth;
                 bool killable = ehp <= cd.currentAttack;
                 int score = killable ? 1000 + e.currentAttack : -ehp;
@@ -473,7 +474,7 @@ public class BotController : MonoBehaviour
             }
         }
 
-        if (cd.currentTile.row <= TowerReachOf(cd) - 1)
+        if (!cd.IsTaunted() && cd.currentTile.row <= TowerReachOf(cd) - 1)
         {
             PhotonGameManager.Instance.SendTowerAttackRPC(
                 cd.currentTile.row, cd.currentTile.column, 1);
@@ -541,6 +542,7 @@ public class BotController : MonoBehaviour
         {
             if (c == null || c.currentTile == null || !c.CanAttackPeek()) continue;
             if (c.currentAttack <= 0) continue;
+            if (c.IsTaunted()) continue; // provocada não pode bater na torre
             if (c.currentTile.row > TowerReachOf(c) - 1) continue;
             damage += c.currentAttack;
             if (first == null) first = c;
@@ -562,8 +564,11 @@ public class BotController : MonoBehaviour
             if (c == null || c.currentTile == null || !c.CanAttackPeek()) continue;
             if (c.currentAttack <= 0) continue; // golpe de 0 não faz nada
 
+            // Provocada (v4.4): esta carta só pode atacar o provocador
+            bool provoked = c.IsTaunted();
+
             // Torre como opção deste atacante (se está no alcance dela)
-            if (c.currentTile.row <= TowerReachOf(c) - 1)
+            if (!provoked && c.currentTile.row <= TowerReachOf(c) - 1)
             {
                 int towerScore = 30 + (int)(aggression * 50f);
                 if (towerScore > bestScore)
@@ -581,6 +586,7 @@ public class BotController : MonoBehaviour
             foreach (CardDisplay e in enemies)
             {
                 if (e == null || e.currentTile == null) continue;
+                if (provoked && e != c.tauntedBy) continue; // só o provocador
 
                 int ehp = e.currentShield + e.currentHealth;
                 bool kill = c.currentAttack >= ehp;
@@ -919,6 +925,8 @@ public class BotController : MonoBehaviour
                 case 8: target = HighestThreatOf(candidates); break;
                 case 10: case 13: case 14: case 17: target = HighestThreatOf(candidates); break;
                 case 11: case 12: case 15: case 16: target = HighestAttackOf(candidates); break;
+                case 18: target = HighestAttackOf(candidates); break; // provocar: puxa o maior atacante
+
                 default: target = StrongestOf(candidates); break; // 4, 9 e novos
             }
         }

@@ -55,7 +55,7 @@ public class CardDisplay : MonoBehaviour
     public bool mageTier4Effect1Used = false; // Mage 4 (ATK 4, HP 5): remover bônus já foi feito nesta partida
     public int mageTier4Effect1UsesLeft = 1; // Mage 4 (ATK 4, HP 5): pode usar 2 vezes se tem Healer + Arqueiro
     public bool mageTier4Effect3Used = false; // Mage 4 (ATK 3, HP 5): destruir inimigo já foi feito nesta partida
-    public bool tankTier4Effect1Used = false; // Tank 4 (ATK 2, Shield 5, HP 6): +5 HP +2 Shield já foi feito nesta partida
+    private bool lastBreathFired = false; // Último suspiro (v4.4): garante 1 disparo só por carta
     public int tankTier4Effect2LastUsedRound = -1; // Tank 4 (ATK 2, Shield 6, HP 6): último round que recebeu ataque (uma vez por turno)
     public bool tankTier4Effect3Used = false; // Tank 4 (ATK 2, Shield 5, HP 7): Arqueiros x2 ataque já foi ativado nesta partida
     public bool archerTier5Effect2Used = false; // Archer 5 (ATK 6, HP 4): remover armadura inimigos já foi feito nesta partida
@@ -115,6 +115,31 @@ public class CardDisplay : MonoBehaviour
     public int stunTurnsLeft = 0;
     public int eagleTurnsLeft = 0;
     public int invulnerableRoundsLeft = 0; // Healer 4 (ATK 1, HP 4): invulnerável por 2 ROUNDS (v4.4: era 3 — 83% WR)
+
+    // PROVOCADA (Titã de Bronze, v4.4): enquanto durar, esta carta só pode
+    // atacar o tank que a provocou (nem torre). Mesma régua de duração do stun.
+    public CardDisplay tauntedBy = null;
+    public int tauntTurnsLeft = 0;
+
+    // Provocação ainda vale? (o provocador precisa estar vivo em campo —
+    // checagem preguiçosa: se ele morreu, a marca simplesmente deixa de valer)
+    public bool IsTaunted()
+    {
+        return tauntTurnsLeft > 0 && tauntedBy != null &&
+               tauntedBy.isOnBoard && tauntedBy.currentHealth > 0;
+    }
+
+    public void ApplyTaunt(CardDisplay taunter)
+    {
+        if (taunter == null) return;
+        tauntedBy = taunter;
+        tauntTurnsLeft = StatusDurationForVictim();
+        UpdateCardDisplay();
+        FloatingTextFX.ShowAboveCard(this, "PROVOCADA!", new Color(1f, 0.55f, 0.35f), 4.5f);
+        Debug.Log($"[Taunt] {card.cardName} foi provocada por {taunter.card.cardName} — só pode atacar ele por {tauntTurnsLeft} turno(s) dela!");
+        MatchStatsTracker.RecordDebuff(taunter);
+        MatchStatsTracker.RecordEffectTrigger(taunter);
+    }
 
     // Contador visível acima da carta (amarelo = turnos, rosa = rounds).
     // effectPeriod > 0: ao chegar em 0 o efeito dispara e o contador renova.
@@ -780,6 +805,7 @@ public class CardDisplay : MonoBehaviour
         visuals.SetEagleMark(eagleMarked);
         visuals.SetInvulnerable(invulnerableRoundsLeft > 0);
         visuals.SetTreeDefense(treeDefenseActive);
+        visuals.SetTaunted(IsTaunted());
 
         // Número acima da carta: duração de status tem prioridade sobre o
         // contador de efeito periódico. Amarelo = turnos, rosa = rounds.
@@ -788,6 +814,7 @@ public class CardDisplay : MonoBehaviour
         if (isFrozen && freezeTurnsLeft > 0) { counterShown = freezeTurnsLeft; }
         else if (isStunned && stunTurnsLeft > 0) { counterShown = stunTurnsLeft; }
         else if (eagleMarked && eagleTurnsLeft > 0) { counterShown = eagleTurnsLeft; }
+        else if (IsTaunted()) { counterShown = tauntTurnsLeft; }
         else if (invulnerableRoundsLeft > 0) { counterShown = invulnerableRoundsLeft; counterIsRound = true; }
         else if (isOnBoard && effectCounter > 0) { counterShown = effectCounter; counterIsRound = effectCounterIsRound; }
 
@@ -2779,6 +2806,16 @@ public class CardDisplay : MonoBehaviour
     {
         if (target == null || card == null) return;
 
+        // PROVOCADA (v4.4): só pode atacar o provocador. Guarda AUTORITATIVA —
+        // roda dentro do fluxo do RPC nos 2 clientes (o estado de provocação é
+        // idêntico), então nenhum caminho de ataque escapa (clique, tecla A, bot)
+        if (IsTaunted() && target != tauntedBy)
+        {
+            FloatingTextFX.ShowAboveCard(this, $"PROVOCADA! Só pode atacar {tauntedBy.card.cardName}", new Color(1f, 0.55f, 0.35f), 5.5f);
+            Debug.Log($"[Taunt] {card.cardName} está provocada — só pode atacar {tauntedBy.card.cardName}");
+            return;
+        }
+
         int damageDealt = currentAttack;
 
         // Rastreia quem atacou (para efeitos reativos e "ao matar")
@@ -3624,6 +3661,26 @@ public class CardDisplay : MonoBehaviour
             Debug.Log($"[ArcherTier4Effect1] {attackerCardDisplay.card.cardName}: Matou o Healer — pode se mover novamente!");
         }
 
+        // ÚLTIMO SUSPIRO (v4.4): efeitos "ao morrer" — disparam AQUI, com a
+        // carta ainda válida, antes de liberar o tile. Só cartas em campo
+        // (não vale para mão/loja) e no máximo 1 vez por carta.
+        if (isOnBoard && !lastBreathFired && card != null && ownerPlayerNumber != 0)
+        {
+            lastBreathFired = true;
+            CardEffectSimple dyingFx = GetComponent<CardEffectSimple>();
+            if (dyingFx != null)
+            {
+                // Sabotadora (Arqueiro T3 3/0/2): 2 de dano à torre inimiga
+                if (card.cardClass == CardClass.Arqueiro && card.tier == CardTier.Tier3 &&
+                    card.attack == 3 && card.health == 2)
+                    dyingFx.ActivateSabotadoraLastBreath();
+                // Padroeira (Healer T5 2/0/7): cura 3 em todos os aliados
+                else if (card.cardClass == CardClass.Healer && card.tier == CardTier.Tier5 &&
+                    card.attack == 2 && card.health == 7)
+                    dyingFx.ActivatePadroeiraLastBreath();
+            }
+        }
+
         // Libera o tile se a carta estiver no tabuleiro
         if (isOnBoard && currentTile != null)
         {
@@ -3805,6 +3862,19 @@ public class CardDisplay : MonoBehaviour
                 isStunned = false;
                 changed = true;
                 Debug.Log($"[Unstun] {card.cardName} foi desestunada!");
+            }
+        }
+
+        // Provocada (Titã de Bronze, v4.4): mesma régua do stun — conta no fim
+        // do turno do dono da carta provocada
+        if (tauntTurnsLeft > 0 && ownerPlayerNumber == endedTurnPlayerNumber)
+        {
+            tauntTurnsLeft--;
+            if (tauntTurnsLeft <= 0)
+            {
+                tauntedBy = null;
+                changed = true;
+                Debug.Log($"[Taunt] {card.cardName} não está mais provocada!");
             }
         }
 

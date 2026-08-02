@@ -493,9 +493,10 @@ const STAT_METRICS = [
   { k: 'healing_done', l: 'Mais cura' },
   { k: 'gold_generated', l: 'Mais ouro' },
   { k: 'debuffs_applied', l: 'Mais debuff' },
+  { k: 'effect_triggers', l: 'Efeitos ativados' },
   { k: 'winrate', l: 'Win rate' },
 ];
-const SUM_KEYS = ['bought', 'played', 'kills', 'deaths', 'damage_dealt', 'damage_taken', 'healing_done', 'gold_generated', 'debuffs_applied'];
+const SUM_KEYS = ['bought', 'played', 'kills', 'deaths', 'damage_dealt', 'damage_taken', 'healing_done', 'gold_generated', 'debuffs_applied', 'effect_triggers'];
 
 async function loadStats() {
   const { data, error } = await supa.from('card_stats').select('*').limit(100000);

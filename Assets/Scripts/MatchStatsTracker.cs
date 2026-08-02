@@ -38,6 +38,7 @@ public static class MatchStatsTracker
         public bool won;
         public int bought, played, kills, deaths;
         public int damage_dealt, damage_taken, healing_done, gold_generated, debuffs_applied;
+        public int effect_triggers; // v4.4: quantas vezes o EFEITO da carta disparou
     }
 
     static readonly Dictionary<string, Row> rows = new Dictionary<string, Row>();
@@ -158,6 +159,17 @@ public static class MatchStatsTracker
         if (source == null || source.card == null) return;
         var r = RowFor(source.card, source.ownerPlayerNumber);
         if (r != null) r.debuffs_applied++;
+    }
+
+    // v4.4: o EFEITO da carta disparou de verdade (flecha, retaliação,
+    // corrosão, provocação, último suspiro, cura periódica…). Responde "quais
+    // efeitos são pouco usados" — cobertura começa nas cartas reformadas e
+    // cresce a cada carta que a gente instrumentar.
+    public static void RecordEffectTrigger(CardDisplay source)
+    {
+        if (source == null || source.card == null) return;
+        var r = RowFor(source.card, source.ownerPlayerNumber);
+        if (r != null) r.effect_triggers++;
     }
 
     // ── Upload ───────────────────────────────────────────────────────────

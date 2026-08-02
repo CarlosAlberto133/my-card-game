@@ -28,7 +28,8 @@ create table if not exists public.card_stats (
   damage_taken   int default 0, -- "quanto tancou"
   healing_done   int default 0,
   gold_generated int default 0,
-  debuffs_applied int default 0 -- congelamentos + stuns aplicados
+  debuffs_applied int default 0, -- congelamentos + stuns + provocações aplicados
+  effect_triggers int default 0  -- v4.4: quantas vezes o EFEITO da carta disparou
 );
 
 alter table public.card_stats enable row level security;

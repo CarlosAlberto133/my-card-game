@@ -15,6 +15,7 @@ public class CardStatusVisuals : MonoBehaviour
     private GameObject eagleOverlay;
     private GameObject invulnerableOverlay;
     private GameObject treeOverlay;
+    private GameObject tauntedOverlay;
     private GameObject counterObj;
     private TextMeshPro counterText;
 
@@ -75,6 +76,12 @@ public class CardStatusVisuals : MonoBehaviour
     {
         SetOverlay(ref invulnerableOverlay, active, 0.052f, -0.70f,
             new Color(1.00f, 0.85f, 0.30f, 0.25f), "INVULNERÁVEL", new Color(1.00f, 0.93f, 0.60f));
+    }
+
+    public void SetTaunted(bool active)
+    {
+        SetOverlay(ref tauntedOverlay, active, 0.060f, 1.05f,
+            new Color(1.00f, 0.40f, 0.25f, 0.30f), "PROVOCADA", new Color(1.00f, 0.78f, 0.65f));
     }
 
     public void SetTreeDefense(bool active)

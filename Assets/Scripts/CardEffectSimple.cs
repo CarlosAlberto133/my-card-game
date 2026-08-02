@@ -624,6 +624,7 @@ public class CardEffectSimple : MonoBehaviour
         if (target == null) return;
 
         cardDisplay.flechaFielArrowUsedThisTurn = true;
+        MatchStatsTracker.RecordEffectTrigger(cardDisplay);
 
         EffectProjectileFX.Launch(cardDisplay, target, EffectProjectileFX.Arrow);
         FloatingTextFX.ShowAboveCard(cardDisplay, "FLECHA FIEL!", FloatingTextFX.EffectColor, 4.2f);
@@ -905,7 +906,9 @@ public class CardEffectSimple : MonoBehaviour
         // Cura os DOIS aliados mais feridos em 2 cada (sem sorteio — nunca
         // desperdiça). v4.4: era só o mais ferido — 14% de WR mesmo depois do
         // ajuste da v4.2; a carta pagava tier 4 por cura de tier 1
-        foreach (var targetAlly in TwoMostWoundedAllies())
+        var cureTargets = TwoMostWoundedAllies();
+        if (cureTargets.Count > 0) MatchStatsTracker.RecordEffectTrigger(cardDisplay);
+        foreach (var targetAlly in cureTargets)
         {
             targetAlly.Heal(2, cardDisplay);
             Debug.Log($"[HealerTier4Effect1] {cardDisplay.card.cardName}: Curou {targetAlly.card.cardName} em 2!");
@@ -1000,6 +1003,7 @@ public class CardEffectSimple : MonoBehaviour
         targetAlly.UpdateDisplay();
         FloatingTextFX.ShowAboveCard(targetAlly, "INVULNERÁVEL!", FloatingTextFX.GoldColor, 4.5f);
         cardDisplay.healerTier4Effect3Used = true;
+        MatchStatsTracker.RecordEffectTrigger(cardDisplay);
         Debug.Log($"[HealerTier4Effect3] {cardDisplay.card.cardName}: Concedeu invunerabilidade a {targetAlly.card.cardName} por 2 rounds!");
     }
 
@@ -1460,6 +1464,7 @@ public class CardEffectSimple : MonoBehaviour
             cardDisplay.esmoleiraGoldUsedThisTurn = true;
             player.AddGold(1);
             MatchStatsTracker.RecordGold(cardDisplay, 1);
+            MatchStatsTracker.RecordEffectTrigger(cardDisplay);
             FloatingTextFX.ShowAboveCard(cardDisplay, "+1 ouro", FloatingTextFX.GoldColor);
             Debug.Log($"[HealerEffect4] {cardDisplay.card.cardName}: Ganhou 1 ouro (limite do turno)! Total: {player.gold}");
         }
@@ -1970,6 +1975,7 @@ public class CardEffectSimple : MonoBehaviour
 
         if (armored != null)
         {
+            MatchStatsTracker.RecordEffectTrigger(cardDisplay);
             EffectProjectileFX.Launch(cardDisplay, armored, EffectProjectileFX.ShieldBlue);
             armored.currentShield -= 1;
             armored.UpdateDisplay();
@@ -1982,6 +1988,7 @@ public class CardEffectSimple : MonoBehaviour
         CardDisplay weakest = WeakestEnemy();
         if (weakest == null) return;
 
+        MatchStatsTracker.RecordEffectTrigger(cardDisplay);
         EffectProjectileFX.Launch(cardDisplay, weakest, EffectProjectileFX.Fire);
         MatchStatsTracker.EffectSource = cardDisplay;
         weakest.TakeDamage(1);
@@ -2189,6 +2196,7 @@ public class CardEffectSimple : MonoBehaviour
     {
         if (cardDisplay == null || attacker == null || attacker.currentHealth <= 0) return;
 
+        MatchStatsTracker.RecordEffectTrigger(cardDisplay);
         EffectProjectileFX.Launch(cardDisplay, attacker, EffectProjectileFX.Arcane);
         FloatingTextFX.ShowAboveCard(attacker, "RETALIAÇÃO!", FloatingTextFX.EffectColor, 4.2f);
 
@@ -2691,29 +2699,50 @@ public class CardEffectSimple : MonoBehaviour
             TankTier4Effect4_DamageReductionAndShield();
     }
 
-    // Efeito 1: Tank 4 (ATK 2, Shield 5, HP 6) - +5 HP +2 Shield se tem Arqueiro e Mago
+    // Efeito 1: Titã de Bronze (Tank 4, 2/6/7) — PROVOCAR, v4.4. A cada 2
+    // turnos (contador amarelo) o dono escolhe um inimigo: até o fim do
+    // próximo turno dele, ele só pode atacar o Titã (nem torre). Era "+5 de
+    // vida com arqueiro e mago" — monte de status parado, 38% de WR; agora o
+    // tank finalmente OBRIGA o inimigo a bater onde o dono quer.
     void TankTier4Effect1_BoostWithArcherMage()
     {
-        if (cardDisplay == null || cardDisplay.tankTier4Effect1Used) return;
+        if (cardDisplay == null) return;
+
+        // Contador de 2 TURNOS que renova (dispara via OnPeriodicCounterExpired)
+        cardDisplay.StartEffectCounter(2, false, true);
+        Debug.Log($"[TitaDeBronze] {cardDisplay.card.cardName}: Provocação pronta a cada 2 turnos");
+    }
+
+    // Contador do Titã estourou: abre a escolha do inimigo a provocar
+    public void ActivateTauntSelection()
+    {
+        if (cardDisplay == null) return;
 
         BoardManager board = BoardManager.Instance;
         if (board == null) return;
 
-        bool hasArcherAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Arqueiro);
-        bool hasMageAlly = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Mago);
+        int enemyPlayerNumber = cardDisplay.ownerPlayerNumber == 1 ? 2 : 1;
+        var enemies = board.GetCardsByOwner(enemyPlayerNumber);
+        if (enemies.Count == 0)
+        {
+            Debug.Log($"[TitaDeBronze] {cardDisplay.card.cardName}: Nenhum inimigo em campo para provocar");
+            return;
+        }
 
-        if (hasArcherAlly && hasMageAlly)
+        if (GameManager.Instance != null)
         {
-            cardDisplay.currentHealth += 5;
-            cardDisplay.currentShield += 2;
-            cardDisplay.UpdateDisplay();
-            cardDisplay.tankTier4Effect1Used = true;
-            Debug.Log($"[TankTier4Effect1] {cardDisplay.card.cardName}: Tem Arqueiro + Mago - ganhou +5 HP e +2 Shield!");
+            GameManager.Instance.StartEffectTargetSelection(cardDisplay, 18,
+                new List<CardDisplay>(enemies),
+                "Escolha um inimigo para PROVOCAR — ele só poderá atacar o Titã");
         }
-        else
-        {
-            Debug.Log($"[TankTier4Effect1] {cardDisplay.card.cardName}: Faltam aliados (Arqueiro e/ou Mago)");
-        }
+    }
+
+    public void ActivateTaunt(CardDisplay targetEnemy)
+    {
+        if (cardDisplay == null || targetEnemy == null || targetEnemy.currentHealth <= 0) return;
+
+        targetEnemy.ApplyTaunt(cardDisplay);
+        Debug.Log($"[TitaDeBronze] {cardDisplay.card.cardName}: Provocou {targetEnemy.card.cardName}!");
     }
 
     // Efeito 2: Tank 4 (Quebra-Golpes) - Recebe o ataque 1x por turno no lugar
@@ -3250,5 +3279,54 @@ public class CardEffectSimple : MonoBehaviour
             ActivateLightningPeriodic();
         else if (c.cardClass == CardClass.Mago && c.tier == CardTier.Tier3 && c.attack == 3 && c.health == 4)
             ActivateFreezeOrDamagePerTurn();
+        else if (c.cardClass == CardClass.Tank && c.tier == CardTier.Tier4 && c.attack == 2 && c.shield == 6 && c.health == 7)
+            ActivateTauntSelection(); // Titã de Bronze (v4.4): provocar a cada 2 turnos
+    }
+
+    // ═══════════ ÚLTIMOS SUSPIROS (v4.4) — efeitos "ao morrer" ═══════════
+    // Disparados pelo DestroyCard com a carta ainda válida. Determinísticos:
+    // rodam dentro do fluxo de dano do RPC, idênticos nos 2 clientes.
+
+    // Sabotadora (Arqueiro T3 3/0/2): ao morrer, 2 de dano à torre inimiga
+    public void ActivateSabotadoraLastBreath()
+    {
+        if (cardDisplay == null || TurnManager.Instance == null) return;
+
+        int enemyPlayerNumber = cardDisplay.ownerPlayerNumber == 1 ? 2 : 1;
+        PlayerData enemyPlayer = TurnManager.Instance.GetPlayer(enemyPlayerNumber);
+        if (enemyPlayer == null) return;
+
+        enemyPlayer.TakeDamage(2);
+        // Ganchos de "torre tomou dano". attacker=null: dano de EFEITO não é ataque
+        TowerSystem.OnTowerDamaged(enemyPlayerNumber, null);
+        FloatingTextFX.Show(cardDisplay.transform.position,
+            "ÚLTIMO SUSPIRO! 2 na torre", new Color(1f, 0.55f, 0.35f), 5.5f);
+        MatchStatsTracker.RecordEffectTrigger(cardDisplay);
+        Debug.Log($"[UltimoSuspiro] {cardDisplay.card.cardName}: Morreu causando 2 de dano à torre inimiga!");
+    }
+
+    // Padroeira (Healer T5 2/0/7): ao morrer, cura 3 em todos os aliados
+    public void ActivatePadroeiraLastBreath()
+    {
+        if (cardDisplay == null) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        int healed = 0;
+        foreach (var ally in board.GetCardsByOwner(cardDisplay.ownerPlayerNumber))
+        {
+            if (ally == null || ally == cardDisplay || ally.currentHealth <= 0) continue;
+            ally.Heal(3, cardDisplay);
+            healed++;
+        }
+
+        if (healed > 0)
+        {
+            FloatingTextFX.Show(cardDisplay.transform.position,
+                "ÚLTIMO SUSPIRO! Cura 3 em todos", new Color(0.45f, 1f, 0.55f), 5.5f);
+            MatchStatsTracker.RecordEffectTrigger(cardDisplay);
+        }
+        Debug.Log($"[UltimoSuspiro] {cardDisplay.card.cardName}: Morreu curando 3 em {healed} aliado(s)!");
     }
 }

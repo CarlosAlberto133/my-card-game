@@ -775,6 +775,16 @@ public class GameManager : MonoBehaviour
             return false;
         }
 
+        // PROVOCADA (v4.4): só pode atacar o provocador — aviso local amigável
+        // (a guarda autoritativa fica no PerformAttackOn, nos 2 clientes)
+        if (selectedCardDisplay.IsTaunted() && targetCard != selectedCardDisplay.tauntedBy)
+        {
+            FloatingTextFX.ShowAboveCard(selectedCardDisplay,
+                $"PROVOCADA! Só pode atacar {selectedCardDisplay.tauntedBy.card.cardName}",
+                new Color(1f, 0.55f, 0.35f), 5.5f);
+            return false;
+        }
+
         // Em multiplayer, envia RPC — o ataque com alvo executa nos DOIS clientes
         if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
         {
@@ -868,6 +878,15 @@ public class GameManager : MonoBehaviour
             return false;
         }
 
+        // PROVOCADA (v4.4): nem a torre — só pode atacar o provocador
+        if (selectedCardDisplay.IsTaunted())
+        {
+            FloatingTextFX.ShowAboveCard(selectedCardDisplay,
+                $"PROVOCADA! Só pode atacar {selectedCardDisplay.tauntedBy.card.cardName}",
+                new Color(1f, 0.55f, 0.35f), 5.5f);
+            return false;
+        }
+
         // Verifica se a carta está na posição correta para atacar a torre.
         // Magos e Arqueiros têm alcance 2: atacam a torre também da penúltima fileira
         int totalRows = boardManager != null ? boardManager.rows : 10;
@@ -921,6 +940,15 @@ public class GameManager : MonoBehaviour
         }
 
         CardDisplay attackerDisplay = tile.occupiedCard.GetComponent<CardDisplay>();
+
+        // PROVOCADA (v4.4): guarda autoritativa — roda nos 2 clientes com o
+        // mesmo estado; carta provocada não ataca a torre por nenhum caminho
+        if (attackerDisplay.IsTaunted())
+        {
+            Debug.Log($"[Taunt] {attackerDisplay.card.cardName} está provocada — não pode atacar a torre");
+            return;
+        }
+
         PlayerData targetPlayer = TurnManager.Instance.GetPlayer(targetPlayerNumber);
         // Auras de ataque dos tanks (Capitão de Ferro/Baluarte) valem também
         // contra a torre — é o caminho da vitória, o bônus não pode sumir aqui
@@ -1405,6 +1433,7 @@ public class GameManager : MonoBehaviour
             case 9: projColor = EffectProjectileFX.ShieldBlue; break; // armadura
             case 10: case 13: case 14: projColor = EffectProjectileFX.Fire; break; // danos escolhidos
             case 11: case 12: case 15: case 16: projColor = EffectProjectileFX.Ice; break; // congelamentos
+            case 18: projColor = EffectProjectileFX.Fire; break;      // provocação (v4.4)
             default: projColor = EffectProjectileFX.Arcane; break;    // 4, 6...
         }
         // Explosão em área maiorzinha; bola de fogo do Mago 5 é a maior
@@ -1427,6 +1456,7 @@ public class GameManager : MonoBehaviour
             case 15: effect.ActivateFreezePerRoundChosen(target, true); break;  // Mago 5 (5/5): 1º congelamento
             case 16: effect.ActivateFreezePerRoundChosen(target, false); break; // Mago 5 (5/5): 2º congelamento (Tank)
             case 17: effect.ActivateArcanorRayChosen(target); break;            // Arcanor (lendário): raio de 1 (+devoção) por round
+            case 18: effect.ActivateTaunt(target); break;                       // Titã de Bronze (v4.4): provocar inimigo
             default:
                 Debug.LogError($"[GameManager] Tipo de efeito com alvo desconhecido: {effectType}");
                 break;

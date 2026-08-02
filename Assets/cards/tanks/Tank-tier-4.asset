@@ -19,5 +19,5 @@ MonoBehaviour:
   attack: 2
   shield: 6
   health: 7
-  effectDescription: Se houver um arqueiro e um mago no tabuleiro, receba +5 de vida
-    e 2 de armadura
+  effectDescription: A cada 2 turnos provoca um inimigo à sua escolha, que só pode
+    atacar o Titã até o fim do próximo turno dele (nem a torre escapa)

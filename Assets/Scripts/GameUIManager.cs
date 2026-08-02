@@ -1154,6 +1154,8 @@ public class GameUIManager : MonoBehaviour
             sb.AppendLine($"   <color={TU}>MARCADA pela águia — não ataca por {c.eagleTurnsLeft} turno(s)</color>");
         if (c.invulnerableRoundsLeft > 0)
             sb.AppendLine($"   <color={RO}>INVULNERÁVEL por {c.invulnerableRoundsLeft} round(s)</color>");
+        if (c.IsTaunted())
+            sb.AppendLine($"   <color={TU}>PROVOCADA — só pode atacar {c.tauntedBy.card.cardName} por {c.tauntTurnsLeft} turno(s) dela</color>");
 
         // Ações disponíveis (fora da fase inicial)
         if (!lobbyPhase)
