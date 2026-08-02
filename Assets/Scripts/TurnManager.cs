@@ -337,6 +337,11 @@ public class TurnManager : MonoBehaviour
             try { ActivateTriadLegendaryPeriodics(); }
             catch (System.Exception e) { Debug.LogError($"[EndTurn] TriadLegendaries: {e}"); }
 
+            // Ferrugem (v4.4): corrosão — 1 de armadura por round no inimigo
+            // mais blindado (mesmo padrão de virada de round dos lendários)
+            try { ActivateCorrosionPeriodics(); }
+            catch (System.Exception e) { Debug.LogError($"[EndTurn] Corrosao: {e}"); }
+
             // Torres: efeitos periódicos + janela da loja mágica. DEPOIS da
             // renda do round — a loja mágica abre lendo o ouro JÁ atualizado
             // (antes o botão Comprar travava com o saldo velho). Roda dentro
@@ -527,6 +532,8 @@ public class TurnManager : MonoBehaviour
                 }
                 card.treeDefensePopupShown = false;
                 card.tankTier4Effect2LastUsedRound = -1; // Intercepto do Tank 4: 1x por TURNO
+                card.flechaFielArrowUsedThisTurn = false; // Flecha Fiel (v4.4): flecha ao curar, 1x por turno
+                card.esmoleiraGoldUsedThisTurn = false;   // Esmoleira (v4.4): +1 ouro ao curar, 1x por turno
             }
 
             // Regra das duplicadas: nova designação a cada turno
@@ -709,6 +716,33 @@ public class TurnManager : MonoBehaviour
                 {
                     CardEffectSimple effect = card.GetComponent<CardEffectSimple>();
                     if (effect != null) effect.ActivateSerafinaHeal();
+                }
+            }
+        }
+    }
+
+    // Corrosão da Ferrugem (Mago T2 3/0/4), v4.4: todo round derrete 1 de
+    // armadura do inimigo mais blindado (ou 1 de dano no mais fraco se ninguém
+    // tem armadura). Mesmo bloco de virada de round dos lendários — exatamente
+    // 1x por round, idêntico nos 2 clientes. Com cópias duplicadas em campo,
+    // o DuplicateEffectGate deixa só uma corroer (regra padrão das duplicadas).
+    void ActivateCorrosionPeriodics()
+    {
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        for (int playerNum = 1; playerNum <= 2; playerNum++)
+        {
+            foreach (var card in board.GetCardsByOwner(playerNum))
+            {
+                if (card == null || card.card == null) continue;
+
+                if (card.card.cardClass == CardClass.Mago && card.card.tier == CardTier.Tier2 &&
+                    card.card.attack == 3 && card.card.health == 4)
+                {
+                    if (!DuplicateEffectGate.TryActivate(card)) continue;
+                    CardEffectSimple effect = card.GetComponent<CardEffectSimple>();
+                    if (effect != null) effect.ActivateCorrosion();
                 }
             }
         }

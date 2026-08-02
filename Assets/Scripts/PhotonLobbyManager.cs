@@ -21,7 +21,7 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
     // (TakeDamage não registrava — números de dano antigos são subcontados)
     // + lendários das tríades (Arcanor 6/0/7 cataclisma/raio tipo 17;
     // Serafina 3/0/8 cura em área por round) no lugar dos payoffs antigos
-    public const string GameVersion = "4.3";
+    public const string GameVersion = "4.4";
 
     public Button createRoomButton;
     public Button joinRoomButton;

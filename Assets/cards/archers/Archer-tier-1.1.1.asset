@@ -20,5 +20,4 @@ MonoBehaviour:
   shield: 0
   health: 3
   effectDescription: "Se estiver com um tanque aliado em campo, cria um eco de si:
-    uma c\xF3pia com metade dos status (m\xEDnimo 1) que s\xF3 pode andar no round
-    em que entra"
+    uma c\xF3pia com metade dos status (m\xEDnimo 1) pronta para lutar"

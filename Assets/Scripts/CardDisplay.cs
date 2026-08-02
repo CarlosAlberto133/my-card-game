@@ -25,7 +25,8 @@ public class CardDisplay : MonoBehaviour
     public bool healOnEnterUsed = false; // Healer 2: rastreia se já usou o efeito ao entrar em campo
     public bool isFrozen = false; // Mage 3: carta está congelada, não pode se mover/atacar/ativar efeito
     public bool isStunned = false; // Archer tier-2: carta está stunada, não pode se mover/atacar
-    public bool archerShieldArrowUsed = false; // Archer 2 (ATK 3, HP 3): efeito de parar ataque já foi usado
+    public bool flechaFielArrowUsedThisTurn = false; // Flecha Fiel (Archer 2, ATK 3/HP 3), v4.4: flecha ao curar já disparou neste turno
+    public bool esmoleiraGoldUsedThisTurn = false; // Esmoleira (Healer 1, ATK 1/HP 2), v4.4: ouro ao curar já rendeu neste turno
     public bool archerStunOnHitUsed = false; // Archer 2 (ATK 2, HP 2): efeito de stun ao receber ataque já foi usado
     public bool archerComboActivated = false; // Archer tier-2 combo: +5 ATK já foi ativado
     public int maxHealthBonus = 0; // Healer 2 (ATK 1, HP 3): bônus de vida máxima
@@ -113,7 +114,7 @@ public class CardDisplay : MonoBehaviour
     public int freezeTurnsLeft = 0;
     public int stunTurnsLeft = 0;
     public int eagleTurnsLeft = 0;
-    public int invulnerableRoundsLeft = 0; // Healer 4 (ATK 1, HP 4): invulnerável por 3 ROUNDS
+    public int invulnerableRoundsLeft = 0; // Healer 4 (ATK 1, HP 4): invulnerável por 2 ROUNDS (v4.4: era 3 — 83% WR)
 
     // Contador visível acima da carta (amarelo = turnos, rosa = rounds).
     // effectPeriod > 0: ao chegar em 0 o efeito dispara e o contador renova.
@@ -600,11 +601,19 @@ public class CardDisplay : MonoBehaviour
         // entra" virou "+1 ATK quando um aliado é CURADO", dentro do Heal())
     }
 
-    void ApplyMageEffect()
+    void ApplyMageEffect(CardDisplay attacker)
     {
-        // Quando um Healer toma dano, os Magos 1 (2/3) aliados dão +1/+2 ATK a ele.
+        // Encantador (Mago 1, 2/3), v4.4: quando um Healer aliado é ATACADO, o
+        // atacante leva 1 de dano de volta (retaliação). Era "+1/+2 ATK ao
+        // healer atingido" — 50% WR mas gatilho controlado pelo OPONENTE, que
+        // simplesmente não atacava healers (mesmo problema da Flecha Fiel).
+        // Só ataques de verdade (attacker != null): dano de efeito não retalia,
+        // e a retaliação entra com attacker nulo — sem correntes de reflexo.
         // IMPORTANTE: só o Mago 1 tem esse efeito — sem o filtro de stats/tier,
-        // TODO mago aliado disparava o bônus (3 magos + tank = +6 ATK por dano)
+        // TODO mago aliado dispararia; o gate de duplicadas impede 2 Encantadores
+        // de retaliarem juntos (não acumula)
+        if (attacker == null || attacker.currentHealth <= 0) return;
+
         BoardManager board = BoardManager.Instance;
         if (board == null) return;
 
@@ -619,11 +628,10 @@ public class CardDisplay : MonoBehaviour
             CardEffectSimple effect = mage.GetComponent<CardEffectSimple>();
             if (effect != null)
             {
-                effect.ApplyMageEffectOnHealerDamage(this);
+                effect.ActivateHealerRetaliation(attacker);
+                break; // 1 de dano por ataque, independente de quantas cópias
             }
         }
-
-        Debug.Log($"[MageEffect Trigger] {card.cardName} tomou dano - {alliedMages.Count} mago(s) aliado(s) ativou(aram) efeito");
     }
 
     public void UpdateDisplay()
@@ -2987,6 +2995,22 @@ public class CardDisplay : MonoBehaviour
             }
         }
 
+        // Flecha Fiel — Arqueiro T2 (3/3), v4.4: sempre que um aliado é curado,
+        // dispara uma flecha de 1 de dano no inimigo de menor vida (1x por
+        // turno). O limite por turno também corta qualquer ping-pong entre
+        // gatilhos de cura/dano dos dois lados
+        foreach (var ally in allies)
+        {
+            if (ally != null && ally.card.cardClass == CardClass.Arqueiro &&
+                ally.card.tier == CardTier.Tier2 &&
+                ally.card.attack == 3 && ally.card.health == 3)
+            {
+                if (!DuplicateEffectGate.TryActivate(ally)) continue;
+                CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
+                if (effect != null) effect.ActivateFaithfulArrowOnHeal();
+            }
+        }
+
         // Tanks "quando curado": só quando ESTA carta (a que foi curada) é o
         // tank. BUGFIX: antes o bônus disparava quando QUALQUER aliado era
         // curado — com um healer periódico os tanks inflavam sem limite
@@ -3046,7 +3070,7 @@ public class CardDisplay : MonoBehaviour
         bool skipShield = ignoreArmorNextDamage;
         ignoreArmorNextDamage = false;
 
-        // Invulnerabilidade (Healer 4, dura 3 ROUNDS): nega qualquer dano
+        // Invulnerabilidade (Healer 4, dura 2 ROUNDS): nega qualquer dano
         if (invulnerableRoundsLeft > 0)
         {
             Debug.Log($"[Invulnerável] {card.cardName} está invulnerável e negou o dano!");
@@ -3165,41 +3189,10 @@ public class CardDisplay : MonoBehaviour
                 return; // Decisão pendente: o dano é resolvido no callback
         }
 
-        // Verifica se é um Healer sendo atacado e há Archer 2 (ATK 3, HP 2) que pode parar o ataque.
-        // Só em ATAQUES de verdade (attacker != null): dano de efeito não é "um ataque"
-        if (card.cardClass == CardClass.Healer && ownerPlayerNumber != 0 && attacker != null)
-        {
-            BoardManager board = BoardManager.Instance;
-            if (board != null)
-            {
-                var allies = board.GetCardsByOwner(ownerPlayerNumber);
-                foreach (var ally in allies)
-                {
-                    if (ally != null && ally.card.cardClass == CardClass.Arqueiro &&
-                        ally.card.attack == 3 && ally.card.health == 3 &&
-                        ally.card.tier == CardTier.Tier2 &&
-                        !ally.archerShieldArrowUsed)
-                    {
-                        if (!DuplicateEffectGate.TryActivate(ally)) continue;
-                        // Decisão sincronizada: o dono da carta defendida escolhe.
-                        // BUGFIX: a flecha stuna o ATACANTE (antes passava "this"
-                        // e stunava o próprio healer aliado que levou o dano)
-                        CardEffectSimple effect = ally.GetComponent<CardEffectSimple>();
-                        CardDisplay atk = attacker;
-                        PhotonGameManager.AskEffectDecision(ownerPlayerNumber,
-                            "Um Archer pode parar este ataque!",
-                            "Parar ataque", "Não parar",
-                            accepted =>
-                            {
-                                bool blocked = accepted && effect != null &&
-                                    effect.ArcherTier2Effect2_ShieldArrow(atk);
-                                if (!blocked) ApplyDamageNormally(damage, atk);
-                            });
-                        return;
-                    }
-                }
-            }
-        }
+        // (Flecha Fiel — Archer 2 3/0/3 — v4.4: o "parar 1 ataque a healer por
+        // partida" virou "flecha de 1 de dano quando um aliado é curado", com
+        // gancho no Heal(). O gatilho antigo era controlado pelo OPONENTE, que
+        // simplesmente não atacava healers — 11% de WR em 8 partidas.)
 
         // (O Archer 2/2 é membro de tríade: o solo de "stunar o atacante ao
         // receber ataque" foi removido — só tem o efeito da tríade.)
@@ -3302,10 +3295,10 @@ public class CardDisplay : MonoBehaviour
                 effect.ActivateWarlordOnSurvive();
         }
 
-        // Se um Healer toma dano, aplica efeito do Mago
+        // Healer atacado: o Encantador aliado retalia (1 de dano no atacante)
         if (card.cardClass == CardClass.Healer && ownerPlayerNumber != 0)
         {
-            ApplyMageEffect();
+            ApplyMageEffect(attacker);
         }
 
         // Healer 3 (2/4): cura o Tank em 3 DEPOIS do dano aplicado
@@ -3561,10 +3554,10 @@ public class CardDisplay : MonoBehaviour
             }
         }
 
-        // Se um Healer toma dano, aplica efeito do Mago
+        // Healer atacado: o Encantador aliado retalia (1 de dano no atacante)
         if (card.cardClass == CardClass.Healer && ownerPlayerNumber != 0)
         {
-            ApplyMageEffect();
+            ApplyMageEffect(attacker);
         }
 
         // Healer 3 (2/4): cura o Tank em 2 DEPOIS do dano aplicado (este caminho
@@ -3707,17 +3700,17 @@ public class CardDisplay : MonoBehaviour
     }
 
     // "Eco" (cópia de ENTRADA dos Archers 1 [1/3] e 3 [4/2]): a cópia nasce
-    // com METADE dos stats (arredondado para baixo, mínimo 1 de ataque/vida)
-    // e com enjoo — no round em que entra só pode andar. Corta o
-    // "compra 1 leva 2 de graça" que deixava os arqueiros opressores.
+    // com METADE dos stats (v4.4: arredondado para CIMA, mínimo 1) e SEM
+    // enjoo — pode atacar no round em que entra. O corte pela metade já
+    // segura o "compra 1 leva 2 de graça"; com o enjoo junto, Miragem e
+    // Reflexo caíram para 38% de WR — o eco mal valia a casa que ocupava.
     // (A cópia AO MATAR do Archer 5 continua com stats cheios — o freio dela
     // é o enjoo + ser carta única de tier 5.)
     public void WeakenAsEcho()
     {
-        currentAttack = Mathf.Max(1, currentAttack / 2);
-        currentHealth = Mathf.Max(1, currentHealth / 2);
-        currentShield = currentShield / 2;
-        BlockAttackThisRound();
+        currentAttack = Mathf.Max(1, (currentAttack + 1) / 2);
+        currentHealth = Mathf.Max(1, (currentHealth + 1) / 2);
+        currentShield = (currentShield + 1) / 2;
         UpdateDisplay();
     }
 

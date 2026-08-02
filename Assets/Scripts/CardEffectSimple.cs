@@ -526,7 +526,7 @@ public class CardEffectSimple : MonoBehaviour
                 CardDisplay copy = cardDisplay.SpawnCardCopy(emptyTile);
                 if (copy != null)
                 {
-                    copy.WeakenAsEcho(); // metade dos stats (min 1) + só anda neste round
+                    copy.WeakenAsEcho(); // metade dos stats (arredonda p/ cima, min 1); v4.4: sem enjoo
                     cardDisplay.archerTier3Effect2Used = true;
                     Debug.Log($"[ArcherTier3Effect2] {cardDisplay.card.cardName}: Criou um eco ({copy.currentAttack}/{copy.currentHealth}) em {emptyTile.row},{emptyTile.column}!");
                 }
@@ -610,26 +610,48 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[ArcherTier2Effect1] {cardDisplay.card.cardName}: Pronta para invocar Archer ao matar");
     }
 
-    // Efeito 2: Archer 2 (ATK 3, HP 3) - Para ataque de Healer e stuna o ATACANTE
-    // (ativado via popup). Retorna true se o ataque foi de fato parado — se não
-    // foi, o chamador aplica o dano normalmente (antes o dano simplesmente sumia)
-    public bool ArcherTier2Effect2_ShieldArrow(CardDisplay attackingCard)
+    // Efeito 2: Flecha Fiel — Archer 2 (ATK 3, HP 3), v4.4: sempre que um
+    // aliado é curado, dispara uma flecha de 1 de dano no inimigo de MENOR
+    // vida (1x por turno). Gancho no CardDisplay.Heal(). Era "para 1 ataque a
+    // healer por partida" — gatilho nas mãos do oponente, 11% de WR.
+    // Determinístico: varredura do tabuleiro em ordem fixa, sem sorteio.
+    public void ActivateFaithfulArrowOnHeal()
     {
-        if (cardDisplay == null || attackingCard == null) return false;
+        if (cardDisplay == null || cardDisplay.flechaFielArrowUsedThisTurn) return;
+        if (cardDisplay.currentHealth <= 0 || !cardDisplay.isOnBoard) return;
 
-        if (cardDisplay.archerShieldArrowUsed)
+        CardDisplay target = WeakestEnemy();
+        if (target == null) return;
+
+        cardDisplay.flechaFielArrowUsedThisTurn = true;
+
+        EffectProjectileFX.Launch(cardDisplay, target, EffectProjectileFX.Arrow);
+        FloatingTextFX.ShowAboveCard(cardDisplay, "FLECHA FIEL!", FloatingTextFX.EffectColor, 4.2f);
+
+        MatchStatsTracker.EffectSource = cardDisplay;
+        target.TakeDamage(1);
+        MatchStatsTracker.EffectSource = null;
+
+        Debug.Log($"[FlechaFiel] {cardDisplay.card.cardName}: Flecha de 1 de dano em {target.card.cardName} (inimigo mais fraco)");
+    }
+
+    // Inimigo com MENOS vida atual no tabuleiro (empate: o primeiro na ordem
+    // fixa da varredura — mesma ordem nos dois clientes, sem sorteio)
+    CardDisplay WeakestEnemy()
+    {
+        BoardManager board = BoardManager.Instance;
+        if (board == null || cardDisplay == null) return null;
+
+        CardDisplay best = null;
+        foreach (var c in board.GetAllCards())
         {
-            Debug.Log($"[ArcherTier2Effect2] {cardDisplay.card.cardName}: Efeito já foi usado nesta partida!");
-            return false;
+            if (c == null || c.card == null || c.ownerPlayerNumber == 0) continue;
+            if (c.ownerPlayerNumber == cardDisplay.ownerPlayerNumber) continue;
+            if (c.currentHealth <= 0) continue;
+            if (best == null || c.currentHealth < best.currentHealth)
+                best = c;
         }
-
-        // Para o ataque
-        attackingCard.Stun(cardDisplay);
-        cardDisplay.archerShieldArrowUsed = true;
-
-        FloatingTextFX.ShowAboveCard(cardDisplay, "FLECHA PROTETORA!", FloatingTextFX.EffectColor, 4.2f);
-        Debug.Log($"[ArcherTier2Effect2] {cardDisplay.card.cardName}: Parou ataque e stunou {attackingCard.card.cardName}!");
-        return true;
+        return best;
     }
 
     // Efeito 3: Archer 2 (ATK 2, HP 2) - Stuna o atacante ao receber ataque
@@ -819,7 +841,7 @@ public class CardEffectSimple : MonoBehaviour
                 CardDisplay copy = cardDisplay.SpawnCardCopy(emptyTile);
                 if (copy != null)
                 {
-                    copy.WeakenAsEcho(); // metade dos stats (min 1) + só anda neste round
+                    copy.WeakenAsEcho(); // metade dos stats (arredonda p/ cima, min 1); v4.4: sem enjoo
                     Debug.Log($"[ArcherEffect3] {cardDisplay.card.cardName}: Criou um eco ({copy.currentAttack}/{copy.currentHealth}) em {emptyTile.row},{emptyTile.column}");
                 }
                 else
@@ -880,13 +902,13 @@ public class CardEffectSimple : MonoBehaviour
         BoardManager board = BoardManager.Instance;
         if (board == null) return;
 
-        // Cura o aliado mais ferido (sem sorteio — nunca desperdiça).
-        // v4.2: cura 2 (era 3 — healers seguravam demais o jogo)
-        CardDisplay targetAlly = MostWoundedAlly();
-        if (targetAlly != null)
+        // Cura os DOIS aliados mais feridos em 2 cada (sem sorteio — nunca
+        // desperdiça). v4.4: era só o mais ferido — 14% de WR mesmo depois do
+        // ajuste da v4.2; a carta pagava tier 4 por cura de tier 1
+        foreach (var targetAlly in TwoMostWoundedAllies())
         {
             targetAlly.Heal(2, cardDisplay);
-            Debug.Log($"[HealerTier4Effect1] {cardDisplay.card.cardName}: Curou {targetAlly.card.cardName} (o mais ferido) em 2!");
+            Debug.Log($"[HealerTier4Effect1] {cardDisplay.card.cardName}: Curou {targetAlly.card.cardName} em 2!");
         }
 
         // Se tem Mago aliado, ganha 1 de ouro (o proc agora é todo round)
@@ -939,7 +961,8 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[HealerTier4Effect2] {cardDisplay.card.cardName}: Ganhou 1 ouro ao fim do turno do oponente!");
     }
 
-    // Efeito 3: Healer 4 (ATK 1, HP 4) - Concede invunerabilidade a uma carta por 3 rounds
+    // Efeito 3: Healer 4 (ATK 1, HP 4) - Concede invunerabilidade a uma carta
+    // por 2 rounds (v4.4: era 3 — 83% de WR com 14 compras, nerf mais urgente)
     void HealerTier4Effect3_GrantInvulnerability()
     {
         if (cardDisplay == null || cardDisplay.healerTier4Effect3Used) return;
@@ -961,7 +984,7 @@ public class CardEffectSimple : MonoBehaviour
         {
             GameManager.Instance.StartEffectTargetSelection(cardDisplay, 8,
                 new List<CardDisplay>(allies),
-                "Escolha qual aliado receberá invulnerabilidade por 3 rounds");
+                "Escolha qual aliado receberá invulnerabilidade por 2 rounds");
         }
     }
 
@@ -971,13 +994,13 @@ public class CardEffectSimple : MonoBehaviour
 
         if (TurnManager.Instance == null) return;
 
-        // Invulnerável por 3 ROUNDS de verdade (contador rosa na carta).
+        // Invulnerável por 2 ROUNDS de verdade (contador rosa na carta).
         // Antes usava treeDefenseActive, que é zerado TODO turno → durava ~1 turno
-        targetAlly.invulnerableRoundsLeft = 3;
+        targetAlly.invulnerableRoundsLeft = 2;
         targetAlly.UpdateDisplay();
         FloatingTextFX.ShowAboveCard(targetAlly, "INVULNERÁVEL!", FloatingTextFX.GoldColor, 4.5f);
         cardDisplay.healerTier4Effect3Used = true;
-        Debug.Log($"[HealerTier4Effect3] {cardDisplay.card.cardName}: Concedeu invunerabilidade a {targetAlly.card.cardName} por 3 rounds!");
+        Debug.Log($"[HealerTier4Effect3] {cardDisplay.card.cardName}: Concedeu invunerabilidade a {targetAlly.card.cardName} por 2 rounds!");
     }
 
     // Efeito 4: Healer 4 (ATK 3, HP 4) - +3 todos status a todos aliados se tem Tank, Arqueiro e Mago
@@ -1318,6 +1341,35 @@ public class CardEffectSimple : MonoBehaviour
         return best;
     }
 
+    // Os DOIS aliados mais feridos (Milagreira, v4.4). Escolhidos ANTES de
+    // qualquer cura — determinístico, mesma ordem de varredura nos 2 clientes
+    List<CardDisplay> TwoMostWoundedAllies()
+    {
+        var result = new List<CardDisplay>();
+        BoardManager board = BoardManager.Instance;
+        if (board == null || cardDisplay == null) return result;
+
+        CardDisplay first = null, second = null;
+        int firstMissing = 0, secondMissing = 0;
+        foreach (var ally in board.GetCardsByOwner(cardDisplay.ownerPlayerNumber))
+        {
+            if (ally == null || ally.card == null || ally.currentHealth <= 0) continue;
+            int missing = ally.card.health + ally.maxHealthBonus - ally.currentHealth;
+            if (missing > firstMissing)
+            {
+                second = first; secondMissing = firstMissing;
+                first = ally; firstMissing = missing;
+            }
+            else if (missing > secondMissing)
+            {
+                second = ally; secondMissing = missing;
+            }
+        }
+        if (first != null) result.Add(first);
+        if (second != null) result.Add(second);
+        return result;
+    }
+
     // Efeito 1: Cura 2 HP no aliado MAIS FERIDO a cada 3 TURNOS (v4.2: era
     // 3 de cura a cada 2 turnos — healers seguravam demais o jogo)
     void HealerEffect1_RandomAllyPeriodicHeal()
@@ -1394,18 +1446,22 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[HealerEffect3] {cardDisplay.card.cardName}: Bloqueou um ataque! Recarrega em 3 turnos");
     }
 
-    // Efeito 4: Sempre que um aliado for curado, receba 1 de ouro
+    // Efeito 4: Esmoleira — sempre que um aliado for curado, receba 1 de ouro.
+    // v4.4: máximo 1 ouro por TURNO — com curas em área/periódicas ela rendia
+    // ~14 de ouro por partida (76% de WR, motor de economia sozinha)
     public void OnAllyHealed()
     {
         if (cardDisplay == null || cardDisplay.ownerPlayerNumber == 0) return;
+        if (cardDisplay.esmoleiraGoldUsedThisTurn) return;
 
         PlayerData player = TurnManager.Instance?.GetPlayer(cardDisplay.ownerPlayerNumber);
         if (player != null)
         {
+            cardDisplay.esmoleiraGoldUsedThisTurn = true;
             player.AddGold(1);
             MatchStatsTracker.RecordGold(cardDisplay, 1);
             FloatingTextFX.ShowAboveCard(cardDisplay, "+1 ouro", FloatingTextFX.GoldColor);
-            Debug.Log($"[HealerEffect4] {cardDisplay.card.cardName}: Ganhou 1 ouro! Total: {player.gold}");
+            Debug.Log($"[HealerEffect4] {cardDisplay.card.cardName}: Ganhou 1 ouro (limite do turno)! Total: {player.gold}");
         }
     }
 
@@ -1868,45 +1924,69 @@ public class CardEffectSimple : MonoBehaviour
     // (Efeito 2 do Mage 2 ATK 2/HP 3 — bola de fogo ao Tank ser atacado — foi
     // REMOVIDO: a carta agora tem apenas o efeito de tríade)
 
-    // Efeito 3: Mage 2 (ATK 3, HP 4) - 1 de dano na armadura de 2 inimigos (ao entrar em campo)
+    // Efeito 3: Ferrugem — Mage 2 (ATK 3, HP 4), v4.4: CORROSÃO. Todo round
+    // derrete 1 de armadura do inimigo mais blindado; se ninguém tem armadura,
+    // causa 1 de dano no inimigo de menor vida. Roda via hook no TurnManager
+    // (ActivateCorrosionPeriodics), igual aos lendários de tríade. Era "1 de
+    // armadura de 2 inimigos ao entrar, se houver tanque ALIADO" — situacional
+    // e invisível: 2 compras no banco inteiro. Agora é a resposta dos magos ao
+    // Atlas e à tríade dos tanks, espelhando a Ponta Perfurante dos arqueiros.
     void MageTier2Effect3_ShieldBreak()
     {
-        BoardManager board = BoardManager.Instance;
-        if (board == null) return;
-
-        int hasTank = board.CountCardsByClass(cardDisplay.ownerPlayerNumber, CardClass.Tank);
-        if (hasTank == 0)
-        {
-            Debug.Log($"[MageTier2Effect3] {cardDisplay.card.cardName}: Nenhum tanque em campo, efeito não ativado");
-            return;
-        }
-
-        // Este efeito requer seleção do jogador para escolher 2 inimigos
-        GameManager gameManager = GameManager.Instance;
-        if (gameManager != null)
-        {
-            gameManager.StartShieldBreakSelection(cardDisplay);
-        }
-
-        Debug.Log($"[MageTier2Effect3] {cardDisplay.card.cardName}: Aguardando seleção de 2 inimigos");
+        Debug.Log($"[Ferrugem] {cardDisplay.card.cardName}: Corrosão ativa — 1 de armadura por round no inimigo mais blindado");
     }
 
+    // (Legado da Ferrugem pré-4.4: usado só pelo fluxo de seleção do
+    // GameManager, que não é mais iniciado por ninguém — mantido para o
+    // código de seleção continuar compilando)
     public void BreakEnemyShield(CardDisplay targetEnemy)
     {
         if (targetEnemy == null) return;
-
-        EffectProjectileFX.Launch(cardDisplay, targetEnemy, EffectProjectileFX.ShieldBlue);
-
         if (targetEnemy.currentShield > 0)
         {
             targetEnemy.currentShield -= 1;
             targetEnemy.UpdateDisplay();
-            Debug.Log($"[MageTier2Effect3] Armadura de {targetEnemy.card.cardName} reduzida em 1! Shield agora: {targetEnemy.currentShield}");
         }
-        else
+    }
+
+    public void ActivateCorrosion()
+    {
+        if (cardDisplay == null || cardDisplay.currentHealth <= 0 || !cardDisplay.isOnBoard) return;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) return;
+
+        // Alvo: inimigo com MAIS armadura (empate: primeiro na ordem fixa da
+        // varredura — determinístico nos 2 clientes, sem sorteio)
+        CardDisplay armored = null;
+        foreach (var c in board.GetAllCards())
         {
-            Debug.Log($"[MageTier2Effect3] {targetEnemy.card.cardName} não tem armadura!");
+            if (c == null || c.card == null || c.ownerPlayerNumber == 0) continue;
+            if (c.ownerPlayerNumber == cardDisplay.ownerPlayerNumber) continue;
+            if (c.currentHealth <= 0 || c.currentShield <= 0) continue;
+            if (armored == null || c.currentShield > armored.currentShield)
+                armored = c;
         }
+
+        if (armored != null)
+        {
+            EffectProjectileFX.Launch(cardDisplay, armored, EffectProjectileFX.ShieldBlue);
+            armored.currentShield -= 1;
+            armored.UpdateDisplay();
+            FloatingTextFX.ShowAboveCard(armored, "-1 armadura", FloatingTextFX.ShieldColor);
+            Debug.Log($"[Ferrugem] {cardDisplay.card.cardName}: Corroeu 1 de armadura de {armored.card.cardName} (agora {armored.currentShield})");
+            return;
+        }
+
+        // Ninguém blindado: 1 de dano no inimigo mais fraco
+        CardDisplay weakest = WeakestEnemy();
+        if (weakest == null) return;
+
+        EffectProjectileFX.Launch(cardDisplay, weakest, EffectProjectileFX.Fire);
+        MatchStatsTracker.EffectSource = cardDisplay;
+        weakest.TakeDamage(1);
+        MatchStatsTracker.EffectSource = null;
+        Debug.Log($"[Ferrugem] {cardDisplay.card.cardName}: Sem armadura no campo inimigo — 1 de dano em {weakest.card.cardName}");
     }
 
     // Efeito 4: Mage 2 (ATK 3, HP 3) - Congela inimigo que ataca Arqueiro
@@ -1999,12 +2079,13 @@ public class CardEffectSimple : MonoBehaviour
             MageEffect5_DamageColumnAhead();
     }
 
-    // Efeito 1: Conceda +1 de ataque ao healer que levar dano (ou +2 com tanque)
+    // Efeito 1: Encantador — retalia com 1 de dano quem atacar um healer
+    // aliado (v4.4; era "+1/+2 ATK ao healer atingido")
     void MageEffect1_BuffHealerOnDamage()
     {
-        // Este efeito é ativado quando um Healer toma dano
-        // Ver CardDisplay.ApplyMageEffect()
-        Debug.Log($"[MageEffect1] {cardDisplay.card.cardName}: Pronta para bufar Healers");
+        // Este efeito é ativado quando um Healer aliado é atacado
+        // Ver CardDisplay.ApplyMageEffect() → ActivateHealerRetaliation()
+        Debug.Log($"[MageEffect1] {cardDisplay.card.cardName}: Pronto para retaliar ataques aos healers");
     }
 
     // Efeito 2: Cause 1 de dano a um inimigo À SUA ESCOLHA ao entrar em campo
@@ -2099,23 +2180,23 @@ public class CardEffectSimple : MonoBehaviour
         Debug.Log($"[MageEffect5] {cardDisplay.card.cardName}: Causou {columnDamage} de dano a {targets.Count} inimigo(s) na coluna à frente");
     }
 
-    public void ApplyMageEffectOnHealerDamage(CardDisplay healerThatTookDamage)
+    // Encantador (Mago 1, 2/3), v4.4: RETALIAÇÃO — quem ataca um healer
+    // aliado leva 1 de dano de volta. Chamado pelo CardDisplay.ApplyMageEffect
+    // (só ataques de verdade; a retaliação em si entra sem attacker — não há
+    // corrente de reflexos). Pode matar o atacante: o DestroyCard resolve no
+    // mesmo fluxo, igual ao reflexo da devoção Falange.
+    public void ActivateHealerRetaliation(CardDisplay attacker)
     {
-        if (cardDisplay == null || healerThatTookDamage == null) return;
+        if (cardDisplay == null || attacker == null || attacker.currentHealth <= 0) return;
 
-        BoardManager board = BoardManager.Instance;
-        if (board == null) return;
+        EffectProjectileFX.Launch(cardDisplay, attacker, EffectProjectileFX.Arcane);
+        FloatingTextFX.ShowAboveCard(attacker, "RETALIAÇÃO!", FloatingTextFX.EffectColor, 4.2f);
 
-        int bonus = 1;
+        MatchStatsTracker.EffectSource = cardDisplay;
+        attacker.TakeDamage(1);
+        MatchStatsTracker.EffectSource = null;
 
-        bool hasTankOnBoard = board.HasClassOnBoard(cardDisplay.ownerPlayerNumber, CardClass.Tank);
-        if (hasTankOnBoard)
-            bonus = 2;
-
-        healerThatTookDamage.currentAttack += bonus;
-        healerThatTookDamage.UpdateDisplay();
-
-        Debug.Log($"[MageEffect1] {cardDisplay.card.cardName}: Deu +{bonus} ATK ao {healerThatTookDamage.card.cardName}");
+        Debug.Log($"[Encantador] {cardDisplay.card.cardName}: Retaliou o ataque ao healer — 1 de dano em {attacker.card.cardName}");
     }
 
     // ===== MAGE TIER-5 =====

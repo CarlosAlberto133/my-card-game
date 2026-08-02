@@ -102,7 +102,7 @@ public class CardAuraIndicator : MonoBehaviour
         else if (c.cardClass == CardClass.Arqueiro)
         {
             if (c.tier == CardTier.Tier2 && c.attack == 3 && c.health == 3)
-                return Kind.FlechaFiel;      // 1x por partida protege healer
+                return Kind.FlechaFiel;      // v4.4: flecha ao curar (1x por turno)
         }
         return Kind.None;
     }
@@ -145,7 +145,7 @@ public class CardAuraIndicator : MonoBehaviour
                 return Status.Active;
 
             case Kind.FlechaFiel:
-                return cd.archerShieldArrowUsed ? Status.Inactive : Status.Active;
+                return cd.flechaFielArrowUsedThisTurn ? Status.Resting : Status.Active;
         }
         return Status.Inactive;
     }
@@ -161,9 +161,11 @@ public class CardAuraIndicator : MonoBehaviour
             case Status.Active:
                 return "<color=#4DFF6B>» Efeito ATIVO agora</color>";
             case Status.Resting:
-                return k == Kind.PortaBandeira
-                    ? "<color=#FFD84D>» Aura descansando — volta no próximo round</color>"
-                    : "<color=#FFD84D>» Já usado neste round — volta no próximo</color>";
+                if (k == Kind.PortaBandeira)
+                    return "<color=#FFD84D>» Aura descansando — volta no próximo round</color>";
+                if (k == Kind.FlechaFiel)
+                    return "<color=#FFD84D>» Flecha já disparada neste turno — volta no próximo</color>";
+                return "<color=#FFD84D>» Já usado neste round — volta no próximo</color>";
             default:
                 switch (k)
                 {
@@ -175,8 +177,6 @@ public class CardAuraIndicator : MonoBehaviour
                         return "<color=#FF7B6B>» INATIVO — precisa estar na linha de frente</color>";
                     case Kind.Baluarte:
                         return "<color=#FF7B6B>» INATIVO — precisa de healer, mago e arqueiro</color>";
-                    case Kind.FlechaFiel:
-                        return "<color=#FF7B6B>» Flecha já gasta nesta partida</color>";
                     default:
                         return "<color=#FF7B6B>» Efeito inativo</color>";
                 }
