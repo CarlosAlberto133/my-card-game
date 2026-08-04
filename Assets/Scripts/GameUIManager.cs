@@ -1286,14 +1286,8 @@ public class GameUIManager : MonoBehaviour
                 sb.AppendLine(ComboLine("Tank 4 (3/7/8) — +2 de dano + armadura/turno",
                     Missing(hasHealer, "Healer", hasMage, "Mago", hasArcher, "Arqueiro"), false));
             }
-            // Tank 4 (2/6/7): +5 HP +2 DEF com Arqueiro e Mago (1x)
-            else if (card.cardClass == CardClass.Tank && card.tier == CardTier.Tier4 &&
-                     card.attack == 2 && card.shield == 6 && card.health == 7)
-            {
-                any = true;
-                sb.AppendLine(ComboLine("Tank 4 (2/6/7) — +5 HP e +2 DEF",
-                    Missing(hasArcher, "Arqueiro", hasMage, "Mago"), c.tankTier4Effect1Used));
-            }
+            // Tank 4 (2/6/7) — Titã de Bronze: deixou de ser combo na v4.4
+            // (agora provoca um inimigo a cada 2 turnos, sem depender de outras classes)
             // Tank 4 (2/6/8): Arqueiros atacam 2x com as 4 classes (aura round sim, round não)
             else if (card.cardClass == CardClass.Tank && card.tier == CardTier.Tier4 &&
                      card.attack == 2 && card.shield == 6 && card.health == 8)
