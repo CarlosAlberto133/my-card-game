@@ -1467,6 +1467,66 @@ public class CardDisplay : MonoBehaviour
         return mat;
     }
 
+    // ===== FIGURA EXCLUSIVA DA CARTA (tem prioridade sobre a da classe) =====
+    // Basta soltar o modelo em Resources/cards/figures/<nome-da-carta>.fbx e,
+    // opcionalmente, a textura <nome-da-carta>_tex.png ao lado. O nome vem do
+    // cardName sem acento, em minúsculas e com espaço virando hífen:
+    //   "Guarda Rúnico" -> guarda-runico.fbx (+ guarda-runico_tex.png)
+    // Sem arquivo, a carta continua usando o personagem genérico da classe.
+    // São modelos ESTÁTICOS (sem rig): animação procedural via FigureAnimator.
+    const string CardFigurePath = "cards/figures/";
+
+    public static string CardFigureSlug(string cardName)
+    {
+        if (string.IsNullOrEmpty(cardName)) return null;
+        string norm = cardName.Normalize(System.Text.NormalizationForm.FormD);
+        var sb = new System.Text.StringBuilder(norm.Length);
+        foreach (char ch in norm)
+        {
+            var cat = System.Globalization.CharUnicodeInfo.GetUnicodeCategory(ch);
+            if (cat == System.Globalization.UnicodeCategory.NonSpacingMark) continue;
+            if (ch == ' ' || ch == '_') sb.Append('-');
+            else sb.Append(char.ToLowerInvariant(ch));
+        }
+        return sb.ToString();
+    }
+
+    // Caches guardam também o "não existe" (null): sem isso, toda carta sem
+    // modelo próprio bateria no disco a cada UpdateDisplay
+    static readonly System.Collections.Generic.Dictionary<string, GameObject> cardFigureCache =
+        new System.Collections.Generic.Dictionary<string, GameObject>();
+    static readonly System.Collections.Generic.Dictionary<string, Texture2D> cardFigureTexCache =
+        new System.Collections.Generic.Dictionary<string, Texture2D>();
+
+    static GameObject GetCardFigure(Card card)
+    {
+        if (card == null) return null;
+        string slug = CardFigureSlug(card.cardName);
+        if (slug == null) return null;
+
+        GameObject cached;
+        if (cardFigureCache.TryGetValue(slug, out cached)) return cached;
+
+        GameObject prefab = Resources.Load<GameObject>(CardFigurePath + slug);
+        cardFigureCache[slug] = prefab;
+        if (prefab != null) Debug.Log($"[Figure] Modelo exclusivo de '{card.cardName}' ({slug})");
+        return prefab;
+    }
+
+    static Texture2D GetCardFigureTexture(Card card)
+    {
+        if (card == null) return null;
+        string slug = CardFigureSlug(card.cardName);
+        if (slug == null) return null;
+
+        Texture2D cached;
+        if (cardFigureTexCache.TryGetValue(slug, out cached)) return cached;
+
+        Texture2D tex = Resources.Load<Texture2D>(CardFigurePath + slug + "_tex");
+        cardFigureTexCache[slug] = tex;
+        return tex;
+    }
+
     static GameObject GetFigurePrefab(CardClass cardClass)
     {
         GameObject cached;
@@ -1669,7 +1729,10 @@ public class CardDisplay : MonoBehaviour
 
     void UpdateBoardFigure()
     {
-        GameObject prefab = isOnBoard && card != null ? GetFigurePrefab(card.cardClass) : null;
+        // O modelo exclusivo da carta ganha do genérico da classe
+        GameObject ownPrefab = isOnBoard && card != null ? GetCardFigure(card) : null;
+        GameObject prefab = ownPrefab != null ? ownPrefab
+                          : (isOnBoard && card != null ? GetFigurePrefab(card.cardClass) : null);
 
         // Saiu do tabuleiro (ou classe sem modelo): remove a figura
         if (prefab == null)
@@ -1687,9 +1750,13 @@ public class CardDisplay : MonoBehaviour
 
         if (boardFigure == null)
         {
+            // Modelo exclusivo da carta é estático e tem esqueleto próprio: não
+            // pode usar o rig nem as peças/armas do KayKit, que são da classe
+            bool own = ownPrefab != null;
+
             // Se a classe tem modelo COM RIG (animações reais), usa ele; senão
             // cai no OBJ estático + animação procedural
-            RiggedSet rig = GetRiggedSet(card.cardClass);
+            RiggedSet rig = own ? null : GetRiggedSet(card.cardClass);
 
             boardFigure = Instantiate(rig != null ? rig.model : prefab, transform);
             boardFigure.name = "BoardFigure";
@@ -1699,11 +1766,11 @@ public class CardDisplay : MonoBehaviour
                 Destroy(c);
 
             // Peças desproporcionais (chapéu do mago) antes de medir a altura
-            if (IsKayKitClass(card.cardClass)) ApplyPartTweaks(boardFigure, card.cardClass);
+            if (!own && IsKayKitClass(card.cardClass)) ApplyPartTweaks(boardFigure, card.cardClass);
 
             FitFigureOnCard();
 
-            bool kaykit = IsKayKitClass(card.cardClass);
+            bool kaykit = !own && IsKayKitClass(card.cardClass);
 
             if (rig != null)
             {
@@ -1778,7 +1845,9 @@ public class CardDisplay : MonoBehaviour
     {
         if (boardFigure == null || card == null) return;
 
-        Texture2D tex = GetFigureTexture(card.cardClass);
+        // Textura própria da carta primeiro; senão a genérica da classe
+        Texture2D tex = GetCardFigureTexture(card);
+        if (tex == null) tex = GetFigureTexture(card.cardClass);
 
         Shader s = Shader.Find("Universal Render Pipeline/Unlit")
                 ?? Shader.Find("Universal Render Pipeline/Lit")

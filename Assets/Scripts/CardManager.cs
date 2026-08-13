@@ -599,8 +599,9 @@ public class CardManager : MonoBehaviour
     // ═══════════ LENDÁRIOS DAS TRÍADES (v4.3) ═══════════
     // Cartas EXCLUSIVAS: não existem no pool nem na loja — só nascem quando a
     // tríade tier-2 da classe fecha. Criadas em runtime (ScriptableObject) de
-    // propósito: nenhum sorteio/refresh as conhece. Arte emprestada de um T5
-    // da classe (allBaseCards é o catálogo — nunca esvazia como o pool).
+    // propósito: nenhum sorteio/refresh as conhece. Arte própria em
+    // Resources/cards/legendary/ quando existe; senão emprestada de um T5 da
+    // classe (allBaseCards é o catálogo — nunca esvazia como o pool).
     // Stats únicos dentro de classe+tier (regra do dispatch por stats):
     //   Arcanor  Mago     T5 6/0/7  (T5 existentes: 5/5, 4/6, 5/6)
     //   Serafina Healer   T5 3/0/8  (T5 existentes: 3/6, 2/7, 3/7)
@@ -649,8 +650,25 @@ public class CardManager : MonoBehaviour
             c.effectDescription = "Lendária da tríade. Ao entrar: concede +5 de ataque a todos os outros aliados em campo";
             lyraCard = c;
         }
-        c.artwork = BorrowTier5Artwork(cls);
+        Sprite own = LoadLegendaryArtwork(cls);
+        c.artwork = own != null ? own : BorrowTier5Artwork(cls);
         return c;
+    }
+
+    // Arte exclusiva dos lendários. Quem ainda não tem a sua cai no empréstimo
+    // do T5 (comportamento antigo) — basta soltar o png aqui e citar embaixo.
+    static readonly Dictionary<CardClass, string> legendaryArt = new Dictionary<CardClass, string>
+    {
+        { CardClass.Tank, "atlas" },
+    };
+
+    Sprite LoadLegendaryArtwork(CardClass cls)
+    {
+        string file;
+        if (!legendaryArt.TryGetValue(cls, out file)) return null;
+        Sprite s = Resources.Load<Sprite>("cards/legendary/" + file);
+        if (s == null) Debug.LogWarning($"[Lendário] arte 'cards/legendary/{file}' não encontrada — usando a emprestada do T5");
+        return s;
     }
 
     Sprite BorrowTier5Artwork(CardClass cls)

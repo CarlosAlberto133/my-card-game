@@ -24,3 +24,14 @@ Recordings/
 
 # Biblioteca de assets de decoração (fora do build; só os curados vão em Resources/decor)
 decor-library/
+
+# Pasta de triagem de modelos (FBX pesados, ainda sem nome/uso definido)
+Assets/_Import/
+Assets/_Import.meta
+
+# Modelos 3D das cartas: FBX pesados (texturas 4K embutidas que o Unity nem
+# importa). Ficam so na maquina + backup; sem eles a carta cai no personagem
+# generico da classe. As texturas _tex.png (leves, geradas a partir deles) sao
+# versionadas normalmente.
+Assets/Resources/cards/figures/*.fbx
+Assets/Resources/cards/figures/*.fbx.meta
