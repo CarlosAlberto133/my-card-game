@@ -2334,7 +2334,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GameManager
   maxPlacementRows: 2
-  movementRange: 1
 --- !u!4 &658639668
 Transform:
   m_ObjectHideFlags: 0

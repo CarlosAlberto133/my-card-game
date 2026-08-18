@@ -1474,6 +1474,9 @@ public class CardDisplay : MonoBehaviour
     //   "Guarda Rúnico" -> guarda-runico.fbx (+ guarda-runico_tex.png)
     // Sem arquivo, a carta continua usando o personagem genérico da classe.
     // São modelos ESTÁTICOS (sem rig): animação procedural via FigureAnimator.
+    //
+    // Pontuação é descartada, então os lendários (que têm vírgula no nome)
+    // seguem a mesma regra: "Atlas, o Baluarte" -> atlas-o-baluarte.fbx
     const string CardFigurePath = "cards/figures/";
 
     public static string CardFigureSlug(string cardName)
@@ -1485,10 +1488,19 @@ public class CardDisplay : MonoBehaviour
         {
             var cat = System.Globalization.CharUnicodeInfo.GetUnicodeCategory(ch);
             if (cat == System.Globalization.UnicodeCategory.NonSpacingMark) continue;
-            if (ch == ' ' || ch == '_') sb.Append('-');
-            else sb.Append(char.ToLowerInvariant(ch));
+
+            if (ch == ' ' || ch == '_' || ch == '-')
+            {
+                // sem hífen dobrado quando a pontuação some ("Atlas, o ..." )
+                if (sb.Length > 0 && sb[sb.Length - 1] != '-') sb.Append('-');
+            }
+            else if (char.IsLetterOrDigit(ch))
+            {
+                sb.Append(char.ToLowerInvariant(ch));
+            }
+            // vírgula, ponto, apóstrofo e afins: fora do nome do arquivo
         }
-        return sb.ToString();
+        return sb.ToString().Trim('-');
     }
 
     // Caches guardam também o "não existe" (null): sem isso, toda carta sem
@@ -1525,6 +1537,48 @@ public class CardDisplay : MonoBehaviour
         Texture2D tex = Resources.Load<Texture2D>(CardFigurePath + slug + "_tex");
         cardFigureTexCache[slug] = tex;
         return tex;
+    }
+
+    // ===== AJUSTE FINO POR MODELO =====
+    // Os FBX vêm da IA cada um do seu jeito: um olha para o lado, outro tem um
+    // adereço gigante que engana a medição de altura. Em vez de mexer na malha
+    // na importação (que obriga a reimportar 543 MB e é chute), o conserto mora
+    // aqui e vale em tempo de jogo — dá para conferir em Play mode na hora.
+    //
+    //   euler  = giro aplicado ANTES do "de frente para o inimigo"
+    //   escala = multiplicador em cima da altura padrão (1 = igual aos outros)
+    //
+    // Como descobrir o valor: renderizar a malha do FBX e comparar com um
+    // modelo que já está certo (os bons encaram -Z). NÃO deduzir pela bounding
+    // box — ela não distingue "de perfil" nem "carrega um adereço grande".
+    struct FigureTweak
+    {
+        public Vector3 euler;
+        public float scale;
+        public FigureTweak(float x, float y, float z, float s)
+        {
+            euler = new Vector3(x, y, z);
+            scale = s;
+        }
+    }
+
+    static readonly System.Collections.Generic.Dictionary<string, FigureTweak> figureTweaks =
+        new System.Collections.Generic.Dictionary<string, FigureTweak>
+    {
+        // Vinha de perfil, olhando para -X em vez de encarar o inimigo
+        { "escudeiro-arcano", new FigureTweak(0f, -90f, 0f, 1f) },
+
+        // A bandeira ocupa a metade de cima da caixa, então a normalização por
+        // altura deixava só o corpo dele com metade do tamanho dos outros
+        { "porta-bandeira", new FigureTweak(0f, 0f, 0f, 1.5f) },
+    };
+
+    static FigureTweak TweakFor(Card c)
+    {
+        FigureTweak t;
+        string slug = c != null ? CardFigureSlug(c.cardName) : null;
+        if (slug != null && figureTweaks.TryGetValue(slug, out t)) return t;
+        return new FigureTweak(0f, 0f, 0f, 1f);
     }
 
     static GameObject GetFigurePrefab(CardClass cardClass)
@@ -1768,7 +1822,7 @@ public class CardDisplay : MonoBehaviour
             // Peças desproporcionais (chapéu do mago) antes de medir a altura
             if (!own && IsKayKitClass(card.cardClass)) ApplyPartTweaks(boardFigure, card.cardClass);
 
-            FitFigureOnCard();
+            FitFigureOnCard(own);
 
             bool kaykit = !own && IsKayKitClass(card.cardClass);
 
@@ -1930,14 +1984,20 @@ public class CardDisplay : MonoBehaviour
     // Normaliza escala/posição: o modelo pode vir do Blender em qualquer
     // tamanho — aqui ele é medido pelos bounds reais e ajustado para a
     // altura alvo no mundo, pés apoiados na superfície da carta
-    void FitFigureOnCard()
+    void FitFigureOnCard(bool ownModel)
     {
         Renderer[] renderers = boardFigure.GetComponentsInChildren<Renderer>();
         if (renderers.Length == 0) return;
 
-        // De frente para o lado inimigo (P1 e P2 se encaram)
+        // Só o modelo exclusivo da carta usa o ajuste fino; o genérico da classe
+        // é o mesmo para todo mundo e já vem certo
+        FigureTweak tweak = ownModel ? TweakFor(card) : new FigureTweak(0f, 0f, 0f, 1f);
+
+        // De frente para o lado inimigo (P1 e P2 se encaram), depois do giro de
+        // correção do próprio modelo
         boardFigure.transform.rotation =
-            Quaternion.Euler(0f, ownerPlayerNumber == 2 ? 180f : 0f, 0f);
+            Quaternion.Euler(0f, ownerPlayerNumber == 2 ? 180f : 0f, 0f) *
+            Quaternion.Euler(tweak.euler);
 
         Bounds b = renderers[0].bounds;
         for (int i = 1; i < renderers.Length; i++) b.Encapsulate(renderers[i].bounds);
@@ -1947,7 +2007,7 @@ public class CardDisplay : MonoBehaviour
         if (b.size.y > 0.0001f)
         {
             float k = TargetWorldHeight / b.size.y;
-            boardFigure.transform.localScale = boardFigure.transform.localScale * k;
+            boardFigure.transform.localScale = boardFigure.transform.localScale * k * tweak.scale;
         }
 
         // Re-mede depois da escala e posiciona a figura EM CIMA DA ARTE da

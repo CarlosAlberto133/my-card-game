@@ -50,10 +50,32 @@ public class CardFigurePostprocessor : AssetPostprocessor
     // Só entram nesta lista os modelos que realmente precisam: vários destes
     // personagens têm bounding box quase cúbica e seriam girados por engano se
     // a checagem fosse automática para todos.
+    // NÃO usar a bounding box para decidir quem entra aqui: o Guarda-Costas foi
+    // colocado nesta lista porque media Z=0.89 contra Y=0.63, mas o que era
+    // comprido era o ESCUDO dele, não o corpo — estava de pé, e o giro é que o
+    // derrubou. A caixa não distingue "deitado" de "carrega algo largo".
+    //
+    // O jeito certo é OLHAR o modelo antes: renderizar a malha do FBX e ver.
+    // Só entra aqui quem estiver mesmo tombado.
     static readonly HashSet<string> ModelosParaEndireitar = new HashSet<string>
     {
-        "abencoado",
+        "abencoado",   // esse sim: exportado em Z-up, chega deitado de barriga
+
+        // Os três magos que vieram no formato pequeno do Meshy (FBX ~3 MB com
+        // textura em PNG separado) — mesmo exportador Z-up do abençoado.
+        // Conferido no render: X -90 põe os três de pé.
+        "conjurador",
+        "estilhaco",
+        "metamorfo",
     };
+
+    // Unity reimporta os modelos desta pasta quando este número muda. Subir a
+    // cada vez que a regra de giro mudar, senão o Unity mantém o resultado
+    // antigo em cache e a correção não aparece.
+    public override uint GetVersion()
+    {
+        return 3;
+    }
 
     // Roda depois da importação: gira os VÉRTICES, não o transform. Assim o
     // modelo fica de pé em qualquer lugar que for usado — preview do Inspector,

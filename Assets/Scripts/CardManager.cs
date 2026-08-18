@@ -660,6 +660,7 @@ public class CardManager : MonoBehaviour
     static readonly Dictionary<CardClass, string> legendaryArt = new Dictionary<CardClass, string>
     {
         { CardClass.Tank, "atlas" },
+        { CardClass.Mago, "arcanor" },
     };
 
     Sprite LoadLegendaryArtwork(CardClass cls)
