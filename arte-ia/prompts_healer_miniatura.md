@@ -66,12 +66,12 @@ A miniatura desta vez é:
    viram 20 cartas iguais. O que separa uma da outra são **4 itens que aparecem em TODO
    prompt abaixo, sempre nesta ordem**:
 
-   | item       | opções                                                                                          |
-   | ---------- | ----------------------------------------------------------------------------------------------- |
-   | **cabeça** | véu / coroa de flores / capuz branco / tiara / chapéu de peregrina / trança ou coque à mostra   |
+   | item       | opções                                                                                           |
+   | ---------- | ------------------------------------------------------------------------------------------------ |
+   | **cabeça** | véu / coroa de flores / capuz branco / tiara / chapéu de peregrina / trança ou coque à mostra    |
    | **foco**   | cajado com sino / lanterna / incensário / bacia de esmolas / livro / bolsa de moedas / mãos nuas |
-   | **traje**  | túnica de pano cru / vestido branco-e-dourado / manto com xale / peitoral cerimonial dourado    |
-   | **tema**   | cura verde-clarinha / bênção branca / OURO em moedas / proteção (véu de luz)                    |
+   | **traje**  | túnica de pano cru / vestido branco-e-dourado / manto com xale / peitoral cerimonial dourado     |
+   | **tema**   | cura verde-clarinha / bênção branca / OURO em moedas / proteção (véu de luz)                     |
 
    Se duas healers batem em **três** desses quatro, refaça uma.
 
@@ -114,13 +114,13 @@ Nos tanques foi o brasão da Alliance, nos magos foi o Gandalf. Aqui o gerador p
 **imagem religiosa de verdade** ou para **healers famosas de jogo**. Estas cinco vão puxar
 cópia se você não negar explicitamente:
 
-| carta                | o que ele vai tentar entregar    | negativa que entra no prompt                                                                                  |
-| -------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| **Anjo da Guarda**   | Mercy (Overwatch)                | sem armadura futurista, sem asas mecânicas amarelas, sem cajado tecnológico, sem traje colado de corpo inteiro |
-| **Alta Sacerdotisa** | Tyrande / sacerdotisa élfica     | sem pele roxa de elfa, sem orelhas pontudas compridas, sem arco, sem coruja                                    |
-| **Vestal**           | freira de verdade                | sem hábito preto-e-branco de freira, sem crucifixo, sem rosário                                                |
-| **Padroeira**        | imagem de santa católica         | sem auréola de disco atrás da cabeça, sem mãos postas em oração, sem manto azul-celeste de imagem de igreja    |
-| **Serafina**         | anjo barroco de igreja / Mercy   | sem asas de penas brancas realistas (as asas dela são desenhadas em LUZ), sem crucifixo, sem armadura          |
+| carta                | o que ele vai tentar entregar  | negativa que entra no prompt                                                                                   |
+| -------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| **Anjo da Guarda**   | Mercy (Overwatch)              | sem armadura futurista, sem asas mecânicas amarelas, sem cajado tecnológico, sem traje colado de corpo inteiro |
+| **Alta Sacerdotisa** | Tyrande / sacerdotisa élfica   | sem pele roxa de elfa, sem orelhas pontudas compridas, sem arco, sem coruja                                    |
+| **Vestal**           | freira de verdade              | sem hábito preto-e-branco de freira, sem crucifixo, sem rosário                                                |
+| **Padroeira**        | imagem de santa católica       | sem auréola de disco atrás da cabeça, sem mãos postas em oração, sem manto azul-celeste de imagem de igreja    |
+| **Serafina**         | anjo barroco de igreja / Mercy | sem asas de penas brancas realistas (as asas dela são desenhadas em LUZ), sem crucifixo, sem armadura          |
 
 Fecha **todo** prompt de healer com esta linha:
 
@@ -150,13 +150,17 @@ cruz, crucifixo, rosário ou auréola de santa. Sem símbolos de franquias reais
 
 > _Efeito: cura em 2 o aliado mais ferido a cada 3 turnos._
 >
-> Uma médica de campo da irmandade: **véu branco curto preso para trás**, **sem cajado — as
-> duas mãos nuas à frente, abertas para cima, com uma luz verde-clarinha suave subindo das
-> palmas como vapor**, **túnica branca de mangas arregaçadas com um avental cheio de bolsos**
-> e uma **bolsa de couro a tiracolo transbordando rolos de atadura**. No próprio antebraço
-> dela, uma atadura enrolada com um brilho verde por baixo — ela cuida dos outros e de si.
-> Base de mármore com uma florzinha brotando na fresta. Paleta de branco, verde-clarinho e
-> couro claro.
+> Uma médica de campo da irmandade: **véu branco curto preso para trás, LISO, sem broche,
+> sem prendedor e sem enfeite nenhum no tecido**, **sem cajado — as duas mãos nuas à frente,
+> abertas para cima, com uma luz verde-clarinha suave subindo das palmas como vapor**,
+> **túnica branca de mangas arregaçadas com um avental cheio de bolsos** e uma **bolsa de
+> couro a tiracolo transbordando rolos de atadura**. No próprio antebraço dela, uma atadura
+> enrolada com um brilho verde por baixo — ela cuida dos outros e de si. Base de mármore com
+> uma florzinha brotando na fresta. Paleta de branco, verde-clarinho e couro claro.
+>
+> `[+ negativa obrigatória: NADA em forma de cruz em lugar nenhum — nem broche, nem
+> prendedor de véu, nem costura; ela é uma enfermeira de fantasia, não uma enfermeira de
+> guerra real nem uma freira]`
 
 **Missionária** (1/0/3)
 
@@ -165,10 +169,11 @@ cruz, crucifixo, rosário ou auréola de santa. Sem símbolos de franquias reais
 > Uma viajante de estrada: **chapéu de peregrina de aba larga pendurado nas costas**, cabelo
 > preso num coque prático, **cajado de madeira mais alto que ela com um SINO de bronze
 > pequeno pendurado no topo**, **túnica branca de viagem com a barra empoeirada**, capa curta
-> e botas gastas. Ela acabou de **bater o cajado no chão e o sino tocou**: um **anel de luz
-> verde-clarinha se expande rasteiro pela mesa a partir dos pés dela**, em círculo perfeito,
-> saindo do quadro — a cura alcança todo mundo. Base de mármore gasto de estrada. Paleta de
-> branco, marrom-poeira e verde-clarinho.
+> e botas gastas. Ela acabou de **bater o cajado no chão e o sino tocou**: em volta do sino,
+> **dois ou três anéis finos de luz VERDE-CLARINHA se abrem no ar, como ondas de som
+> desenhadas em luz**, e **fagulhinhas verdes caem do sino** — o toque que cura todo mundo.
+> A luz do efeito é VERDE, não dourada. Base de mármore gasto de estrada. Paleta de branco,
+> marrom-poeira e verde-clarinho.
 
 **Vestal** (0/0/4)
 
@@ -231,7 +236,7 @@ pronta no ar, desenhada em luz dourada** na Caridade (a líder, o selo completo)
 > **olhos serenamente FECHADOS — ela não precisa ver**, andando com um **bastão simples de
 > madeira com um sininho na alça**. **Túnica de lã grossa bege remendada.** No peito do véu,
 > a marca `[SELO DA TRÍADE — a marca dela está BORDADA em linha dourada gasta pelo tempo,
-> com o fio ainda soltando um brilho fraquinho]`. Postura curvada mas passo firme: ela sabe
+com o fio ainda soltando um brilho fraquinho]`. Postura curvada mas passo firme: ela sabe
 > exatamente para onde vai. Base de mármore antigo rachado. Paleta de bege-cru, lã encardida
 > e dourado fraco.
 
@@ -244,7 +249,7 @@ pronta no ar, desenhada em luz dourada** na Caridade (a líder, o selo completo)
 > **uma lanterna de vidro acesa com uma luz dourada quente dentro** — o único ponto de luz
 > forte do quadro, iluminando o rosto dela de baixo. **Vestido branco simples com barra
 > rosa-clara.** `[SELO DA TRÍADE — a marca dela está PINTADA no vidro da lanterna, e a luz
-> de dentro atravessa a pintura e projeta a marca acesa no chão à frente]`. Base de mármore
+de dentro atravessa a pintura e projeta a marca acesa no chão à frente]`. Base de mármore
 > com a projeção dourada da marca. Paleta de branco, rosa-claro e dourado quente.
 
 **Caridade** (1/0/4)
@@ -254,9 +259,9 @@ pronta no ar, desenhada em luz dourada** na Caridade (a líder, o selo completo)
 > A **líder** das três: uma mulher de porte ereto e expressão acolhedora, **véu branco
 > impecável com bordado dourado na borda**, **um braço estendido oferecendo um pão redondo**
 > e a **outra mão espalmada para cima ao lado do corpo** `[SELO DA TRÍADE — a marca dela está
-> FLUTUANDO INTEIRA NO AR acima dessa palma aberta, desenhada em traços de luz dourada
-> brilhante, girando devagar — é a versão completa e acabada do símbolo, maior e mais
-> luminosa que a das outras duas]`. **Manto branco-e-dourado pesado, o mais rico das três.**
+FLUTUANDO INTEIRA NO AR acima dessa palma aberta, desenhada em traços de luz dourada
+brilhante, girando devagar — é a versão completa e acabada do símbolo, maior e mais
+luminosa que a das outras duas]`. **Manto branco-e-dourado pesado, o mais rico das três.**
 > Base de mármore polido com a marca em incrustação de ouro. Paleta de branco, dourado
 > intenso e rosa-claro.
 
@@ -342,7 +347,7 @@ pronta no ar, desenhada em luz dourada** na Caridade (a líder, o selo completo)
 > leve.** Base de mármore polido com um anel dourado liso. Paleta de branco, dourado e luz.
 >
 > `[+ negativa da Mercy: sem armadura futurista, sem asas mecânicas amarelas, sem cajado
-> tecnológico, sem traje colado de corpo inteiro]`
+tecnológico, sem traje colado de corpo inteiro]`
 
 **Guardiã do Cofre** (2/0/4)
 
@@ -364,10 +369,7 @@ pronta no ar, desenhada em luz dourada** na Caridade (a líder, o selo completo)
 >
 > A irmã mais alegre da coleção, no meio de um milagre: **coroa de flores brancas no cabelo
 > solto**, cabeça jogada levemente para trás, sorrindo, **os dois braços abertos para os
-> lados** — e **de cada palma sai um ARCO de luz verde-clarinha grosso e generoso, um para
-> cada lado, saindo do quadro em direções diferentes** (duas curas de uma vez, para dois
-> aliados que não aparecem). No rastro dos arcos, **fagulhinhas douradas** se desprendem e
-> caem como poeira (o ouro que vem junto). **Vestido branco leve rodado, descalça, na ponta
+> lados** — **Vestido branco leve rodado, descalça, na ponta
 > dos pés.** Base de mármore coberta de pétalas. Paleta de branco, verde-clarinho e dourado.
 
 **Alta Sacerdotisa** (3/0/4)
@@ -385,7 +387,7 @@ pronta no ar, desenhada em luz dourada** na Caridade (a líder, o selo completo)
 > branco, dourado, e as quatro cores nas fitas.
 >
 > `[+ negativa da Tyrande: sem pele roxa de elfa, sem orelhas pontudas compridas, sem arco,
-> sem coruja]`
+sem coruja]`
 
 ---
 
@@ -425,16 +427,12 @@ pronta no ar, desenhada em luz dourada** na Caridade (a líder, o selo completo)
 >
 > Uma miniatura **monumental e serena**: a padroeira da irmandade, de pé, imóvel, **véu branco
 > enorme que desce dos ombros e se abre como um SINO até cobrir a base inteira**, mãos
-> espalmadas para fora ao longo do corpo. Ao redor dela, **flutuando em círculo, dezenas de
-> VELINHAS acesas de chama dourada**, cada uma num pontinho de luz (cada vela, um aliado sob
-> a aura). Um **anel de luz verde-clarinha corre pelo chão** contornando a barra do véu. E o
-> detalhe do último suspiro: **a barra do véu e as pontas dos dedos dela já estão se
-> desfazendo em partículas de luz que sobem** — ela é feita de doação, até o fim. Base de
+> espalmadas para fora ao longo do corpo. Base de
 > mármore de altar, larga. Paleta de branco, dourado das velas e verde-clarinho.
 >
 > `[+ negativa obrigatória: sem auréola de disco atrás da cabeça, sem mãos postas em oração,
-> sem manto azul-celeste de imagem de igreja — ela é uma personagem de fantasia, não uma
-> santa real]`
+sem manto azul-celeste de imagem de igreja — ela é uma personagem de fantasia, não uma
+santa real]`
 
 ---
 
@@ -446,23 +444,20 @@ pronta no ar, desenhada em luz dourada** na Caridade (a líder, o selo completo)
 > cura 1 em todos os aliados. Só aparece quando Fé, Esperança e Caridade estão juntas em
 > campo._
 >
-> Uma miniatura **muito maior que todas as outras** — a eterna, chibi, **FLUTUANDO alguns
-> centímetros acima da base, com a barra do vestido pendendo solta no ar**. **SEIS asas
+> Uma miniatura **muito maior que todas as outras** — a eterna, chibi. **SEIS asas
 > desenhadas em traços de LUZ dourada** — três de cada lado, em tamanhos diferentes, como
 > pinceladas de luz, claramente mágicas e não de penas. **Acima da cabeça, uma coroa fina de
 > luz flutuando e girando devagar** (uma coroa, não um disco de auréola). O rosto é jovem e
 > sereno, **olhos fechados, um sorriso pequeno**. **Vestido branco-e-dourado comprido cujo
 > tecido, nas dobras de dentro, vira luz pura.** Os braços abertos para os lados, palmas para
-> cima — e do corpo dela **se expande uma onda circular de luz verde-clarinha que varre a
-> mesa inteira**, saindo do quadro (a cura em todo mundo). Ao mesmo tempo, **chove OURO em
+> cima — e do corpo dela , **chove OURO em
 > volta dela: moedas douradas materializando no ar e caindo devagar**, três ou quatro ainda
 > suspensas. Girando ao redor dela, **a marca da irmandade — a flor de quatro pétalas sobre o
-> arco — desenhada em luz dourada, três vezes**, uma por virtude. Base de mármore de altar
-> partido, com os pedaços flutuando soltos. Paleta de branco, dourado intenso e
-> verde-clarinho.
+> arco — desenhada em luz dourada, três vezes**, uma por virtude. Base de mármore. Paleta de branco, dourado intenso e
+> verde-clarinho..
 >
 > `[+ negativa obrigatória: sem asas de penas brancas realistas, sem crucifixo, sem imagem de
-> anjo barroco de igreja, sem armadura ou traje futurista de jogo]`
+anjo barroco de igreja, sem armadura ou traje futurista de jogo]`
 
 ---
 
@@ -490,11 +485,11 @@ tamanho e formato de todas de uma vez.
 
 ## 🎨 Paleta por classe (só falta uma depois desta)
 
-| Classe       | Cores                            | Terreno da base           | Luz do efeito         |
-| ------------ | -------------------------------- | ------------------------- | --------------------- |
-| **Tank** ✅  | ferro, bronze, dourado, carmesim | pedra, calçada, escombros | dourado / laranja     |
-| **Mago** ✅  | azul, roxo, ciano                | mosaico, cristal, runa    | ciano / roxo          |
-| **Healer** ⬅️ | branco, dourado, rosa-claro      | mármore, flores           | branco / verde-suave  |
-| **Arqueiro** | verde-floresta, couro, âmbar     | grama, folhas, tronco     | âmbar / verde         |
+| Classe        | Cores                            | Terreno da base           | Luz do efeito        |
+| ------------- | -------------------------------- | ------------------------- | -------------------- |
+| **Tank** ✅   | ferro, bronze, dourado, carmesim | pedra, calçada, escombros | dourado / laranja    |
+| **Mago** ✅   | azul, roxo, ciano                | mosaico, cristal, runa    | ciano / roxo         |
+| **Healer** ⬅️ | branco, dourado, rosa-claro      | mármore, flores           | branco / verde-suave |
+| **Arqueiro**  | verde-floresta, couro, âmbar     | grama, folhas, tronco     | âmbar / verde        |
 
 Progressão de tier igual em todas: **T1 sem magia nenhuma → T5 luminoso e enorme**.

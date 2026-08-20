@@ -67,6 +67,12 @@ public class CardFigurePostprocessor : AssetPostprocessor
         "conjurador",
         "estilhaco",
         "metamorfo",
+
+        // As três healers no mesmo formato pequeno do Meshy.
+        // Conferido no render (arte-ia/render_fbx.py): X -90 põe as três de pé.
+        "matriarca",
+        "milagreira",
+        "tesoureira",
     };
 
     // Unity reimporta os modelos desta pasta quando este número muda. Subir a
@@ -74,7 +80,7 @@ public class CardFigurePostprocessor : AssetPostprocessor
     // antigo em cache e a correção não aparece.
     public override uint GetVersion()
     {
-        return 3;
+        return 4;
     }
 
     // Roda depois da importação: gira os VÉRTICES, não o transform. Assim o
