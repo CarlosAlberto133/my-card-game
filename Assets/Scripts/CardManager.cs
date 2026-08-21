@@ -662,6 +662,7 @@ public class CardManager : MonoBehaviour
         { CardClass.Tank, "atlas" },
         { CardClass.Mago, "arcanor" },
         { CardClass.Healer, "serafina" },
+        { CardClass.Arqueiro, "lyra" },
     };
 
     Sprite LoadLegendaryArtwork(CardClass cls)

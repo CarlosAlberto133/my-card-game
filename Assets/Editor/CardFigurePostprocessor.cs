@@ -73,6 +73,15 @@ public class CardFigurePostprocessor : AssetPostprocessor
         "matriarca",
         "milagreira",
         "tesoureira",
+
+        // Seis arqueiras no mesmo formato pequeno do Meshy. As outras 15
+        // vieram grandes e já de pé — conferido no render, uma a uma.
+        "acrobata",
+        "batedora",
+        "flecha-fiel",
+        "hidra",
+        "miragem",
+        "zefiro",
     };
 
     // Unity reimporta os modelos desta pasta quando este número muda. Subir a
@@ -80,7 +89,7 @@ public class CardFigurePostprocessor : AssetPostprocessor
     // antigo em cache e a correção não aparece.
     public override uint GetVersion()
     {
-        return 4;
+        return 5;
     }
 
     // Roda depois da importação: gira os VÉRTICES, não o transform. Assim o
