@@ -49,6 +49,31 @@ public static class TabletopEnvironment
             new Vector3(112f, 3f, 90f), new Color(0.52f, 0.36f, 0.21f), GetWoodTexture());
         SetTextureTiling(slab, 5f, 4f);
 
+        // ── Pernas da mesa + chão da taverna ──────────────────────────────
+        // Com a câmera de cima ninguém via, mas com a câmera deitada (estilo
+        // LoL) o tampo era uma placa FLUTUANDO no vazio — "tabuleiro criado no
+        // ar" (feedback do Carlos). Pernas robustas e um chão de taverna lá
+        // embaixo ancoram a mesa no mundo.
+        Color legWood = new Color(0.45f, 0.30f, 0.17f);
+        foreach (Vector2 corner in new[] {
+            new Vector2(-46f, -35f), new Vector2(46f, -35f),
+            new Vector2(-46f, 35f), new Vector2(46f, 35f) })
+        {
+            MakeBox("TableLeg", center + new Vector3(corner.x, -24.15f, corner.y),
+                new Vector3(9f, 42f, 9f), legWood, GetWoodTexture());
+        }
+        // Travessas ligando as pernas (mesa de taverna pesada, não 4 palitos)
+        MakeBox("TableBrace", center + new Vector3(0f, -38f, -35f),
+            new Vector3(92f, 5f, 4f), legWood, GetWoodTexture());
+        MakeBox("TableBrace", center + new Vector3(0f, -38f, 35f),
+            new Vector3(92f, 5f, 4f), legWood, GetWoodTexture());
+
+        // Chão: tábuas escuras a perder de vista (o marrom quente do fundo faz
+        // as bordas sumirem na penumbra da taverna, sem horizonte duro)
+        GameObject floor = MakeBox("TavernFloor", center + new Vector3(0f, -46.6f, 0f),
+            new Vector3(700f, 3f, 700f), new Color(0.30f, 0.20f, 0.12f), GetWoodTexture());
+        SetTextureTiling(floor, 24f, 24f);
+
         // ── Moldura do campo: mureta de pedra do KayKit em volta dos tiles ──
         // Tabuleiro 7x7 = 45.6 de lado (meia-largura 22.8). Segmentos de mureta
         // ao longo de cada lado + coluna baixa em cada canto (combina com as

@@ -262,6 +262,11 @@ public class CardManager : MonoBehaviour
                 position = startPosition + new Vector3(i * cardSpacing, 0, 0);
             }
 
+            // Loja DEITADA sobre a mesa (pedido do Carlos, com a câmera em
+            // perspectiva): mesma pose das cartas em campo. y = 1.0 fica acima
+            // do topo dos tiles (0.5) na fase de compra e da mesa (-0.15)
+            position.y = 1.0f;
+
             // Slot travado: mantém a carta que já estava, sem consumir sorteio.
             // Os 2 clientes têm as MESMAS flags (RPC), então tiram o MESMO número
             // de cartas do pool — a sequência do Random continua idêntica
@@ -286,6 +291,7 @@ public class CardManager : MonoBehaviour
             {
                 GameObject cardObject = SpawnCard(randomCard.cardData, position);
                 if (cardObject == null) continue;
+                cardObject.transform.rotation = CardDisplay.BoardRotation; // Deitada na loja
                 if (hiddenShop) cardObject.SetActive(false);
                 shop.Add(cardObject);
 

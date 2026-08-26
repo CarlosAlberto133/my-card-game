@@ -82,6 +82,9 @@ public class HandManager : MonoBehaviour
             {
                 Vector3 targetPosition = startPosition + new Vector3(i * cardSpacing, 0, 0);
 
+                // Na mão a carta fica EM PÉ — quem veio da loja chega deitada
+                card.transform.rotation = Quaternion.Euler(90, 180, 0);
+
                 // Move suavemente para a posição
                 StartCoroutine(MoveCardToPosition(card, targetPosition));
             }

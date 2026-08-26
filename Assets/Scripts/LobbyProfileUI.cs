@@ -74,6 +74,94 @@ public static class LobbySprites
         img.raycastTarget = false;
         return go;
     }
+
+    // ── Formas extras do tema medieval (mockup desing-jogo.png) ──────────
+    // Todas brancas com antialias — a cor vem do Image.color de quem usa.
+    static Sprite circle, circleRing, diamond, heart;
+
+    public static Sprite Circle { get { if (circle == null) circle = MakeCircle(false); return circle; } }
+    public static Sprite CircleRing { get { if (circleRing == null) circleRing = MakeCircle(true); return circleRing; } }
+
+    static Sprite MakeCircle(bool ringOnly)
+    {
+        const int S = 64;
+        const float T = 5f; // espessura do anel
+        Texture2D tex = new Texture2D(S, S, TextureFormat.RGBA32, false);
+        for (int y = 0; y < S; y++)
+            for (int x = 0; x < S; x++)
+            {
+                float px = x + 0.5f - S / 2f, py = y + 0.5f - S / 2f;
+                float d = Mathf.Sqrt(px * px + py * py) - (S / 2f - 1.5f);
+                float aFill = Mathf.Clamp01(0.5f - d);
+                float a = ringOnly ? aFill - Mathf.Clamp01(0.5f - (d + T)) : aFill;
+                tex.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+            }
+        tex.Apply();
+        tex.wrapMode = TextureWrapMode.Clamp;
+        return Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(0.5f, 0.5f), 100f);
+    }
+
+    // Losango (gema/ornamento das molduras)
+    public static Sprite Diamond
+    {
+        get
+        {
+            if (diamond != null) return diamond;
+            const int S = 32;
+            Texture2D tex = new Texture2D(S, S, TextureFormat.RGBA32, false);
+            for (int y = 0; y < S; y++)
+                for (int x = 0; x < S; x++)
+                {
+                    float px = x + 0.5f - S / 2f, py = y + 0.5f - S / 2f;
+                    float d = (Mathf.Abs(px) + Mathf.Abs(py)) - (S / 2f - 2f);
+                    tex.SetPixel(x, y, new Color(1f, 1f, 1f, Mathf.Clamp01(0.5f - d * 0.7f)));
+                }
+            tex.Apply();
+            tex.wrapMode = TextureWrapMode.Clamp;
+            diamond = Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(0.5f, 0.5f), 100f);
+            return diamond;
+        }
+    }
+
+    // Coração (ícone de vida) — curva implícita clássica (x²+y²-1)³ = x²y³
+    public static Sprite Heart
+    {
+        get
+        {
+            if (heart != null) return heart;
+            const int S = 32;
+            Texture2D tex = new Texture2D(S, S, TextureFormat.RGBA32, false);
+            for (int y = 0; y < S; y++)
+                for (int x = 0; x < S; x++)
+                {
+                    float nx = (x + 0.5f - S / 2f) / (S * 0.36f);
+                    float ny = (y + 0.5f - S / 2f) / (S * 0.36f) + 0.12f;
+                    float f = Mathf.Pow(nx * nx + ny * ny - 1f, 3f) - nx * nx * ny * ny * ny;
+                    tex.SetPixel(x, y, new Color(1f, 1f, 1f, Mathf.Clamp01(-f * 10f)));
+                }
+            tex.Apply();
+            tex.wrapMode = TextureWrapMode.Clamp;
+            heart = Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(0.5f, 0.5f), 100f);
+            return heart;
+        }
+    }
+
+    // Ícone simples (moeda, coração...) ancorado num ponto local do pai
+    public static Image AddIcon(Transform parent, string name, Sprite sprite, Color color, Vector2 localPos, float size)
+    {
+        GameObject go = new GameObject(name, typeof(RectTransform), typeof(Image));
+        go.transform.SetParent(parent, false);
+        RectTransform rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = localPos;
+        rt.sizeDelta = new Vector2(size, size);
+        Image img = go.GetComponent<Image>();
+        img.sprite = sprite;
+        img.color = color;
+        img.raycastTarget = false;
+        return img;
+    }
 }
 
 // Progressão do jogador (nível + XP) derivada das PARTIDAS REAIS salvas no

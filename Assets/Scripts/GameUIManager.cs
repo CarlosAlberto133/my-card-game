@@ -116,27 +116,27 @@ public class GameUIManager : MonoBehaviour
     // sprite arredondado, moldura dourada, cor por função e realce no hover.
     void StyleGameButtons()
     {
-        Color green = new Color(0.20f, 0.52f, 0.32f);
-        Color gold = new Color(0.90f, 0.70f, 0.24f);
-        Color bronze = new Color(0.46f, 0.33f, 0.15f);
-        Color slate = new Color(0.18f, 0.23f, 0.35f);
-        Color blue = new Color(0.13f, 0.37f, 0.55f);
-        Color darkTxt = new Color(0.12f, 0.09f, 0.02f);
-        Color lightTxt = new Color(0.96f, 0.93f, 0.86f);
+        // Paleta do mockup desing-jogo.png: tabuletas AZUL-MARINHO escuras com
+        // moldura dourada e letras douradas; a ação principal (Passar a Vez /
+        // Iniciar) num dourado queimado que salta das demais
+        Color navy = new Color(0.055f, 0.075f, 0.145f, 0.96f);
+        Color goldFill = new Color(0.42f, 0.30f, 0.10f, 0.97f);
+        Color goldTxt = new Color(0.93f, 0.79f, 0.45f);
+        Color brightTxt = new Color(0.99f, 0.90f, 0.62f);
 
-        StyleButton(startGameButton, green, lightTxt);        // Iniciar Partida
-        StyleButton(endTurnButton, gold, darkTxt);            // Passar a Vez (ação principal)
-        StyleButton(resetStoreButton, bronze, lightTxt);      // Reset Store
+        StyleButton(startGameButton, goldFill, brightTxt);    // Iniciar Partida
+        StyleButton(endTurnButton, goldFill, brightTxt);      // Passar a Vez (ação principal)
+        StyleButton(resetStoreButton, navy, goldTxt);         // Reset Store
 
         if (resetStoreButton != null)
         {
             Transform logs = resetStoreButton.transform.parent.Find("LogsButton");
-            if (logs != null) StyleButton(logs.GetComponent<Button>(), slate, lightTxt);
+            if (logs != null) StyleButton(logs.GetComponent<Button>(), navy, goldTxt);
         }
         if (endTurnButton != null)
         {
             Transform shop = endTurnButton.transform.parent.Find("ShopToggleButton");
-            if (shop != null) StyleButton(shop.GetComponent<Button>(), blue, lightTxt);
+            if (shop != null) StyleButton(shop.GetComponent<Button>(), navy, goldTxt);
         }
     }
 
@@ -159,7 +159,8 @@ public class GameUIManager : MonoBehaviour
 
             if (b.transform.Find("Ring") == null)
             {
-                GameObject ring = LobbySprites.AddRing(b.transform, new Color(0.96f, 0.77f, 0.32f, 0.45f));
+                // Moldura dourada mais presente (0.45 sumia sobre o marinho escuro)
+                GameObject ring = LobbySprites.AddRing(b.transform, new Color(0.85f, 0.66f, 0.30f, 0.95f));
                 Image ringImg = ring != null ? ring.GetComponent<Image>() : null;
                 if (ringImg != null) ringImg.pixelsPerUnitMultiplier = ppu;
             }
@@ -181,6 +182,7 @@ public class GameUIManager : MonoBehaviour
         {
             tmp.color = textColor;
             tmp.fontStyle |= FontStyles.Bold;
+            UIFonts.Set(tmp, UIFonts.Body); // Cinzel: letra "entalhada" do mockup
             // Auto-ajuste: se o rótulo não couber (ex.: "Reset Store"), encolhe
             // até caber em vez de ficar espremido nas bordas
             RectTransform ttr = tmp.rectTransform;
@@ -213,10 +215,10 @@ public class GameUIManager : MonoBehaviour
     // ÁREA do seu grupo (calculada pelas posições reais dos textos na cena).
     void StyleTopHud()
     {
-        Color name = new Color(0.96f, 0.80f, 0.40f);
+        Color name = new Color(0.97f, 0.93f, 0.84f); // nome em marfim (mockup)
         Color goldC = new Color(1f, 0.86f, 0.42f);
         Color life = new Color(0.55f, 0.90f, 0.62f);
-        Color info = new Color(0.90f, 0.93f, 0.98f);
+        Color info = new Color(0.93f, 0.90f, 0.82f);
 
         ColorText(player1NameText, name, true);
         ColorText(player1GoldText, goldC, false);
@@ -226,6 +228,44 @@ public class GameUIManager : MonoBehaviour
         ColorText(player2HealthText, life, false);
         ColorText(turnInfoText, info, true);
         ColorText(roundText, new Color(0.96f, 0.77f, 0.32f), true);
+
+        // Nomes na fonte do tema; textos alinhados à ESQUERDA (estável para o
+        // ícone de moeda/coração ficar sempre colado no começo da linha)
+        UIFonts.Set(player1NameText, UIFonts.Body);
+        UIFonts.Set(player2NameText, UIFonts.Body);
+        foreach (var t in new[] { player1NameText, player1GoldText, player1HealthText,
+                                  player2NameText, player2GoldText, player2HealthText })
+        {
+            if (t != null) t.alignment = TextAlignmentOptions.MidlineLeft;
+        }
+
+        // ── Banner central (mockup): título grande dourado na fonte Cinzel
+        // Decorative, subtítulo menor embaixo — em vez dos dois textos lado a
+        // lado. O RoundText ("FASE DE COMPRA" / "ROUND N") vira o TÍTULO.
+        if (roundText != null)
+        {
+            RectTransform rrt = roundText.rectTransform;
+            rrt.anchorMin = rrt.anchorMax = new Vector2(0.5f, 1f);
+            rrt.pivot = new Vector2(0.5f, 1f);
+            rrt.anchoredPosition = new Vector2(0f, -14f);
+            rrt.sizeDelta = new Vector2(760f, 42f);
+            roundText.alignment = TextAlignmentOptions.Center;
+            roundText.enableAutoSizing = false;
+            roundText.fontSize = 32f;
+            roundText.characterSpacing = 6f;
+            UIFonts.Set(roundText, UIFonts.Title);
+        }
+        if (turnInfoText != null)
+        {
+            RectTransform trt = turnInfoText.rectTransform;
+            trt.anchorMin = trt.anchorMax = new Vector2(0.5f, 1f);
+            trt.pivot = new Vector2(0.5f, 1f);
+            trt.anchoredPosition = new Vector2(0f, -56f);
+            trt.sizeDelta = new Vector2(760f, 64f);
+            turnInfoText.alignment = TextAlignmentOptions.Center;
+            turnInfoText.enableAutoSizing = false;
+            turnInfoText.fontSize = 16f;
+        }
 
         // Cliques ATRAVESSAM o HUD do topo (pedido do Carlos, v4.3): os textos
         // (TMP tem raycastTarget ligado por padrão) e os painéis de fundo
@@ -279,13 +319,80 @@ public class GameUIManager : MonoBehaviour
         }
 
         // Laterais cobrem a CAIXA dos textos; o do meio se ajusta ao TEXTO real
-        // (tight) — a caixa dele na cena é maior que o conteúdo
-        AddGroupCard(canvas, "HudCardLeft", new Vector2(26f, 16f), false,
+        // (tight) — a caixa dele na cena é maior que o conteúdo. As laterais
+        // ganham espaço extra no lado de fora para o brasão do jogador.
+        Color gold = new Color(0.85f, 0.66f, 0.30f);
+        Color p1Blue = new Color(0.15f, 0.30f, 0.55f);
+        Color p2Red = new Color(0.56f, 0.14f, 0.14f);
+
+        GameObject left = AddGroupCard(canvas, "HudCardLeft", new Vector2(26f, 16f), false, 46f, 0f,
             player1NameText, player1GoldText, player1HealthText);
-        AddGroupCard(canvas, "HudCardMid", new Vector2(18f, 12f), true,
+        GameObject mid = AddGroupCard(canvas, "HudCardMid", new Vector2(24f, 12f), true, 0f, 0f,
             turnInfoText, roundText);
-        AddGroupCard(canvas, "HudCardRight", new Vector2(26f, 16f), false,
+        GameObject right = AddGroupCard(canvas, "HudCardRight", new Vector2(26f, 16f), false, 0f, 46f,
             player2NameText, player2GoldText, player2HealthText);
+
+        // Brasões (azul J1, vermelho J2) + moedinha no ouro e coração na vida
+        AddMedallion(left, p1Blue, true, gold);
+        AddMedallion(right, p2Red, false, gold);
+        AddStatIcons(left, player1GoldText, player1HealthText);
+        AddStatIcons(right, player2GoldText, player2HealthText);
+
+        // Gemas douradas nas laterais do banner central (ornamento do mockup)
+        if (mid != null)
+        {
+            RectTransform mrt = mid.GetComponent<RectTransform>();
+            float halfW = mrt.sizeDelta.x * 0.5f;
+            LobbySprites.AddIcon(mid.transform, "GemL", LobbySprites.Diamond, gold, new Vector2(-halfW + 18f, 0f), 13f);
+            LobbySprites.AddIcon(mid.transform, "GemR", LobbySprites.Diamond, gold, new Vector2(halfW - 18f, 0f), 13f);
+        }
+    }
+
+    // Brasão circular na borda de fora do painel do jogador: disco na cor do
+    // jogador + anel dourado + gema de losango (versão procedural do escudo
+    // heráldico do mockup — dá pra trocar por arte depois)
+    void AddMedallion(GameObject card, Color fill, bool leftSide, Color gold)
+    {
+        if (card == null) return;
+        GameObject med = new GameObject("Medallion", typeof(RectTransform), typeof(Image));
+        med.transform.SetParent(card.transform, false);
+        RectTransform rt = med.GetComponent<RectTransform>();
+        rt.anchorMin = rt.anchorMax = new Vector2(leftSide ? 0f : 1f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = new Vector2(leftSide ? 28f : -28f, 0f);
+        rt.sizeDelta = new Vector2(54f, 54f);
+        Image img = med.GetComponent<Image>();
+        img.sprite = LobbySprites.Circle;
+        img.color = fill;
+        img.raycastTarget = false;
+        LobbySprites.AddIcon(med.transform, "Ring", LobbySprites.CircleRing, gold, Vector2.zero, 54f);
+        LobbySprites.AddIcon(med.transform, "Gem", LobbySprites.Diamond, gold, Vector2.zero, 18f);
+    }
+
+    // Moeda antes do "Ouro: X" e coração antes do "Vida: X/Y", ancorados no
+    // começo REAL do texto (os textos são alinhados à esquerda, então o começo
+    // da linha não muda quando o valor muda)
+    void AddStatIcons(GameObject card, TextMeshProUGUI goldText, TextMeshProUGUI healthText)
+    {
+        AddIconBeforeText(card, goldText, "CoinIcon", LobbySprites.Circle, new Color(0.97f, 0.80f, 0.32f));
+        if (goldText != null)
+        {
+            Transform coin = card != null ? card.transform.Find("CoinIcon") : null;
+            if (coin != null) // aro escuro para a moeda não virar só uma bolinha
+                LobbySprites.AddIcon(coin, "Rim", LobbySprites.CircleRing, new Color(0.60f, 0.42f, 0.12f), Vector2.zero, 15f);
+        }
+        AddIconBeforeText(card, healthText, "HeartIcon", LobbySprites.Heart, new Color(0.90f, 0.30f, 0.36f));
+    }
+
+    void AddIconBeforeText(GameObject card, TextMeshProUGUI text, string name, Sprite sprite, Color color)
+    {
+        if (card == null || text == null) return;
+        Vector3[] c = RenderedCorners(text);
+        Vector3 world = new Vector3(
+            Mathf.Min(c[0].x, c[2].x),
+            (c[0].y + c[1].y + c[2].y + c[3].y) * 0.25f, c[0].z);
+        Vector3 local = card.transform.InverseTransformPoint(world);
+        LobbySprites.AddIcon(card.transform, name, sprite, color, new Vector2(local.x - 13f, local.y), 15f);
     }
 
     void ColorText(TextMeshProUGUI tmp, Color color, bool bold)
@@ -295,11 +402,12 @@ public class GameUIManager : MonoBehaviour
         if (bold) tmp.fontStyle |= FontStyles.Bold;
     }
 
-    // Um card transparente cobrindo o grupo de textos. tight=false usa a CAIXA
+    // Um card cobrindo o grupo de textos. tight=false usa a CAIXA
     // (RectTransform) de cada texto; tight=true usa os limites RENDERIZADOS
     // (textBounds) — bem mais justo, para o card do meio abraçar só o texto.
-    void AddGroupCard(Canvas canvas, string cardName, Vector2 pad, bool tight,
-        params TextMeshProUGUI[] members)
+    // extraLeft/extraRight abrem espaço além dos textos (ex.: brasão).
+    GameObject AddGroupCard(Canvas canvas, string cardName, Vector2 pad, bool tight,
+        float extraLeft, float extraRight, params TextMeshProUGUI[] members)
     {
         Vector3 min = new Vector3(float.MaxValue, float.MaxValue);
         Vector3 max = new Vector3(float.MinValue, float.MinValue);
@@ -316,7 +424,7 @@ public class GameUIManager : MonoBehaviour
             }
             any = true;
         }
-        if (!any) return;
+        if (!any) return null;
 
         GameObject card = new GameObject(cardName, typeof(RectTransform), typeof(Image));
         card.transform.SetParent(canvas.transform, false);
@@ -327,11 +435,19 @@ public class GameUIManager : MonoBehaviour
         crt.pivot = new Vector2(0.5f, 0.5f);
         float sf = canvas.scaleFactor > 0.001f ? canvas.scaleFactor : 1f;
         crt.position = (min + max) * 0.5f;
-        crt.sizeDelta = new Vector2((max.x - min.x) / sf, (max.y - min.y) / sf) + pad * 2f;
+        crt.sizeDelta = new Vector2((max.x - min.x) / sf, (max.y - min.y) / sf) + pad * 2f
+            + new Vector2(extraLeft + extraRight, 0f);
+        crt.anchoredPosition += new Vector2((extraRight - extraLeft) * 0.5f, 0f);
 
+        // Painel do mockup: azul-marinho profundo com moldura dourada
         Image img = card.GetComponent<Image>();
-        LobbySprites.MakeRounded(img, new Color(0.07f, 0.055f, 0.04f, 0.42f)); // transparente
+        LobbySprites.MakeRounded(img, new Color(0.045f, 0.055f, 0.105f, 0.93f));
         img.raycastTarget = false;
+        GameObject ring = LobbySprites.AddRing(card.transform, new Color(0.85f, 0.66f, 0.30f, 0.95f));
+        Image ringImg = ring != null ? ring.GetComponent<Image>() : null;
+        if (ringImg != null) ringImg.raycastTarget = false;
+
+        return card;
     }
 
     static Vector3[] BoxCorners(TextMeshProUGUI m)
