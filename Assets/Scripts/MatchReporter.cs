@@ -417,6 +417,8 @@ public class MatchReporter : MonoBehaviour
 
         stats.loggedIn = true;
         stats.playerName = !string.IsNullOrEmpty(pre.name) ? pre.name : pre.email;
+        // Fallback do nick da partida quando o jogador não definiu um custom
+        PlayerNick.CacheAccountName(stats.playerName);
 
         // Sessão válida via caminho ÚNICO (single-flight + renovação preguiçosa
         // — antes o perfil e o upload pendente do boot renovavam AO MESMO TEMPO

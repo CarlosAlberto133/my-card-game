@@ -293,10 +293,88 @@ public static class LobbyProfileUI
         MakeDiamond(panel.transform, new Vector2(104f, 303f), 8f, GoldSoft);
 
         TMP_Text nameText = MakeText(panel.transform, "Name", "Carregando...", 22, Gold,
-            TextAlignmentOptions.Center, new Vector2(0f, 268f), new Vector2(310f, 32f));
+            TextAlignmentOptions.Center, new Vector2(-14f, 268f), new Vector2(252f, 32f));
         nameText.fontStyle = FontStyles.Bold;
         nameText.enableWordWrapping = false;
         nameText.overflowMode = TextOverflowModes.Ellipsis;
+
+        // ── Nick editável (lápis ao lado do nome) ────────────────────────
+        // O nome mostrado passa a ser: nick custom > nome da conta Google.
+        // O lápis abre um campo para digitar o nick; vazio volta pro da conta.
+        string accountName = null; // preenchido quando o FetchStats responder
+        if (PlayerNick.HasCustom) nameText.text = PlayerNick.Get();
+
+        GameObject editBtn = MakeImage(panel.transform, "EditNick", new Vector2(28f, 28f), BarBg);
+        Image editImg = editBtn.GetComponent<Image>();
+        editImg.sprite = LobbySprites.Circle;
+        editImg.raycastTarget = true;
+        editBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(138f, 268f);
+        LobbySprites.AddIcon(editBtn.transform, "Aro", LobbySprites.CircleRing,
+            PanelBorder, Vector2.zero, 28f);
+        // Lápis desenhado: cabo (barra a 45°) + ponta (losango)
+        Image cabo = LobbySprites.AddIcon(editBtn.transform, "Cabo", LobbySprites.Fill,
+            GoldSoft, new Vector2(2f, 2f), 12f);
+        cabo.rectTransform.sizeDelta = new Vector2(13f, 4f);
+        cabo.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+        LobbySprites.AddIcon(editBtn.transform, "Ponta", LobbySprites.Diamond,
+            GoldSoft, new Vector2(-5f, -5f), 6f);
+
+        // Linha de edição (some até clicar no lápis): campo + botão OK
+        GameObject editRow = new GameObject("NickEditRow", typeof(RectTransform));
+        editRow.transform.SetParent(panel.transform, false);
+        RectTransform rowRt = editRow.GetComponent<RectTransform>();
+        rowRt.anchoredPosition = new Vector2(0f, 268f);
+        rowRt.sizeDelta = new Vector2(310f, 34f);
+
+        TMP_InputField nickField = MakeNickInput(editRow.transform,
+            new Vector2(-38f, 0f), new Vector2(224f, 32f));
+
+        GameObject okBtn = MakeImage(editRow.transform, "Ok", new Vector2(64f, 32f),
+            new Color(0.42f, 0.30f, 0.10f, 0.97f));
+        Image okImg = okBtn.GetComponent<Image>();
+        LobbySprites.MakeRounded(okImg, new Color(0.42f, 0.30f, 0.10f, 0.97f));
+        okImg.raycastTarget = true;
+        okBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(116f, 0f);
+        TMP_Text okLabel = MakeText(okBtn.transform, "L", "OK", 16, Gold,
+            TextAlignmentOptions.Center, Vector2.zero, new Vector2(64f, 32f));
+        okLabel.fontStyle = FontStyles.Bold;
+        editRow.SetActive(false);
+
+        Action saveNick = () =>
+        {
+            PlayerNick.SetCustom(nickField.text);
+            // Vale já na próxima sala criada/entrada (e o oponente vê)
+            PhotonNetwork.playerName = PlayerNick.Get();
+            editRow.SetActive(false);
+            nameText.gameObject.SetActive(true);
+            editBtn.SetActive(true);
+            if (PlayerNick.HasCustom)
+            {
+                nameText.text = PlayerNick.Get();
+                nameText.color = Gold;
+            }
+            else
+            {
+                nameText.text = accountName ?? "Visitante";
+                nameText.color = accountName != null ? Gold : TextLight;
+            }
+        };
+
+        Button ok = okBtn.AddComponent<Button>();
+        ok.targetGraphic = okImg;
+        ok.onClick.AddListener(() => saveNick());
+        nickField.onSubmit.AddListener(_ => saveNick());
+
+        Button edit = editBtn.AddComponent<Button>();
+        edit.targetGraphic = editImg;
+        edit.onClick.AddListener(() =>
+        {
+            editRow.SetActive(true);
+            nameText.gameObject.SetActive(false);
+            editBtn.SetActive(false);
+            nickField.text = PlayerNick.HasCustom ? PlayerNick.Get() : "";
+            nickField.ActivateInputField();
+        });
 
         // ── Nível + barra de XP (das partidas reais — ver PlayerProgress) ─
         GameObject badge = MakeImage(panel.transform, "LevelBadge", new Vector2(64f, 64f), Gold);
@@ -394,15 +472,23 @@ public static class LobbyProfileUI
 
             if (!stats.loggedIn)
             {
-                nameText.text = "Visitante";
-                nameText.color = TextLight;
+                if (PlayerNick.HasCustom)
+                {
+                    nameText.text = PlayerNick.Get();
+                }
+                else
+                {
+                    nameText.text = "Visitante";
+                    nameText.color = TextLight;
+                }
                 SetAll("—", vMatches, vWins, vLosses, vAbandoned, vTime, vRate);
                 if (footer != null)
                     footer.text = "Entre com Google pelo launcher para\nsalvar partidas e ver suas estatísticas.";
                 return;
             }
 
-            nameText.text = string.IsNullOrEmpty(stats.playerName) ? "Jogador" : stats.playerName;
+            accountName = string.IsNullOrEmpty(stats.playerName) ? "Jogador" : stats.playerName;
+            nameText.text = PlayerNick.HasCustom ? PlayerNick.Get() : accountName;
 
             if (stats.sessionExpired)
             {
@@ -604,6 +690,54 @@ public static class LobbyProfileUI
         RectTransform rt = go.GetComponent<RectTransform>();
         rt.anchoredPosition = pos;
         rt.localRotation = Quaternion.Euler(0f, 0f, 45f);
+    }
+
+    // Campo de nick de uma linha (TMP_InputField por código, receita do ReportUI)
+    static TMP_InputField MakeNickInput(Transform parent, Vector2 pos, Vector2 size)
+    {
+        GameObject go = new GameObject("NickInput", typeof(RectTransform),
+            typeof(Image), typeof(TMP_InputField));
+        go.transform.SetParent(parent, false);
+        RectTransform rt = go.GetComponent<RectTransform>();
+        rt.anchoredPosition = pos;
+        rt.sizeDelta = size;
+        Image bg = go.GetComponent<Image>();
+        LobbySprites.MakeRounded(bg, BarBg);
+
+        GameObject area = new GameObject("TextArea", typeof(RectTransform), typeof(RectMask2D));
+        area.transform.SetParent(go.transform, false);
+        RectTransform art = area.GetComponent<RectTransform>();
+        art.anchorMin = Vector2.zero; art.anchorMax = Vector2.one;
+        art.offsetMin = new Vector2(10f, 3f); art.offsetMax = new Vector2(-10f, -3f);
+
+        TMP_Text ph = MakeFieldText(area.transform, "Placeholder", "Seu nick...", TextMuted);
+        ph.fontStyle = FontStyles.Italic;
+        TMP_Text txt = MakeFieldText(area.transform, "Text", "", TextLight);
+
+        TMP_InputField field = go.GetComponent<TMP_InputField>();
+        field.textViewport = art;
+        field.textComponent = txt;
+        field.placeholder = ph;
+        field.lineType = TMP_InputField.LineType.SingleLine;
+        field.characterLimit = PlayerNick.MaxLength;
+        field.targetGraphic = bg;
+        return field;
+    }
+
+    static TMP_Text MakeFieldText(Transform parent, string name, string text, Color color)
+    {
+        GameObject go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(parent, false);
+        RectTransform rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+        rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+        TextMeshProUGUI tmp = go.AddComponent<TextMeshProUGUI>();
+        tmp.text = text;
+        tmp.fontSize = 17;
+        tmp.color = color;
+        tmp.alignment = TextAlignmentOptions.MidlineLeft;
+        tmp.textWrappingMode = TextWrappingModes.NoWrap;
+        return tmp;
     }
 
     // ── Helpers básicos (mesmo padrão do LobbyUI) ────────────────────────

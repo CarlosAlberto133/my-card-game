@@ -452,9 +452,16 @@ public class TurnManager : MonoBehaviour
         if (pool != null)
             pool.ResetPool();
 
-        // 5. Reseta jogadores e estado do jogo (volta ao Lobby)
-        player1 = new PlayerData("Jogador 1");
-        player2 = new PlayerData("Jogador 2");
+        // 5. Reseta jogadores e estado do jogo (volta ao Lobby) — preservando
+        //    os nicks que o PhotonGameManager escreveu no início da partida
+        string nome1 = player1 != null ? player1.playerName : "Jogador 1";
+        string nome2 = player2 != null ? player2.playerName : "Jogador 2";
+        player1 = new PlayerData(nome1);
+        player2 = new PlayerData(nome2);
+        // O construtor por nome ADIVINHA o playerNumber procurando "1"/"2" no
+        // texto — com nick custom isso erra; fixa os números explicitamente
+        player1.playerNumber = 1;
+        player2.playerNumber = 2;
         gameState = GameState.Lobby;
         currentRound = 0;
         currentPlayerNumber = 1;

@@ -49,6 +49,9 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
             PhotonNetwork.offlineMode = false;
         }
 
+        // Nick que o oponente vê na partida (custom > conta Google > "Jogador")
+        PhotonNetwork.playerName = PlayerNick.Get();
+
         // Cenário de taverna/mesa de RPG (tema do jogo) montado por código
         LobbyDecor.Build();
 
@@ -408,6 +411,7 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         }
 
         PhotonNetwork.offlineMode = true;
+        PhotonNetwork.playerName = PlayerNick.Get();
 
         RoomOptions options = new RoomOptions();
         options.MaxPlayers = 2;
@@ -436,6 +440,8 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         RoomOptions options = new RoomOptions();
         options.MaxPlayers = 2;
 
+        // Reaplica o nick (o jogador pode ter editado no perfil agora há pouco)
+        PhotonNetwork.playerName = PlayerNick.Get();
         bool success = PhotonNetwork.CreateRoom(roomName, options, null);
         Debug.Log($"[Lobby] Criando sala: {roomName}, Success: {success}");
         if (success) ui.Toast("Criando sala...");
@@ -484,6 +490,7 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
     {
         Debug.Log($"[Lobby] Entrando na sala: {roomName}");
         ui.Toast("Entrando na sala...");
+        PhotonNetwork.playerName = PlayerNick.Get();
         PhotonNetwork.JoinRoom(roomName);
     }
 

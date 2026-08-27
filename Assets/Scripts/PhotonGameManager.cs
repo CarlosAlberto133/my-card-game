@@ -92,6 +92,23 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
         if (turnManager != null)
         {
             turnManager.SetPlayers(myPlayerNumber, opponentPlayerNumber);
+
+            // Nicks no HUD em vez de "Jogador 1/2": o meu vem do PlayerNick,
+            // o do oponente chega pelo Photon (PhotonNetwork.playerName setado
+            // no lobby). Nome comprido é truncado ("Carlos Alberto…").
+            // Só visual — nenhum efeito na lógica/lockstep.
+            string meuNick = PlayerNick.Truncate(PlayerNick.Get(), PlayerNick.MatchDisplayMax);
+            string nickOponente = PhotonNetwork.offlineMode ? "Bot" : null;
+            foreach (PhotonPlayer p in PhotonNetwork.playerList)
+            {
+                if (!p.isLocal && !string.IsNullOrEmpty(p.name))
+                    nickOponente = PlayerNick.Truncate(p.name, PlayerNick.MatchDisplayMax);
+            }
+
+            PlayerData meu = myPlayerNumber == 1 ? turnManager.player1 : turnManager.player2;
+            PlayerData dele = myPlayerNumber == 1 ? turnManager.player2 : turnManager.player1;
+            if (meu != null && !string.IsNullOrEmpty(meuNick)) meu.playerName = meuNick;
+            if (dele != null && !string.IsNullOrEmpty(nickOponente)) dele.playerName = nickOponente;
         }
 
         Debug.Log($"[PhotonGame] Sincronizado: Eu={myPlayerNumber}, Oponente={opponentPlayerNumber}");

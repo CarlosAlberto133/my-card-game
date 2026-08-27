@@ -1,8 +1,16 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.Rendering.Universal;
 
 public class CameraController : MonoBehaviour
 {
+    // Camada das cartas da LOJA: desenhadas por uma câmera overlay (stack da
+    // URP) que limpa o depth — a loja nunca fica escondida atrás das
+    // estruturas do cenário com a câmera deitada. Layer 30 está livre no
+    // projeto (nenhum outro script usa layers).
+    public const int ShopTopLayer = 30;
+    private Camera shopTopCamera;
+
     [Header("Movimento (arrasto com botão direito)")]
     [Tooltip("1 = o tabuleiro acompanha o mouse exatamente; aumente para arrastar mais rápido")]
     public float dragSensitivity = 1.2f;
@@ -14,6 +22,14 @@ public class CameraController : MonoBehaviour
     public float zoomSmoothness = 12f;
     public float minZoom = 5f;
     public float maxZoom = 30f;
+    [Tooltip("Zoom com que a partida COMEÇA (meia-altura visível no chão). Meio termo: nem colado nas cartas, nem vendo o tabuleiro inteiro de longe.")]
+    public float startZoom = 16f;
+
+    [Header("Limites do arrasto")]
+    [Tooltip("Até onde o centro da tela pode ir para os LADOS (unidades do mundo; tabuleiro no centro)")]
+    public float panLimitX = 30f;
+    [Tooltip("Até onde o centro da tela pode ir para FRENTE/TRÁS (as mãos ficam em ±29.5)")]
+    public float panLimitZ = 36f;
 
     [Header("Inclinação (visão do jogador)")]
     [Tooltip("Ângulo em graus a partir do chão: 90 = de cima (só o topo da cabeça das figuras); 45 = câmera mais deitada, vendo as figuras de frente. Pode ajustar em play mode.")]
@@ -38,8 +54,10 @@ public class CameraController : MonoBehaviour
         if (mainCamera != null)
         {
             // O zoom continua medido como "meia-altura visível no chão" (a antiga
-            // orthographicSize) — minZoom/maxZoom/zoomStep valem como antes
-            targetZoom = mainCamera.orthographicSize;
+            // orthographicSize) — minZoom/maxZoom/zoomStep valem como antes.
+            // A partida começa no startZoom (meio termo), não no zoom máximo
+            // salvo na cena, que mostrava o tabuleiro inteiro de longe.
+            targetZoom = Mathf.Clamp(startZoom, minZoom, maxZoom);
             currentZoom = targetZoom;
 
             // PERSPECTIVA de verdade (estilo LoL). A ortográfica inclinada parecia
@@ -54,6 +72,27 @@ public class CameraController : MonoBehaviour
             // A cena guarda a câmera a 60° (quase de cima); aqui ela deita
             // para o ângulo configurado, mirando o mesmo ponto do tabuleiro
             ApplyTilt();
+
+            // Câmera overlay da loja: filha da principal (acompanha posição,
+            // rotação e lente), desenha SÓ a camada da loja limpando o depth
+            mainCamera.cullingMask &= ~(1 << ShopTopLayer);
+            GameObject overlay = new GameObject("ShopTopCamera");
+            overlay.transform.SetParent(transform, false);
+            shopTopCamera = overlay.AddComponent<Camera>();
+            shopTopCamera.cullingMask = 1 << ShopTopLayer;
+            shopTopCamera.fieldOfView = mainCamera.fieldOfView;
+            shopTopCamera.nearClipPlane = mainCamera.nearClipPlane;
+            shopTopCamera.farClipPlane = mainCamera.farClipPlane;
+            shopTopCamera.eventMask = 0; // cliques continuam pela principal
+
+            // URP: overlay entra no stack da câmera base
+            // (clearDepth é read-only nesta versão da URP; overlay já limpa
+            // o depth por padrão — é exatamente o que queremos)
+            var overlayData = shopTopCamera.GetUniversalAdditionalCameraData();
+            overlayData.renderType = CameraRenderType.Overlay;
+            var mainData = mainCamera.GetUniversalAdditionalCameraData();
+            if (!mainData.cameraStack.Contains(shopTopCamera))
+                mainData.cameraStack.Add(shopTopCamera);
         }
     }
 
@@ -92,6 +131,7 @@ public class CameraController : MonoBehaviour
         if (!float.IsNaN(appliedFov) && !Mathf.Approximately(appliedFov, fieldOfView))
         {
             mainCamera.fieldOfView = fieldOfView;
+            if (shopTopCamera != null) shopTopCamera.fieldOfView = fieldOfView;
             appliedFov = fieldOfView;
             ApplyTilt(); // recoloca na distância certa para a lente nova
         }
@@ -137,6 +177,17 @@ public class CameraController : MonoBehaviour
             Vector3 move = (-delta.x * right - (delta.y / foreshorten) * forwardOnGround)
                            * worldPerPixel * dragSensitivity;
             transform.position += move;
+
+            // Limite do arrasto: o PONTO DO CHÃO no centro da tela não pode
+            // sair da área do tabuleiro+mãos (antes dava para ir ao infinito)
+            Vector3 alvoAtual;
+            if (GroundTarget(out alvoAtual))
+            {
+                Vector3 preso = new Vector3(
+                    Mathf.Clamp(alvoAtual.x, -panLimitX, panLimitX), 0f,
+                    Mathf.Clamp(alvoAtual.z, -panLimitZ, panLimitZ));
+                if (preso != alvoAtual) transform.position += preso - alvoAtual;
+            }
 
             lastMousePos = currentMousePos;
         }

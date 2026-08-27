@@ -192,6 +192,12 @@ public class CardDisplay : MonoBehaviour
 
     void Update()
     {
+        // Camada de render: loja = camada da câmera overlay (desenha por cima
+        // do cenário); fora da loja = Default. Checagem barata: só anda na
+        // hierarquia quando o estado mudou (comprada / devolvida à loja).
+        int wantedLayer = isInShop ? CameraController.ShopTopLayer : 0;
+        if (gameObject.layer != wantedLayer) SetLayerRecursive(transform, wantedLayer);
+
         if (!isMouseOver) return;
 
         Mouse mouse = Mouse.current;
@@ -742,21 +748,24 @@ public class CardDisplay : MonoBehaviour
             classText.text = card.cardClass.ToString();
         }
 
-        // Atualiza cor da barra de tier
+        // Medalhão de tier: moeda DOURADA (tema medieval do design-carta.png);
+        // o aro em volta fica na cor do tier para o "raro/épico" continuar
+        // legível de longe na loja
         if (tierBarRenderer != null)
         {
             EnsureQuadMaterial(tierBarRenderer);
-            Color tierColor = GetTierColor(card.tier);
-            tierBarRenderer.material.color = tierColor;
-            tierBarRenderer.material.SetColor("_BaseColor", tierColor);
+            tierBarRenderer.material.color = GoldCoin;
+            tierBarRenderer.material.SetColor("_BaseColor", GoldCoin);
         }
+        SetQuadColor("TierRing", Color.Lerp(GetTierColor(card.tier), GoldTrim, 0.30f));
 
-        // Painéis tingidos pela cor da classe (identidade visual da carta)
+        // Painéis do tema medieval: fundos quase pretos com um sopro da cor
+        // da classe; a moldura da arte é dourada como no mockup
         Color classTint = GetClassColor(card.cardClass);
-        Color deepBase = new Color(0.10f, 0.10f, 0.16f);
-        SetQuadColor("NameHeader", Color.Lerp(deepBase, classTint, 0.32f));
-        SetQuadColor("ArtworkFrame", Color.Lerp(deepBase, classTint, 0.55f));
-        SetQuadColor("ClassChip", Color.Lerp(deepBase, classTint, 0.45f));
+        Color deepBase = new Color(0.045f, 0.050f, 0.085f);
+        SetQuadColor("NameHeader", Color.Lerp(deepBase, classTint, 0.10f));
+        SetQuadColor("ArtworkFrame", GoldTrim);
+        SetQuadColor("ClassChip", Color.Lerp(deepBase, classTint, 0.16f));
 
         // Aplica as cores dos quads estáticos (corrige shaders URP em runtime)
         ApplyCardTheme();
@@ -766,6 +775,17 @@ public class CardDisplay : MonoBehaviour
 
         // Figura 3D da classe em pé sobre a carta (só no tabuleiro)
         UpdateBoardFigure();
+
+        // Reaplica a camada em TODA a hierarquia: painéis/textos criados agora
+        // há pouco (EnsureModernLayout, overlays) nascem na camada Default e
+        // sumiriam da câmera overlay da loja
+        SetLayerRecursive(transform, isInShop ? CameraController.ShopTopLayer : 0);
+    }
+
+    static void SetLayerRecursive(Transform t, int layer)
+    {
+        if (t.gameObject.layer != layer) t.gameObject.layer = layer;
+        for (int i = 0; i < t.childCount; i++) SetLayerRecursive(t.GetChild(i), layer);
     }
 
     // Rastreia os últimos stats exibidos para detectar mudanças automaticamente:
@@ -880,24 +900,40 @@ public class CardDisplay : MonoBehaviour
         statsTracked = true;
     }
 
+    // ── Paleta do tema medieval (mockup design-carta.png) ──────────────
+    static readonly Color GoldTrim = new Color(0.60f, 0.47f, 0.24f);   // filetes/molduras
+    static readonly Color GoldBright = new Color(0.88f, 0.74f, 0.45f); // texto dourado
+    static readonly Color GoldCoin = new Color(0.82f, 0.64f, 0.30f);   // moeda de tier
+    static readonly Color Ivory = new Color(0.94f, 0.91f, 0.83f);      // texto claro
+
     // Define a cor dos quads estáticos que não mudam por carta
     void ApplyCardTheme()
     {
-        // Borda colorida pelo dono: azul = Jogador 1, vermelho = Jogador 2, ardósia = loja
-        // (o quase-preto antigo sumia contra o fundo espacial escuro).
-        // Carta TRAVADA na loja: borda dourada (a "aura" de trancada)
+        // Borda colorida pelo dono, em tons profundos que casam com o tema
+        // medieval: azul-real = Jogador 1, carmesim = Jogador 2, quase-preto
+        // = loja (como no mockup). Carta TRAVADA na loja: borda dourada.
         Color borderColor;
         if (isInShop && isLockedInShop) borderColor = new Color(0.96f, 0.77f, 0.32f);
-        else if (ownerPlayerNumber == 1) borderColor = new Color(0.15f, 0.40f, 1.00f);
-        else if (ownerPlayerNumber == 2) borderColor = new Color(0.95f, 0.25f, 0.20f);
-        else borderColor = new Color(0.30f, 0.29f, 0.42f);
+        else if (ownerPlayerNumber == 1) borderColor = new Color(0.13f, 0.30f, 0.78f);
+        else if (ownerPlayerNumber == 2) borderColor = new Color(0.64f, 0.13f, 0.10f);
+        else borderColor = new Color(0.050f, 0.050f, 0.070f);
         SetQuadColor("Border", borderColor);
-        // Caixa de efeito neutra escura; stats viraram chips coloridos
-        // (NameHeader/ArtworkFrame/ClassChip são tingidos pela classe no UpdateCardDisplay)
-        SetQuadColor("EffectBackground", new Color(0.13f, 0.13f, 0.20f));
-        SetQuadColor("AtkChip", new Color(0.58f, 0.20f, 0.12f));
-        SetQuadColor("ShieldChip", new Color(0.13f, 0.30f, 0.55f));
-        SetQuadColor("HpChip", new Color(0.12f, 0.40f, 0.19f));
+        // Caixa de efeito azul-marinho; stats em escudos heráldicos
+        // (NameHeader/ArtworkFrame/ClassChip são tingidos no UpdateCardDisplay)
+        SetQuadColor("EffectBackground", new Color(0.070f, 0.090f, 0.165f));
+        SetQuadColor("AtkChip", new Color(0.50f, 0.14f, 0.10f));
+        SetQuadColor("ShieldChip", new Color(0.13f, 0.24f, 0.46f));
+        SetQuadColor("HpChip", new Color(0.14f, 0.34f, 0.17f));
+        // Filetes dourados (moldura da carta, aros dos painéis e dos escudos)
+        SetQuadColor("GoldFrame", GoldTrim);
+        SetQuadColor("NameRing", GoldTrim);
+        SetQuadColor("ClassRing", GoldTrim);
+        SetQuadColor("EffectRing", GoldTrim);
+        SetQuadColor("AtkRing", GoldTrim);
+        SetQuadColor("ShieldRing", GoldTrim);
+        SetQuadColor("HpRing", GoldTrim);
+        SetQuadColor("OrnamentL", GoldTrim);
+        SetQuadColor("OrnamentR", GoldTrim);
         // Artwork cinza enquanto não há imagem
         if (artworkRenderer == null || card.artwork == null)
             SetQuadColor("Artwork", new Color(0.28f, 0.28f, 0.28f));
@@ -965,29 +1001,49 @@ public class CardDisplay : MonoBehaviour
         AutoAssignElements();
 
         // ── Painéis (carta 1.8 × 2.5; topo = z -1.25) ─────────────────────
+        // Tema medieval do design-carta.png: filete dourado contornando a
+        // carta, banner de nome + moeda de tier, arte em moldura dourada,
+        // faixa da classe com losangos e stats em escudos heráldicos.
         StyleRoundedPanel("Border", 1.94f, 2.64f, 0.18f, 0f, 0f, 0.000f);
         StyleRoundedPanel("Background", 1.80f, 2.50f, 0.14f, 0f, 0f, 0.003f);
-        StyleRoundedPanel("NameHeader", 1.64f, 0.30f, 0.09f, 0f, -1.02f, 0.006f);
+        StyleMeshPanel("GoldFrame", GetRoundedRingMesh(1.74f, 2.44f, 0.12f, 0.020f),
+            0f, 0f, 0.006f);
+        // Banner do nome deslocado para a esquerda (x local + = esquerda na
+        // tela) para abrir espaço à moeda de tier no canto direito
+        StyleRoundedPanel("NameHeader", 1.28f, 0.30f, 0.09f, 0.22f, -1.02f, 0.006f);
+        StyleMeshPanel("NameRing", GetRoundedRingMesh(1.28f, 0.30f, 0.09f, 0.014f),
+            0.22f, -1.02f, 0.009f);
         StyleRoundedPanel("ArtworkFrame", 1.64f, 0.94f, 0.08f, 0f, -0.35f, 0.006f);
         StyleRoundedPanel("EffectBackground", 1.64f, 0.58f, 0.08f, 0f, 0.51f, 0.006f);
-        StyleRoundedPanel("ClassChip", 0.70f, 0.20f, 0.10f, 0f, 0.10f, 0.012f);
-        // A barra de tier vira um medalhão redondo no canto do cabeçalho
-        // (o CardDisplay já pinta "TierBar" com a cor do tier)
-        StyleRoundedPanel("TierBar", 0.32f, 0.32f, 0.16f, -0.68f, -1.02f, 0.009f);
-        // Stats: três chips coloridos (ATK / DEF / HP).
+        StyleMeshPanel("EffectRing", GetRoundedRingMesh(1.64f, 0.58f, 0.08f, 0.014f),
+            0f, 0.51f, 0.009f);
+        StyleRoundedPanel("ClassChip", 0.94f, 0.21f, 0.10f, 0f, 0.10f, 0.012f);
+        StyleMeshPanel("ClassRing", GetRoundedRingMesh(0.94f, 0.21f, 0.10f, 0.013f),
+            0f, 0.10f, 0.014f);
+        // Losangos dourados ladeando a faixa da classe (como no mockup)
+        StyleMeshPanel("OrnamentL", GetDiamondMesh(0.09f, 0.09f), 0.58f, 0.10f, 0.014f);
+        StyleMeshPanel("OrnamentR", GetDiamondMesh(0.09f, 0.09f), -0.58f, 0.10f, 0.014f);
+        // Moeda de tier: círculo dourado com aro na cor do tier
+        StyleRoundedPanel("TierBar", 0.36f, 0.36f, 0.18f, -0.66f, -1.02f, 0.009f);
+        StyleMeshPanel("TierRing", GetRoundedRingMesh(0.36f, 0.36f, 0.18f, 0.025f),
+            -0.66f, -1.02f, 0.012f);
+        // Stats: três ESCUDOS heráldicos com aro dourado (ATK / DEF / HP).
         // ATENÇÃO: a carta nasce com rotação Y=180 (CardManager), então o X
         // local aparece ESPELHADO na tela — x positivo = lado esquerdo pro
         // jogador. ATK em +0.56 para a ordem visual ser ATK / DEF / HP.
-        StyleRoundedPanel("AtkChip", 0.50f, 0.32f, 0.10f, 0.56f, 1.01f, 0.009f);
-        StyleRoundedPanel("ShieldChip", 0.50f, 0.32f, 0.10f, 0f, 1.01f, 0.009f);
-        StyleRoundedPanel("HpChip", 0.50f, 0.32f, 0.10f, -0.56f, 1.01f, 0.009f);
+        StyleMeshPanel("AtkChip", GetShieldMesh(0.50f, 0.40f), 0.56f, 1.00f, 0.009f);
+        StyleMeshPanel("AtkRing", GetShieldRingMesh(0.50f, 0.40f, 0.022f), 0.56f, 1.00f, 0.012f);
+        StyleMeshPanel("ShieldChip", GetShieldMesh(0.50f, 0.40f), 0f, 1.00f, 0.009f);
+        StyleMeshPanel("ShieldRing", GetShieldRingMesh(0.50f, 0.40f, 0.022f), 0f, 1.00f, 0.012f);
+        StyleMeshPanel("HpChip", GetShieldMesh(0.50f, 0.40f), -0.56f, 1.00f, 0.009f);
+        StyleMeshPanel("HpRing", GetShieldRingMesh(0.50f, 0.40f, 0.022f), -0.56f, 1.00f, 0.012f);
 
         // Elementos do layout antigo que não existem mais
         HideChild("StatsBackground");
         HideChild("StatsDivider1");
         HideChild("StatsDivider2");
 
-        // Artwork emoldurado (o quad da arte fica ACIMA da moldura)
+        // Artwork emoldurado (o quad da arte fica ACIMA da moldura dourada)
         Transform art = transform.Find("Artwork");
         if (art != null)
         {
@@ -996,21 +1052,32 @@ public class CardDisplay : MonoBehaviour
         }
 
         // ── Textos ────────────────────────────────────────────────────────
-        StyleText(cardNameText, new Vector3(0.10f, 0.012f, -1.02f),
-            new Vector2(1.24f, 0.26f), 1.3f, 2.4f, Color.white, false);
-        StyleText(tierText, new Vector3(-0.68f, 0.013f, -1.02f),
-            new Vector2(0.32f, 0.30f), 1.6f, 2.5f, Color.white, false);
+        StyleText(cardNameText, new Vector3(0.22f, 0.012f, -1.02f),
+            new Vector2(1.16f, 0.26f), 1.3f, 2.4f, Ivory, false);
+        StyleText(tierText, new Vector3(-0.66f, 0.013f, -1.02f),
+            new Vector2(0.36f, 0.32f), 1.6f, 2.5f, new Color(0.26f, 0.17f, 0.05f), false);
         StyleText(classText, new Vector3(0f, 0.016f, 0.10f),
-            new Vector2(0.66f, 0.18f), 0.9f, 1.45f, new Color(0.93f, 0.93f, 0.96f), false);
-        StyleText(attackText, new Vector3(0.56f, 0.013f, 1.01f),
-            new Vector2(0.46f, 0.28f), 2.0f, 3.1f, Color.white, false);
-        StyleText(shieldText, new Vector3(0f, 0.013f, 1.01f),
-            new Vector2(0.46f, 0.28f), 2.0f, 3.1f, Color.white, false);
-        StyleText(healthText, new Vector3(-0.56f, 0.013f, 1.01f),
-            new Vector2(0.46f, 0.28f), 2.0f, 3.1f, Color.white, false);
+            new Vector2(0.86f, 0.18f), 0.9f, 1.45f, GoldBright, false);
+        StyleText(attackText, new Vector3(0.56f, 0.013f, 0.98f),
+            new Vector2(0.46f, 0.28f), 2.0f, 3.1f, Ivory, false);
+        StyleText(shieldText, new Vector3(0f, 0.013f, 0.98f),
+            new Vector2(0.46f, 0.28f), 2.0f, 3.1f, Ivory, false);
+        StyleText(healthText, new Vector3(-0.56f, 0.013f, 0.98f),
+            new Vector2(0.46f, 0.28f), 2.0f, 3.1f, Ivory, false);
         StyleText(effectText, new Vector3(0f, 0.012f, 0.51f),
-            new Vector2(1.46f, 0.48f), 0.9f, 1.9f, new Color(0.90f, 0.90f, 0.86f), true);
+            new Vector2(1.46f, 0.48f), 0.9f, 1.9f, new Color(0.92f, 0.89f, 0.80f), true);
         if (effectText != null) effectText.fontStyle = FontStyles.Normal;
+
+        // Fontes do tema (Cinzel) — só nos textos curtos; a descrição do
+        // efeito fica na fonte padrão (Cinzel é toda em versalete, cansa
+        // para ler texto corrido)
+        UIFonts.Set(cardNameText, UIFonts.Body);
+        UIFonts.Set(classText, UIFonts.Body);
+        UIFonts.Set(tierText, UIFonts.Body);
+        UIFonts.Set(attackText, UIFonts.Body);
+        UIFonts.Set(shieldText, UIFonts.Body);
+        UIFonts.Set(healthText, UIFonts.Body);
+        if (classText != null) classText.characterSpacing = 8f;
     }
 
     // Substitui o quad do filho por uma mesh de cantos arredondados (ou cria
@@ -1018,6 +1085,11 @@ public class CardDisplay : MonoBehaviour
     // EnsureQuadMaterial/SetQuadColor — nada serializado no prefab.
     void StyleRoundedPanel(string childName, float width, float height,
                            float radius, float x, float z, float yLayer)
+    {
+        StyleMeshPanel(childName, GetRoundedRectMesh(width, height, radius), x, z, yLayer);
+    }
+
+    void StyleMeshPanel(string childName, Mesh mesh, float x, float z, float yLayer)
     {
         Transform t = transform.Find(childName);
         GameObject obj;
@@ -1037,7 +1109,7 @@ public class CardDisplay : MonoBehaviour
 
         MeshFilter mf = obj.GetComponent<MeshFilter>();
         if (mf == null) mf = obj.AddComponent<MeshFilter>();
-        mf.sharedMesh = GetRoundedRectMesh(width, height, radius);
+        mf.sharedMesh = mesh;
 
         // A mesh já é gerada no tamanho final, no plano XZ virada para +Y
         // (mesma face dos quads antigos rotacionados)
@@ -1130,6 +1202,180 @@ public class CardDisplay : MonoBehaviour
         return mesh;
     }
 
+    // ── Meshes do tema medieval (aros, escudos e losangos) ─────────────
+    // Todas no plano XZ viradas para +Y, mesma convenção do retângulo
+    // arredondado (perímetro em ângulo crescente; winding horário de cima).
+
+    // Perímetro do retângulo arredondado — mesma amostragem do
+    // GetRoundedRectMesh, reaproveitada pelos aros
+    static System.Collections.Generic.List<Vector3> RoundedPerimeter(
+        float width, float height, float radius)
+    {
+        const int segmentsPerCorner = 6;
+        radius = Mathf.Min(radius, width * 0.5f, height * 0.5f);
+        float cx = width * 0.5f - radius;
+        float cz = height * 0.5f - radius;
+        var pts = new System.Collections.Generic.List<Vector3>();
+        Vector2[] corners = {
+            new Vector2( cx,  cz), new Vector2(-cx,  cz),
+            new Vector2(-cx, -cz), new Vector2( cx, -cz)
+        };
+        for (int c = 0; c < 4; c++)
+            for (int s = 0; s <= segmentsPerCorner; s++)
+            {
+                float ang = (c * 90f + s * (90f / segmentsPerCorner)) * Mathf.Deg2Rad;
+                pts.Add(new Vector3(corners[c].x + Mathf.Cos(ang) * radius, 0f,
+                                    corners[c].y + Mathf.Sin(ang) * radius));
+            }
+        return pts;
+    }
+
+    // Faixa entre dois perímetros com o MESMO número de pontos → mesh de anel
+    static Mesh StripMesh(string key,
+        System.Collections.Generic.List<Vector3> outer,
+        System.Collections.Generic.List<Vector3> inner)
+    {
+        var verts = new System.Collections.Generic.List<Vector3>(outer);
+        verts.AddRange(inner);
+        var normals = new System.Collections.Generic.List<Vector3>();
+        var uvs = new System.Collections.Generic.List<Vector2>();
+        for (int i = 0; i < verts.Count; i++)
+        {
+            normals.Add(Vector3.up);
+            uvs.Add(new Vector2(0.5f, 0.5f));
+        }
+
+        int n = outer.Count;
+        var tris = new System.Collections.Generic.List<int>();
+        for (int i = 0; i < n; i++)
+        {
+            int j = (i + 1) % n;
+            // mesmo winding do leque central (face para +Y)
+            tris.Add(n + i); tris.Add(j); tris.Add(i);
+            tris.Add(n + i); tris.Add(n + j); tris.Add(j);
+        }
+
+        Mesh mesh = new Mesh();
+        mesh.name = key;
+        mesh.SetVertices(verts);
+        mesh.SetUVs(0, uvs);
+        mesh.SetNormals(normals);
+        mesh.SetTriangles(tris, 0);
+        mesh.RecalculateBounds();
+        roundedMeshCache[key] = mesh;
+        return mesh;
+    }
+
+    // Aro (contorno) de retângulo arredondado — os filetes dourados
+    static Mesh GetRoundedRingMesh(float width, float height, float radius, float thickness)
+    {
+        string key = "ring:" + width.ToString("F3") + "x" + height.ToString("F3") +
+                     "x" + radius.ToString("F3") + "x" + thickness.ToString("F3");
+        Mesh cached;
+        if (roundedMeshCache.TryGetValue(key, out cached) && cached != null) return cached;
+        var outer = RoundedPerimeter(width, height, radius);
+        var inner = RoundedPerimeter(width - thickness * 2f, height - thickness * 2f,
+                                     Mathf.Max(0.01f, radius - thickness));
+        return StripMesh(key, outer, inner);
+    }
+
+    // Perímetro de escudo heráldico: topo reto com leve mergulho no centro,
+    // laterais que curvam até a ponta de baixo (bezier quadrática)
+    static System.Collections.Generic.List<Vector3> ShieldPerimeter(float width, float height)
+    {
+        float hw = width * 0.5f, hh = height * 0.5f;
+        var pts = new System.Collections.Generic.List<Vector3>();
+        Vector2 direita = new Vector2(hw, -hh * 0.20f);
+        Vector2 controle = new Vector2(hw * 0.96f, hh * 0.55f);
+        Vector2 bico = new Vector2(0f, hh);
+        // Lateral direita descendo até o bico
+        for (int i = 0; i <= 8; i++)
+        {
+            float t = i / 8f;
+            Vector2 q = (1 - t) * (1 - t) * direita + 2f * (1 - t) * t * controle + t * t * bico;
+            pts.Add(new Vector3(q.x, 0f, q.y));
+        }
+        // Lateral esquerda subindo do bico (curva espelhada)
+        for (int i = 1; i <= 8; i++)
+        {
+            float t = i / 8f;
+            Vector2 q = (1 - t) * (1 - t) * bico +
+                        2f * (1 - t) * t * new Vector2(-controle.x, controle.y) +
+                        t * t * new Vector2(-direita.x, direita.y);
+            pts.Add(new Vector3(q.x, 0f, q.y));
+        }
+        // Canto superior esquerdo → arco raso no topo → canto superior direito
+        pts.Add(new Vector3(-hw, 0f, -hh));
+        pts.Add(new Vector3(0f, 0f, -hh * 0.90f));
+        pts.Add(new Vector3(hw, 0f, -hh));
+        return pts;
+    }
+
+    static Mesh FanMesh(string key, System.Collections.Generic.List<Vector3> perimeter)
+    {
+        var verts = new System.Collections.Generic.List<Vector3>();
+        var normals = new System.Collections.Generic.List<Vector3>();
+        var uvs = new System.Collections.Generic.List<Vector2>();
+        verts.Add(Vector3.zero);
+        foreach (var p in perimeter) verts.Add(p);
+        for (int i = 0; i < verts.Count; i++)
+        {
+            normals.Add(Vector3.up);
+            uvs.Add(new Vector2(0.5f, 0.5f));
+        }
+        int n = perimeter.Count;
+        var tris = new System.Collections.Generic.List<int>();
+        for (int i = 0; i < n; i++)
+        {
+            tris.Add(0);
+            tris.Add(1 + ((i + 1) % n));
+            tris.Add(1 + i);
+        }
+        Mesh mesh = new Mesh();
+        mesh.name = key;
+        mesh.SetVertices(verts);
+        mesh.SetUVs(0, uvs);
+        mesh.SetNormals(normals);
+        mesh.SetTriangles(tris, 0);
+        mesh.RecalculateBounds();
+        roundedMeshCache[key] = mesh;
+        return mesh;
+    }
+
+    static Mesh GetShieldMesh(float width, float height)
+    {
+        string key = "shield:" + width.ToString("F3") + "x" + height.ToString("F3");
+        Mesh cached;
+        if (roundedMeshCache.TryGetValue(key, out cached) && cached != null) return cached;
+        return FanMesh(key, ShieldPerimeter(width, height));
+    }
+
+    static Mesh GetShieldRingMesh(float width, float height, float thickness)
+    {
+        string key = "shieldring:" + width.ToString("F3") + "x" + height.ToString("F3") +
+                     "x" + thickness.ToString("F3");
+        Mesh cached;
+        if (roundedMeshCache.TryGetValue(key, out cached) && cached != null) return cached;
+        var outer = ShieldPerimeter(width, height);
+        var inner = ShieldPerimeter(width - thickness * 2f, height - thickness * 2f);
+        return StripMesh(key, outer, inner);
+    }
+
+    // Losango (ornamento da faixa de classe)
+    static Mesh GetDiamondMesh(float width, float height)
+    {
+        string key = "diamond:" + width.ToString("F3") + "x" + height.ToString("F3");
+        Mesh cached;
+        if (roundedMeshCache.TryGetValue(key, out cached) && cached != null) return cached;
+        var pts = new System.Collections.Generic.List<Vector3> {
+            new Vector3(width * 0.5f, 0f, 0f),
+            new Vector3(0f, 0f, height * 0.5f),
+            new Vector3(-width * 0.5f, 0f, 0f),
+            new Vector3(0f, 0f, -height * 0.5f)
+        };
+        return FanMesh(key, pts);
+    }
+
     // Gradiente vertical do fundo (topo tingido pela classe → base escura),
     // gerado por código e cacheado por classe
     static readonly System.Collections.Generic.Dictionary<CardClass, Texture2D> classGradientCache =
@@ -1140,8 +1386,10 @@ public class CardDisplay : MonoBehaviour
         Texture2D cached;
         if (classGradientCache.TryGetValue(cardClass, out cached) && cached != null) return cached;
 
-        Color top = Color.Lerp(new Color(0.10f, 0.10f, 0.16f), GetClassColor(cardClass), 0.38f);
-        Color bottom = new Color(0.06f, 0.06f, 0.10f);
+        // Tema medieval: fundo quase preto com um sopro da cor da classe no
+        // topo (o preenchimento forte agora vem dos painéis e filetes dourados)
+        Color top = Color.Lerp(new Color(0.055f, 0.060f, 0.105f), GetClassColor(cardClass), 0.20f);
+        Color bottom = new Color(0.030f, 0.032f, 0.055f);
 
         Texture2D tex = new Texture2D(2, 64, TextureFormat.RGBA32, false);
         tex.wrapMode = TextureWrapMode.Clamp;
@@ -1571,6 +1819,14 @@ public class CardDisplay : MonoBehaviour
         // A bandeira ocupa a metade de cima da caixa, então a normalização por
         // altura deixava só o corpo dele com metade do tamanho dos outros
         { "porta-bandeira", new FigureTweak(0f, 0f, 0f, 1.5f) },
+
+        // Auditoria de 2026-08-26 (render_fbx + medição de fração do corpo):
+        // o arco erguido dela ocupa os 40% de cima da caixa — corpo ficava
+        // com ~60% do tamanho das outras figuras
+        { "lyra-a-certeira", new FigureTweak(0f, 0f, 0f, 1.5f) },
+
+        // Mira para cima com o arco acima da cabeça — mesmo caso, mais leve
+        { "perfuradora", new FigureTweak(0f, 0f, 0f, 1.25f) },
     };
 
     static FigureTweak TweakFor(Card c)
@@ -2197,13 +2453,18 @@ public class CardDisplay : MonoBehaviour
             shift.x = before.max.x - after.max.x;   // borda do tabuleiro fixa → cresce para a loja
             transform.position += shift;
 
-            // Traz a carta para a FRENTE das vizinhas. Como a câmera é ortográfica,
-            // mover ao longo de -forward muda só a PROFUNDIDADE (desenha por cima)
-            // sem alterar posição/tamanho na tela — então a âncora acima é mantida
-            // e o hover não volta a invadir o tabuleiro.
+            // Traz a carta para a FRENTE das vizinhas aproximando-a AO LONGO DO
+            // RAIO câmera→carta: em perspectiva isso mantém a carta no MESMO
+            // ponto da tela (só fica maior e desenha por cima). O -forward
+            // antigo valia só na câmera ortográfica — em perspectiva deslocava
+            // a carta na tela, o mouse "saía" dela e o hover ficava piscando
+            // (entra/sai em loop).
             Camera cam = Camera.main;
             if (cam != null)
-                transform.position += -cam.transform.forward * 10f;
+            {
+                Vector3 raio = (transform.position - cam.transform.position).normalized;
+                transform.position -= raio * 6f;
+            }
 
             hoverLifted = true;
         }
