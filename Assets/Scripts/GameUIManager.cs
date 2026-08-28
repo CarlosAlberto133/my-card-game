@@ -217,14 +217,21 @@ public class GameUIManager : MonoBehaviour
     {
         Color name = new Color(0.97f, 0.93f, 0.84f); // nome em marfim (mockup)
         Color goldC = new Color(1f, 0.86f, 0.42f);
+        Color manaC = new Color(0.55f, 0.78f, 1f);   // azul-arcano (mana)
         Color life = new Color(0.55f, 0.90f, 0.62f);
         Color info = new Color(0.93f, 0.90f, 0.82f);
 
+        // MANA (v4.6): linha própria, criada por código (a cena não tem esse
+        // texto). Enfiar "Ouro: X · Mana: Y" na mesma linha estourava a caixa
+        EnsureManaTexts();
+
         ColorText(player1NameText, name, true);
         ColorText(player1GoldText, goldC, false);
+        ColorText(player1ManaText, manaC, false);
         ColorText(player1HealthText, life, false);
         ColorText(player2NameText, name, true);
         ColorText(player2GoldText, goldC, false);
+        ColorText(player2ManaText, manaC, false);
         ColorText(player2HealthText, life, false);
         ColorText(turnInfoText, info, true);
         ColorText(roundText, new Color(0.96f, 0.77f, 0.32f), true);
@@ -233,11 +240,17 @@ public class GameUIManager : MonoBehaviour
         // ícone de moeda/coração ficar sempre colado no começo da linha)
         UIFonts.Set(player1NameText, UIFonts.Body);
         UIFonts.Set(player2NameText, UIFonts.Body);
-        foreach (var t in new[] { player1NameText, player1GoldText, player1HealthText,
-                                  player2NameText, player2GoldText, player2HealthText })
+        foreach (var t in new[] { player1NameText, player1GoldText, player1ManaText, player1HealthText,
+                                  player2NameText, player2GoldText, player2ManaText, player2HealthText })
         {
             if (t != null) t.alignment = TextAlignmentOptions.MidlineLeft;
         }
+
+        // Posições/tamanhos FORÇADOS por código: os da cena estavam com caixas
+        // de 200x50 espaçadas 30px, mas a fonte é 36 (linha ~46) — as linhas
+        // se sobrepunham. Também afasta o painel da engrenagem do canto
+        LayoutPlayerHud(true, player1NameText, player1GoldText, player1ManaText, player1HealthText);
+        LayoutPlayerHud(false, player2NameText, player2GoldText, player2ManaText, player2HealthText);
 
         // ── Banner central (mockup): título grande dourado na fonte Cinzel
         // Decorative, subtítulo menor embaixo — em vez dos dois textos lado a
@@ -271,8 +284,8 @@ public class GameUIManager : MonoBehaviour
         // (TMP tem raycastTarget ligado por padrão) e os painéis de fundo
         // engoliam o clique — o guard IsPointerOverGameObject() dos cliques 3D
         // fazia o P2 ter que levantar a câmera pra alcançar as cartas de cima
-        MakeHudClickThrough(player1NameText, player1GoldText, player1HealthText,
-            player2NameText, player2GoldText, player2HealthText,
+        MakeHudClickThrough(player1NameText, player1GoldText, player1ManaText, player1HealthText,
+            player2NameText, player2GoldText, player2ManaText, player2HealthText,
             turnInfoText, roundText);
 
         // Os cards são desenhados a partir da ÁREA dos textos — que só existe
@@ -326,17 +339,18 @@ public class GameUIManager : MonoBehaviour
         Color p2Red = new Color(0.56f, 0.14f, 0.14f);
 
         GameObject left = AddGroupCard(canvas, "HudCardLeft", new Vector2(26f, 16f), false, 46f, 0f,
-            player1NameText, player1GoldText, player1HealthText);
+            player1NameText, player1GoldText, player1ManaText, player1HealthText);
         GameObject mid = AddGroupCard(canvas, "HudCardMid", new Vector2(24f, 12f), true, 0f, 0f,
             turnInfoText, roundText);
         GameObject right = AddGroupCard(canvas, "HudCardRight", new Vector2(26f, 16f), false, 0f, 46f,
-            player2NameText, player2GoldText, player2HealthText);
+            player2NameText, player2GoldText, player2ManaText, player2HealthText);
 
-        // Brasões (azul J1, vermelho J2) + moedinha no ouro e coração na vida
+        // Brasões (azul J1, vermelho J2) + moedinha no ouro, gema na mana e
+        // coração na vida
         AddMedallion(left, p1Blue, true, gold);
         AddMedallion(right, p2Red, false, gold);
-        AddStatIcons(left, player1GoldText, player1HealthText);
-        AddStatIcons(right, player2GoldText, player2HealthText);
+        AddStatIcons(left, player1GoldText, player1ManaText, player1HealthText);
+        AddStatIcons(right, player2GoldText, player2ManaText, player2HealthText);
 
         // Gemas douradas nas laterais do banner central (ornamento do mockup)
         if (mid != null)
@@ -345,6 +359,63 @@ public class GameUIManager : MonoBehaviour
             float halfW = mrt.sizeDelta.x * 0.5f;
             LobbySprites.AddIcon(mid.transform, "GemL", LobbySprites.Diamond, gold, new Vector2(-halfW + 18f, 0f), 13f);
             LobbySprites.AddIcon(mid.transform, "GemR", LobbySprites.Diamond, gold, new Vector2(halfW - 18f, 0f), 13f);
+        }
+    }
+
+    // ── HUD: linha da MANA + layout das 4 linhas (v4.6) ──────────────────
+    // A cena só tem nome/ouro/vida. A mana ganha um TMP próprio, clonado do
+    // texto de ouro (herda fonte, material e configurações de uma vez).
+    [System.NonSerialized] public TextMeshProUGUI player1ManaText;
+    [System.NonSerialized] public TextMeshProUGUI player2ManaText;
+    private bool manaRowShown = false; // estado atual da linha (dispara rebuild do card)
+
+    void EnsureManaTexts()
+    {
+        if (player1ManaText == null) player1ManaText = CloneHudText(player1GoldText, "Player1Mana");
+        if (player2ManaText == null) player2ManaText = CloneHudText(player2GoldText, "Player2Mana");
+    }
+
+    TextMeshProUGUI CloneHudText(TextMeshProUGUI source, string newName)
+    {
+        if (source == null) return null;
+
+        // Reaproveita se uma reconstrução do HUD já criou (evita duplicar)
+        Transform existing = source.transform.parent != null
+            ? source.transform.parent.Find(newName) : null;
+        if (existing != null) return existing.GetComponent<TextMeshProUGUI>();
+
+        GameObject clone = Instantiate(source.gameObject, source.transform.parent);
+        clone.name = newName;
+        TextMeshProUGUI tmp = clone.GetComponent<TextMeshProUGUI>();
+        if (tmp != null) tmp.text = $"Mana: {PlayerData.MaxMana}/{PlayerData.MaxMana}";
+        // Nasce OCULTO: o jogo começa no lobby (sem invocação) e o card do HUD
+        // é medido logo em seguida — visível aqui deixaria uma faixa vazia
+        clone.SetActive(false);
+        return tmp;
+    }
+
+    // Empilha as 4 linhas do jogador com espaçamento que CABE na fonte 36 e
+    // afasta o painel do canto (a engrenagem de configurações ocupa
+    // x 16..70 no topo esquerdo — o painel começava em 28 e ficava por baixo).
+    void LayoutPlayerHud(bool leftSide, params TextMeshProUGUI[] lines)
+    {
+        const float lineH = 42f;    // altura de linha (fonte 30 + respiro)
+        const float startY = -20f;  // 1ª linha (abaixo da borda superior)
+        const float boxW = 230f;    // largura da caixa de cada linha
+        const float marginX = 168f; // distância da borda lateral da tela
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            if (lines[i] == null) continue;
+            RectTransform rt = lines[i].rectTransform;
+            rt.anchorMin = rt.anchorMax = new Vector2(leftSide ? 0f : 1f, 1f);
+            rt.pivot = new Vector2(leftSide ? 0f : 1f, 1f);
+            rt.anchoredPosition = new Vector2(leftSide ? marginX : -marginX, startY - i * lineH);
+            rt.sizeDelta = new Vector2(boxW, lineH);
+            lines[i].enableAutoSizing = false;
+            lines[i].fontSize = 30f;   // 36 era muito para "Vida: 30/30" na caixa
+            lines[i].textWrappingMode = TextWrappingModes.NoWrap;
+            lines[i].overflowMode = TextOverflowModes.Overflow;
         }
     }
 
@@ -372,7 +443,8 @@ public class GameUIManager : MonoBehaviour
     // Moeda antes do "Ouro: X" e coração antes do "Vida: X/Y", ancorados no
     // começo REAL do texto (os textos são alinhados à esquerda, então o começo
     // da linha não muda quando o valor muda)
-    void AddStatIcons(GameObject card, TextMeshProUGUI goldText, TextMeshProUGUI healthText)
+    void AddStatIcons(GameObject card, TextMeshProUGUI goldText, TextMeshProUGUI manaText,
+                      TextMeshProUGUI healthText)
     {
         AddIconBeforeText(card, goldText, "CoinIcon", LobbySprites.Circle, new Color(0.97f, 0.80f, 0.32f));
         if (goldText != null)
@@ -381,6 +453,8 @@ public class GameUIManager : MonoBehaviour
             if (coin != null) // aro escuro para a moeda não virar só uma bolinha
                 LobbySprites.AddIcon(coin, "Rim", LobbySprites.CircleRing, new Color(0.60f, 0.42f, 0.12f), Vector2.zero, 15f);
         }
+        // Mana: gema de losango azul-arcana (mesma forma das gemas do banner)
+        AddIconBeforeText(card, manaText, "ManaIcon", LobbySprites.Diamond, new Color(0.45f, 0.70f, 1f));
         AddIconBeforeText(card, healthText, "HeartIcon", LobbySprites.Heart, new Color(0.90f, 0.30f, 0.36f));
     }
 
@@ -416,6 +490,9 @@ public class GameUIManager : MonoBehaviour
         foreach (var m in members)
         {
             if (m == null) continue;
+            // Linha oculta (ex.: mana na fase de compras) não estica o card —
+            // GetWorldCorners funciona mesmo desativado e deixaria uma faixa vazia
+            if (!m.gameObject.activeInHierarchy) continue;
             Vector3[] worldCorners = tight ? RenderedCorners(m) : BoxCorners(m);
             for (int i = 0; i < worldCorners.Length; i++)
             {
@@ -1190,7 +1267,7 @@ public class GameUIManager : MonoBehaviour
 
         // ---- Status geral ----
         sb.AppendLine($"<color={H}><b>== SEU STATUS ==</b></color>");
-        sb.AppendLine($"Ouro: {me.gold}{(lobbyPhase ? " (teto 20 nesta fase)" : "")}   Vida da torre: {me.health}");
+        sb.AppendLine($"Ouro: {me.gold}{(lobbyPhase ? " (teto 20 nesta fase)" : $"   Mana: {me.mana}/{PlayerData.MaxMana}")}   Vida da torre: {me.health}");
 
         if (lobbyPhase)
         {
@@ -1517,6 +1594,30 @@ public class GameUIManager : MonoBehaviour
         {
             player1NameText.text = TurnManager.Instance.player1.playerName;
         }
+        // A linha da MANA só existe na partida (no lobby não há invocação —
+        // ficaria só ocupando espaço). Esconder o texto encolhe o card do HUD
+        // no próximo rebuild e mantém o painel enxuto na fase de compras
+        bool showMana = TurnManager.Instance.gameState == GameState.Playing;
+        if (player1ManaText != null)
+        {
+            player1ManaText.gameObject.SetActive(showMana);
+            player1ManaText.text = $"Mana: {TurnManager.Instance.player1.mana}/{PlayerData.MaxMana}";
+        }
+        if (player2ManaText != null)
+        {
+            player2ManaText.gameObject.SetActive(showMana);
+            player2ManaText.text = $"Mana: {TurnManager.Instance.player2.mana}/{PlayerData.MaxMana}";
+        }
+
+        // A linha da mana aparece quando a partida começa: o card de fundo
+        // precisa ser remedido para cobri-la (ele é desenhado a partir da
+        // área dos textos)
+        if (showMana != manaRowShown)
+        {
+            manaRowShown = showMana;
+            StartCoroutine(BuildHudCardsDeferred());
+        }
+
         if (player1GoldText != null)
         {
             player1GoldText.text = $"Ouro: {TurnManager.Instance.player1.gold}";

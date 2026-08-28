@@ -58,6 +58,7 @@ public class GameManager : MonoBehaviour
             if (IsWaitingForFreezeTarget()) CancelFreezeSelection();
             if (IsWaitingForShieldBreakTargets()) CancelShieldBreakSelection();
             if (IsWaitingForEffectTarget()) CancelEffectTargetSelection();
+            if (IsWaitingForSpellTile()) CancelSpellTileSelection();
         }
 
         // Com decisão de efeito pendente, nenhuma ação nova (a resolução vem antes)
@@ -187,6 +188,14 @@ public class GameManager : MonoBehaviour
                 Debug.Log($"Esta carta pertence ao Jogador {cardDisplay.ownerPlayerNumber}! Você é o Jogador {currentPlayerNumber}.");
                 return;
             }
+        }
+
+        // FEITIÇO (v4.5): clicar num feitiço da mão inicia o LANÇAMENTO
+        // (seleção de alvo) — feitiço nunca é colocado em campo
+        if (cardDisplay.card != null && cardDisplay.card.isSpell)
+        {
+            StartSpellCast(cardDisplay);
+            return;
         }
 
         // Clicar de novo na carta JÁ selecionada desseleciona (apaga as cores)
@@ -335,6 +344,23 @@ public class GameManager : MonoBehaviour
             return false;
         }
 
+        // MANA (v4.6): invocar da mão custa o TIER da carta. Bloqueia ANTES
+        // do RPC (não manda ação que os dois clientes vão recusar)
+        PlayerData placer = TurnManager.Instance != null
+            ? TurnManager.Instance.GetPlayer(playerNumber) : null;
+        int manaCost = (int)selectedCardDisplay.card.tier;
+        if (placer != null && !placer.CanPayMana(manaCost))
+        {
+            Debug.Log($"[Mana] Sem mana para invocar {selectedCardDisplay.card.cardName} " +
+                      $"(custa {manaCost}, você tem {placer.mana})!");
+            if (GameUIManager.Instance != null)
+                GameUIManager.Instance.ShowDecisionPopup(
+                    $"Mana insuficiente!\n{selectedCardDisplay.card.cardName} custa {manaCost} de mana " +
+                    $"e você tem {placer.mana}.\nA mana restaura ao passar o turno.",
+                    "Entendi", () => { }, "Fechar", () => { });
+            return false;
+        }
+
         // Em multiplayer, envia RPC — a colocação executa nos DOIS clientes
         if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
         {
@@ -393,6 +419,27 @@ public class GameManager : MonoBehaviour
         }
 
         CardDisplay cardDisplay = cardObject.GetComponent<CardDisplay>();
+
+        // Feitiço NUNCA entra em campo (cinto de segurança — o clique num
+        // feitiço da mão nem chega aqui, vai para StartSpellCast)
+        if (cardDisplay != null && cardDisplay.card != null && cardDisplay.card.isSpell)
+        {
+            Debug.LogError($"[GameManager] Tentativa de colocar o FEITIÇO {cardDisplay.card.cardName} em campo — ignorada!");
+            return;
+        }
+
+        // MANA (v4.6): checagem AUTORITATIVA nos 2 clientes (o estado de mana
+        // é espelhado — só muda em RPCs), aborta igual dos dois lados
+        PlayerData placer = TurnManager.Instance != null
+            ? TurnManager.Instance.GetPlayer(ownerPlayerNumber) : null;
+        int manaCost = cardDisplay != null && cardDisplay.card != null
+            ? (int)cardDisplay.card.tier : 0;
+        if (placer == null || !placer.CanPayMana(manaCost))
+        {
+            Debug.Log($"[Mana] P{ownerPlayerNumber} sem mana ({placer?.mana ?? 0}) para custo {manaCost} — colocação cancelada.");
+            return;
+        }
+        placer.SpendMana(manaCost);
 
         // Remove da mão do dono
         ownerHand.RemoveCardFromHand(cardObject);
@@ -582,6 +629,18 @@ public class GameManager : MonoBehaviour
 
     void PlaceCard(CardTile tile)
     {
+        // MANA (v4.6): caminho offline (sem RPC) — o TryPlaceCardOnTile já
+        // pré-checou, aqui só gasta
+        if (TurnManager.Instance != null && selectedCardDisplay != null &&
+            selectedCardDisplay.card != null)
+        {
+            int placerNum = selectedCardDisplay.ownerPlayerNumber != 0
+                ? selectedCardDisplay.ownerPlayerNumber
+                : TurnManager.Instance.currentPlayerNumber;
+            PlayerData placer = TurnManager.Instance.GetPlayer(placerNum);
+            if (placer != null) placer.SpendMana((int)selectedCardDisplay.card.tier);
+        }
+
         // Remove da mão
         if (handManager != null)
         {
@@ -1320,11 +1379,19 @@ public class GameManager : MonoBehaviour
     {
         if (!isWaitingForEffectTarget) return;
         bool towerMode = towerTargetOwner != 0;
-        if (!towerMode && effectTargetSource == null) return;
+        bool spellMode = spellCastCard != null;
+        if (!towerMode && !spellMode && effectTargetSource == null) return;
 
         if (effectTargetCandidates == null || !effectTargetCandidates.Contains(targetCard))
         {
             Debug.Log("[EffectTarget] Esta carta não é um alvo válido para o efeito! (ESC cancela)");
+            return;
+        }
+
+        // Feitiço: fluxo próprio (Troca Tática pede um SEGUNDO alvo)
+        if (spellMode)
+        {
+            HandleSpellTargetChosen(targetCard);
             return;
         }
 
@@ -1357,6 +1424,8 @@ public class GameManager : MonoBehaviour
         effectTargetCandidates = null;
         towerTargetOwner = 0;
         towerTargetCardId = -1;
+        spellCastCard = null;      // feitiço cancelado volta a ser um clique comum
+        spellFirstTarget = null;
         CardAuraIndicator.HideSelectableTargets();
         Debug.Log("[EffectTarget] Seleção de alvo encerrada");
         StartNextQueuedSelection();
@@ -1370,7 +1439,8 @@ public class GameManager : MonoBehaviour
 
     bool AnySelectionActive()
     {
-        return isWaitingForEffectTarget || isWaitingForFreezeTarget || isWaitingForShieldBreakTargets;
+        return isWaitingForEffectTarget || isWaitingForFreezeTarget ||
+               isWaitingForShieldBreakTargets || IsWaitingForSpellTile();
     }
 
     void StartNextQueuedSelection()
@@ -1393,6 +1463,7 @@ public class GameManager : MonoBehaviour
         if (IsWaitingForFreezeTarget()) CancelFreezeSelection();
         if (IsWaitingForShieldBreakTargets()) CancelShieldBreakSelection();
         if (IsWaitingForEffectTarget()) CancelEffectTargetSelection();
+        if (IsWaitingForSpellTile()) CancelSpellTileSelection();
     }
 
     void ApplyEffectTargetChoice(CardDisplay source, int effectType, CardDisplay target)
@@ -1622,5 +1693,700 @@ public class GameManager : MonoBehaviour
     public bool IsWaitingForShieldBreakTargets()
     {
         return isWaitingForShieldBreakTargets;
+    }
+
+    // ═══════════════════ FEITIÇOS (v4.5) ═══════════════════
+    // O feitiço mora na MÃO e é lançado num alvo. O clique no feitiço entra
+    // aqui (via SelectCardFromHand); a escolha de alvo reusa TODA a máquina
+    // de seleção (fila, molduras douradas, popup, ESC) e o lançamento viaja
+    // por RPC_CastSpell — executa idêntico nos 2 clientes (lockstep).
+    // Regras: 1 feitiço por turno (PlayerData.CanCastSpell), máx. 2 na mão.
+
+    private CardDisplay spellCastCard = null;    // feitiço da mão aguardando alvo
+    private CardDisplay spellFirstTarget = null; // Troca Tática: 1º alvo já escolhido
+
+    public void StartSpellCast(CardDisplay spellCd)
+    {
+        if (spellCd == null || spellCd.card == null || !spellCd.card.isSpell) return;
+        if (TurnManager.Instance == null || TurnManager.Instance.gameState != GameState.Playing)
+        {
+            Debug.Log("[Feitiço] Feitiços só podem ser lançados durante a partida!");
+            return;
+        }
+
+        int casterPlayer = spellCd.ownerPlayerNumber;
+        PlayerData caster = TurnManager.Instance.GetPlayer(casterPlayer);
+        if (caster == null) return;
+
+        if (!caster.CanCastSpell())
+        {
+            Debug.Log("[Feitiço] Só 1 feitiço por turno!");
+            if (GameUIManager.Instance != null)
+                GameUIManager.Instance.ShowDecisionPopup(
+                    "Você já lançou um feitiço neste turno.\nSó 1 feitiço por turno!",
+                    "Entendi", () => { }, "Fechar", () => { });
+            return;
+        }
+
+        if (AnySelectionActive() || IsDecisionPending())
+        {
+            Debug.Log("[Feitiço] Resolva a seleção/decisão em andamento antes de lançar!");
+            return;
+        }
+
+        int spellId = spellCd.card.spellId;
+
+        // Feitiços SEM alvo: confirma num popup e lança direto
+        if (spellId == SpellCards.HinoDeCoragem || spellId == SpellCards.SetaInfalivel)
+        {
+            bool hasAnyTarget = spellId == SpellCards.HinoDeCoragem
+                ? boardManager != null && boardManager.GetCardsByOwner(casterPlayer).Count > 0
+                : boardManager != null && boardManager.GetCardsByOwner(3 - casterPlayer).Count > 0;
+            if (!hasAnyTarget)
+            {
+                Debug.Log("[Feitiço] Nenhum alvo em campo para este feitiço!");
+                if (GameUIManager.Instance != null)
+                    GameUIManager.Instance.ShowDecisionPopup(
+                        $"{spellCd.card.cardName}: nenhum alvo válido em campo!",
+                        "Entendi", () => { }, "Fechar", () => { });
+                return;
+            }
+            if (GameUIManager.Instance != null)
+            {
+                GameUIManager.Instance.ShowDecisionPopup(
+                    $"Lançar {spellCd.card.cardName}?\n({spellCd.card.effectDescription})",
+                    "Lançar", () => SendSpellCast(spellCd, -1, -1, -1, -1),
+                    "Cancelar", () => { });
+            }
+            else
+            {
+                SendSpellCast(spellCd, -1, -1, -1, -1);
+            }
+            return;
+        }
+
+        // Feitiços de CASA (Conjura Monstro / Muro de Pedra): seleção de tile
+        if (spellId == SpellCards.ConjuraMonstro || spellId == SpellCards.MuroDePedra)
+        {
+            StartSpellTileSelection(spellCd);
+            return;
+        }
+
+        // Feitiços COM alvo: monta os candidatos e entra na seleção
+        List<CardDisplay> candidates = BuildSpellCandidates(spellId, casterPlayer, null);
+        int needed = spellId == SpellCards.TrocaTatica ? 2 : 1;
+        if (candidates == null || candidates.Count < needed)
+        {
+            Debug.Log($"[Feitiço] Sem alvo válido para {spellCd.card.cardName}!");
+            if (GameUIManager.Instance != null)
+                GameUIManager.Instance.ShowDecisionPopup(
+                    $"{spellCd.card.cardName}: nenhum alvo válido em campo!",
+                    "Entendi", () => { }, "Fechar", () => { });
+            return;
+        }
+
+        string prompt = spellId == SpellCards.TrocaTatica
+            ? $"{spellCd.card.cardName}: escolha a PRIMEIRA carta da troca"
+            : spellId == SpellCards.Hipnotismo
+            ? $"{spellCd.card.cardName}: escolha o inimigo que vai ATACAR o próprio aliado"
+            : $"{spellCd.card.cardName}: escolha o alvo";
+
+        if (GameUIManager.Instance != null)
+        {
+            GameUIManager.Instance.ShowDecisionPopup(
+                prompt + "\nClique na carta desejada no tabuleiro (ESC cancela)",
+                "Entendi", () => { /* aguardando clique */ },
+                "Cancelar", () => CancelEffectTargetSelection());
+        }
+
+        spellCastCard = spellCd;
+        spellFirstTarget = null;
+        effectTargetSource = null;
+        effectTargetType = 0;
+        effectTargetCandidates = candidates;
+        isWaitingForEffectTarget = true;
+
+        CardAuraIndicator.ShowSelectableTargets(candidates);
+        Debug.Log($"[Feitiço] Aguardando alvo de {spellCd.card.cardName} ({candidates.Count} opções)...");
+    }
+
+    // Candidatos de alvo de cada feitiço (determinístico: só lê o tabuleiro)
+    public List<CardDisplay> BuildSpellCandidates(int spellId, int casterPlayer, CardDisplay exclude)
+    {
+        if (boardManager == null) boardManager = FindObjectOfType<BoardManager>();
+        if (boardManager == null) return null;
+
+        var list = new List<CardDisplay>();
+        bool allyTarget = spellId == SpellCards.ArmaduraArcana || spellId == SpellCards.LaminaEncantada ||
+                          spellId == SpellCards.PeleDePedra || spellId == SpellCards.Concentracao ||
+                          spellId == SpellCards.PocaoRevigorante || spellId == SpellCards.TrocaTatica ||
+                          spellId == SpellCards.Transmutacao || spellId == SpellCards.BotasDoVento;
+        int targetOwner = allyTarget ? casterPlayer : 3 - casterPlayer;
+
+        foreach (CardDisplay cd in boardManager.GetCardsByOwner(targetOwner))
+        {
+            if (cd == null || cd.card == null || cd.currentTile == null) continue;
+            if (cd == exclude) continue;
+
+            // Poção: só aliados FERIDOS (cura em vida cheia é ouro no lixo)
+            if (spellId == SpellCards.PocaoRevigorante &&
+                cd.currentHealth >= cd.card.health + cd.maxHealthBonus) continue;
+
+            // Dissipar: só inimigos que TÊM bônus de feitiço para remover
+            if (spellId == SpellCards.DissiparMagia && !cd.HasSpellBonuses()) continue;
+
+            // Botas: não empilha na mesma carta (o 2º par seria desperdício)
+            if (spellId == SpellCards.BotasDoVento && cd.spellBonusMoves > 0) continue;
+
+            // Hipnotismo: só inimigos com pelo menos 1 aliado DELES colado
+            // (ortogonal) — sem vítima possível, não é alvo. E muro não
+            // hipnotiza ninguém (não age)
+            if (spellId == SpellCards.Hipnotismo &&
+                (cd.wallRoundsLeft > 0 || AdjacentAlliesOf(cd).Count == 0)) continue;
+
+            list.Add(cd);
+        }
+        return list;
+    }
+
+    // Aliados do DONO da carta ortogonalmente adjacentes a ela (Hipnotismo:
+    // as vítimas possíveis). Ordem de varredura fixa: cima, baixo, esq, dir
+    List<CardDisplay> AdjacentAlliesOf(CardDisplay cd)
+    {
+        var list = new List<CardDisplay>();
+        if (cd == null || cd.currentTile == null) return list;
+        int[][] adj = { new[] {-1,0}, new[] {1,0}, new[] {0,-1}, new[] {0,1} };
+        foreach (int[] d in adj)
+        {
+            CardDisplay near = CardAt(cd.currentTile.row + d[0], cd.currentTile.column + d[1]);
+            if (near != null && near != cd && near.ownerPlayerNumber == cd.ownerPlayerNumber)
+                list.Add(near);
+        }
+        return list;
+    }
+
+    // Clique num alvo válido durante a seleção de feitiço
+    void HandleSpellTargetChosen(CardDisplay target)
+    {
+        CardDisplay spellCd = spellCastCard;
+        if (spellCd == null || spellCd.card == null) { CancelEffectTargetSelection(); return; }
+        int spellId = spellCd.card.spellId;
+
+        // Feitiços de DOIS alvos (Troca Tática e Hipnotismo): guarda o 1º e
+        // pede o 2º sem sair do modo
+        bool twoTargets = spellId == SpellCards.TrocaTatica || spellId == SpellCards.Hipnotismo;
+        if (twoTargets && spellFirstTarget == null)
+        {
+            spellFirstTarget = target;
+
+            // 2º conjunto de candidatos: Troca = outros aliados; Hipnotismo =
+            // aliados DO ALVO colados nele (as vítimas)
+            List<CardDisplay> rest = spellId == SpellCards.TrocaTatica
+                ? BuildSpellCandidates(spellId, spellCd.ownerPlayerNumber, target)
+                : AdjacentAlliesOf(target);
+            if (rest == null || rest.Count == 0)
+            {
+                Debug.Log($"[Feitiço] {spellCd.card.cardName} sem segunda carta — cancelado");
+                CancelEffectTargetSelection();
+                return;
+            }
+            effectTargetCandidates = rest;
+            CardAuraIndicator.HideSelectableTargets();
+            CardAuraIndicator.ShowSelectableTargets(rest);
+            string secondPrompt = spellId == SpellCards.TrocaTatica
+                ? "Troca Tática: agora escolha a SEGUNDA carta\n(ESC cancela)"
+                : "Hipnotismo: agora escolha a VÍTIMA (aliado dele colado)\n(ESC cancela)";
+            if (GameUIManager.Instance != null)
+                GameUIManager.Instance.ShowDecisionPopup(secondPrompt,
+                    "Entendi", () => { }, "Cancelar", () => CancelEffectTargetSelection());
+            return;
+        }
+
+        CardDisplay first = spellFirstTarget;
+
+        // Encerra o modo ANTES de aplicar (mesma ordem da máquina de efeitos:
+        // a escolha precisa resolver antes da próxima seleção da fila)
+        isWaitingForEffectTarget = false;
+        effectTargetCandidates = null;
+        spellCastCard = null;
+        spellFirstTarget = null;
+        CardAuraIndicator.HideSelectableTargets();
+
+        if (twoTargets && first != null && first.currentTile != null &&
+            target.currentTile != null)
+        {
+            SendSpellCast(spellCd, first.currentTile.row, first.currentTile.column,
+                          target.currentTile.row, target.currentTile.column);
+        }
+        else if (target.currentTile != null)
+        {
+            SendSpellCast(spellCd, target.currentTile.row, target.currentTile.column, -1, -1);
+        }
+        StartNextQueuedSelection();
+    }
+
+    // ── Seleção de CASA (tile) para Conjura Monstro / Muro de Pedra ──
+    // O clique chega por CardTile.OnMouseDown → TrySpellTileChosen. Casas
+    // válidas ficam com o highlight verde do tabuleiro.
+    private CardDisplay spellTileCard = null;
+
+    public bool IsWaitingForSpellTile()
+    {
+        return spellTileCard != null;
+    }
+
+    void StartSpellTileSelection(CardDisplay spellCd)
+    {
+        int casterPlayer = spellCd.ownerPlayerNumber;
+        int spellId = spellCd.card.spellId;
+
+        // Conjura: só as fileiras de casa do lançador; Muro: qualquer casa livre
+        int valid = 0;
+        for (int r = 0; r < boardManager.rows; r++)
+        {
+            for (int c = 0; c < boardManager.columns; c++)
+            {
+                CardTile tile = boardManager.GetTile(r, c);
+                if (tile == null || tile.IsOccupied()) continue;
+                if (!IsValidSpellTile(spellId, casterPlayer, r)) continue;
+                tile.SetHighlight(true);
+                valid++;
+            }
+        }
+
+        if (valid == 0)
+        {
+            Debug.Log($"[Feitiço] Nenhuma casa livre para {spellCd.card.cardName}!");
+            if (GameUIManager.Instance != null)
+                GameUIManager.Instance.ShowDecisionPopup(
+                    $"{spellCd.card.cardName}: nenhuma casa livre!",
+                    "Entendi", () => { }, "Fechar", () => { });
+            return;
+        }
+
+        string prompt = spellId == SpellCards.ConjuraMonstro
+            ? "Conjura Monstro: clique numa casa livre das SUAS fileiras"
+            : "Muro de Pedra: clique em qualquer casa livre";
+        if (GameUIManager.Instance != null)
+            GameUIManager.Instance.ShowDecisionPopup(prompt + "\n(ESC cancela)",
+                "Entendi", () => { }, "Cancelar", () => CancelSpellTileSelection());
+
+        spellTileCard = spellCd;
+        Debug.Log($"[Feitiço] Aguardando casa para {spellCd.card.cardName} ({valid} livres)...");
+    }
+
+    bool IsValidSpellTile(int spellId, int casterPlayer, int row)
+    {
+        if (spellId == SpellCards.MuroDePedra) return true;
+        // Conjura Monstro: mesmas fileiras onde o jogador coloca cartas
+        if (casterPlayer == 1) return row < maxPlacementRows;
+        return row >= boardManager.rows - maxPlacementRows;
+    }
+
+    public void TrySpellTileChosen(CardTile tile)
+    {
+        CardDisplay spellCd = spellTileCard;
+        if (spellCd == null || spellCd.card == null || tile == null) return;
+
+        if (tile.IsOccupied() ||
+            !IsValidSpellTile(spellCd.card.spellId, spellCd.ownerPlayerNumber, tile.row))
+        {
+            Debug.Log("[Feitiço] Esta casa não vale para o feitiço! (ESC cancela)");
+            return;
+        }
+
+        CancelSpellTileSelection(); // limpa highlights e o modo ANTES do RPC
+        SendSpellCast(spellCd, tile.row, tile.column, -1, -1);
+    }
+
+    public void CancelSpellTileSelection()
+    {
+        if (spellTileCard == null) return;
+        spellTileCard = null;
+        for (int r = 0; r < boardManager.rows; r++)
+            for (int c = 0; c < boardManager.columns; c++)
+            {
+                CardTile tile = boardManager.GetTile(r, c);
+                if (tile != null) tile.ClearHighlight();
+            }
+        Debug.Log("[Feitiço] Seleção de casa encerrada");
+        StartNextQueuedSelection();
+    }
+
+    // Multiplayer: o lançamento viaja por RPC (executa nos 2 clientes);
+    // offline aplica direto. A carta é identificada pelo índice na mão do
+    // lançador (mãos espelhadas, igual ao RPC_PlaceCard)
+    void SendSpellCast(CardDisplay spellCd, int r1, int c1, int r2, int c2)
+    {
+        if (spellCd == null || spellCd.card == null) return;
+        int casterPlayer = spellCd.ownerPlayerNumber;
+        HandManager hand = GetHandManagerForPlayer(casterPlayer);
+        int handIndex = hand != null ? hand.GetCardIndex(spellCd.gameObject) : -1;
+        if (handIndex < 0)
+        {
+            Debug.LogError("[Feitiço] Carta não encontrada na mão do lançador!");
+            return;
+        }
+
+        if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)
+        {
+            PhotonGameManager.Instance.SendCastSpellRPC(casterPlayer, handIndex,
+                spellCd.card.spellId, r1, c1, r2, c2);
+        }
+        else
+        {
+            ExecuteCastSpell(casterPlayer, handIndex, spellCd.card.spellId, r1, c1, r2, c2);
+        }
+    }
+
+    // Carta em (row, col) — ajuda a resolver alvos vindos do RPC
+    CardDisplay CardAt(int row, int col)
+    {
+        if (row < 0 || col < 0 || boardManager == null) return null;
+        CardTile tile = boardManager.GetTile(row, col);
+        if (tile == null || tile.occupiedCard == null) return null;
+        return tile.occupiedCard.GetComponent<CardDisplay>();
+    }
+
+    // Executa o feitiço nos DOIS clientes (chamado pelo RPC_CastSpell; offline
+    // direto). Tudo determinístico: alvos por coordenada + varreduras em ordem
+    // fixa — nenhum sorteio
+    public void ExecuteCastSpell(int casterPlayer, int handIndex, int spellId,
+                                 int r1, int c1, int r2, int c2)
+    {
+        if (boardManager == null) boardManager = FindObjectOfType<BoardManager>();
+
+        HandManager hand = GetHandManagerForPlayer(casterPlayer);
+        if (hand == null)
+        {
+            Debug.LogError($"[Feitiço] HandManager do P{casterPlayer} não encontrado!");
+            return;
+        }
+
+        GameObject cardObject = hand.GetCardAtIndex(handIndex);
+        CardDisplay spellCd = cardObject != null ? cardObject.GetComponent<CardDisplay>() : null;
+        if (spellCd == null || spellCd.card == null || !spellCd.card.isSpell ||
+            spellCd.card.spellId != spellId)
+        {
+            Debug.LogError($"[Feitiço] mão[{handIndex}] do P{casterPlayer} não é o feitiço {spellId}!");
+            return;
+        }
+
+        PlayerData caster = TurnManager.Instance != null ? TurnManager.Instance.GetPlayer(casterPlayer) : null;
+        if (caster == null) return;
+        caster.spellsCastThisTurn++;
+
+        string spellName = spellCd.card.cardName;
+        Debug.Log($"[Feitiço] P{casterPlayer} lançou {spellName} → ({r1},{c1})/({r2},{c2})");
+
+        // O feitiço sai da mão ANTES de resolver (efeitos que mexem na mão não
+        // podem topar com ele) e o objeto morre no fim do frame
+        hand.RemoveCardFromHand(cardObject);
+        SoundManager.Play(SoundManager.Sound.Effect);
+
+        CardDisplay t1 = CardAt(r1, c1);
+        CardDisplay t2 = CardAt(r2, c2);
+
+        ApplySpellEffect(spellId, casterPlayer, caster, spellName, t1, t2, r1, c1);
+
+        Destroy(cardObject);
+    }
+
+    void ApplySpellEffect(int spellId, int casterPlayer, PlayerData caster,
+                          string spellName, CardDisplay t1, CardDisplay t2, int r1, int c1)
+    {
+        // Alvo morreu/saiu entre a escolha e o RPC: o feitiço é perdido (regra
+        // igual à dos efeitos de torre). Feitiços de CASA (Conjura/Muro) e os
+        // sem alvo não passam por aqui — r1/c1 deles é casa, não carta
+        bool needsTarget = spellId != SpellCards.HinoDeCoragem && spellId != SpellCards.SetaInfalivel &&
+                           spellId != SpellCards.ConjuraMonstro && spellId != SpellCards.MuroDePedra;
+        if (needsTarget && t1 == null)
+        {
+            Debug.LogWarning($"[Feitiço] Alvo de {spellName} não existe mais — feitiço perdido");
+            return;
+        }
+
+        switch (spellId)
+        {
+            case SpellCards.ArmaduraArcana:
+                t1.currentShield += 1;
+                t1.spellBonusShield += 1;
+                FloatingTextFX.ShowAboveCard(t1, "ARMADURA ARCANA!", FloatingTextFX.EffectColor);
+                t1.UpdateDisplay();
+                break;
+
+            case SpellCards.LaminaEncantada:
+                t1.currentAttack += 2;
+                t1.spellBonusAttack += 2;
+                FloatingTextFX.ShowAboveCard(t1, "LÂMINA ENCANTADA!", FloatingTextFX.EffectColor);
+                t1.UpdateDisplay();
+                break;
+
+            case SpellCards.PeleDePedra:
+                t1.stoneSkinRoundsLeft = 2;
+                FloatingTextFX.ShowAboveCard(t1, "PELE DE PEDRA!", FloatingTextFX.EffectColor);
+                t1.UpdateDisplay();
+                break;
+
+            case SpellCards.Concentracao:
+                t1.spellExtraAttacks += 1;
+                FloatingTextFX.ShowAboveCard(t1, "CONCENTRAÇÃO!", FloatingTextFX.EffectColor);
+                t1.UpdateDisplay();
+                break;
+
+            case SpellCards.PocaoRevigorante:
+                t1.Heal(3);
+                FloatingTextFX.ShowAboveCard(t1, "POÇÃO!", FloatingTextFX.HealColor);
+                break;
+
+            case SpellCards.HinoDeCoragem:
+            {
+                foreach (CardDisplay ally in boardManager.GetCardsByOwner(casterPlayer))
+                {
+                    if (ally == null || ally.currentTile == null) continue;
+                    ally.currentAttack += 1;
+                    ally.hymnAttackBonus += 1;
+                    ally.UpdateDisplay();
+                }
+                Debug.Log($"[Feitiço] Hino de Coragem: +1 ATK para os aliados do P{casterPlayer} neste turno");
+                break;
+            }
+
+            case SpellCards.TrocaTatica:
+            {
+                if (t2 == null || t1 == t2)
+                {
+                    Debug.LogWarning("[Feitiço] Troca Tática sem segunda carta válida — feitiço perdido");
+                    return;
+                }
+                CardTile tileA = t1.currentTile;
+                CardTile tileB = t2.currentTile;
+                if (tileA == null || tileB == null) return;
+                tileA.FreeTile();
+                tileB.FreeTile();
+                tileA.OccupyTile(t2.gameObject);
+                tileB.OccupyTile(t1.gameObject);
+                t1.currentTile = tileB;
+                t2.currentTile = tileA;
+                t1.transform.position = tileB.transform.position + Vector3.up * CardDisplay.BoardYOffset;
+                t2.transform.position = tileA.transform.position + Vector3.up * CardDisplay.BoardYOffset;
+                FloatingTextFX.ShowAboveCard(t1, "TROCA!", FloatingTextFX.EffectColor);
+                FloatingTextFX.ShowAboveCard(t2, "TROCA!", FloatingTextFX.EffectColor);
+                break;
+            }
+
+            case SpellCards.Transmutacao:
+            {
+                int gain = t1.card.GetGoldCost() + 1;
+                caster.AddGold(gain, 10);
+                FloatingTextFX.ShowAboveCard(t1, $"+{gain} OURO!", new Color(1f, 0.85f, 0.25f));
+                t1.DestroyCard();
+                break;
+            }
+
+            case SpellCards.AdagaMental:
+                // Atordoa ANTES do dano: se o dano matar, o stun não importa;
+                // se um popup adiar o dano, o stun já está garantido
+                t1.Stun();
+                t1.TakeDamage(2);
+                break;
+
+            case SpellCards.Sono:
+                t1.CastSleep();
+                break;
+
+            case SpellCards.Teia:
+            {
+                // Prende o alvo e os INIMIGOS ortogonalmente adjacentes a ele
+                int webRow = t1.currentTile.row, webCol = t1.currentTile.column;
+                int webOwner = t1.ownerPlayerNumber;
+                t1.CastRoot();
+                int[][] adj = { new[] {-1,0}, new[] {1,0}, new[] {0,-1}, new[] {0,1} };
+                foreach (int[] d in adj)
+                {
+                    CardDisplay near = CardAt(webRow + d[0], webCol + d[1]);
+                    if (near != null && near.ownerPlayerNumber == webOwner) near.CastRoot();
+                }
+                break;
+            }
+
+            case SpellCards.Amedrontar:
+            {
+                // Recua até 2 casas na direção da casa do DONO do alvo,
+                // parando na borda ou na primeira casa ocupada
+                int dir = t1.ownerPlayerNumber == 2 ? 1 : -1;
+                CardTile cur = t1.currentTile;
+                int moved = 0;
+                while (moved < 2)
+                {
+                    CardTile next = boardManager.GetTile(cur.row + dir, cur.column);
+                    if (next == null || next.IsOccupied()) break;
+                    cur = next;
+                    moved++;
+                }
+                FloatingTextFX.ShowAboveCard(t1, "AMEDRONTADA!", new Color(0.65f, 0.45f, 0.85f));
+                if (moved > 0)
+                {
+                    t1.currentTile.FreeTile();
+                    cur.OccupyTile(t1.gameObject);
+                    t1.currentTile = cur;
+                    t1.transform.position = cur.transform.position + Vector3.up * CardDisplay.BoardYOffset;
+                }
+                break;
+            }
+
+            case SpellCards.ExplosaoDeChamas:
+            {
+                // 2 no alvo + 1 nos INIMIGOS nas 3 casas atrás dele ("atrás" =
+                // na direção da casa do dono do alvo). Coordenadas capturadas
+                // ANTES do dano (o alvo pode morrer)
+                int expRow = t1.currentTile.row, expCol = t1.currentTile.column;
+                int expOwner = t1.ownerPlayerNumber;
+                int behind = expOwner == 2 ? 1 : -1;
+                FloatingTextFX.ShowAboveCard(t1, "EXPLOSÃO!", new Color(1f, 0.45f, 0.15f));
+                t1.TakeDamage(2);
+                for (int dc = -1; dc <= 1; dc++)
+                {
+                    CardDisplay hit = CardAt(expRow + behind, expCol + dc);
+                    if (hit != null && hit.ownerPlayerNumber == expOwner) hit.TakeDamage(1);
+                }
+                break;
+            }
+
+            case SpellCards.ToqueChocante:
+            {
+                // Corrente: alvo + até 2 inimigos encadeados por adjacência
+                // ortogonal (varredura em ordem FIXA: cima, baixo, esq, dir)
+                var zapped = new List<CardDisplay>();
+                CardDisplay cur = t1;
+                for (int k = 0; k < 3 && cur != null; k++)
+                {
+                    zapped.Add(cur);
+                    int zr = cur.currentTile.row, zc = cur.currentTile.column;
+                    int zOwner = cur.ownerPlayerNumber;
+                    FloatingTextFX.ShowAboveCard(cur, "ZAP!", new Color(0.45f, 0.85f, 1f));
+                    cur.Stun();
+                    cur.TakeDamage(1);
+
+                    CardDisplay next = null;
+                    int[][] chain = { new[] {-1,0}, new[] {1,0}, new[] {0,-1}, new[] {0,1} };
+                    foreach (int[] d in chain)
+                    {
+                        CardDisplay cand = CardAt(zr + d[0], zc + d[1]);
+                        if (cand != null && cand.ownerPlayerNumber == zOwner &&
+                            !zapped.Contains(cand)) { next = cand; break; }
+                    }
+                    cur = next;
+                }
+                break;
+            }
+
+            case SpellCards.SetaInfalivel:
+            {
+                // 1 de dano nos 3 inimigos MAIS AVANÇADOS. Avanço = distância
+                // da casa do dono; desempate por (linha, coluna) — ordem total
+                // fixa, idêntica nos 2 clientes
+                var enemies = new List<CardDisplay>(boardManager.GetCardsByOwner(3 - casterPlayer));
+                enemies.RemoveAll(e => e == null || e.currentTile == null);
+                enemies.Sort((a, b) =>
+                {
+                    int advA = a.ownerPlayerNumber == 1 ? a.currentTile.row
+                             : boardManager.rows - 1 - a.currentTile.row;
+                    int advB = b.ownerPlayerNumber == 1 ? b.currentTile.row
+                             : boardManager.rows - 1 - b.currentTile.row;
+                    if (advA != advB) return advB.CompareTo(advA);
+                    if (a.currentTile.row != b.currentTile.row)
+                        return a.currentTile.row.CompareTo(b.currentTile.row);
+                    return a.currentTile.column.CompareTo(b.currentTile.column);
+                });
+                int arrows = Mathf.Min(3, enemies.Count);
+                for (int i = 0; i < arrows; i++)
+                {
+                    FloatingTextFX.ShowAboveCard(enemies[i], "SETA!", FloatingTextFX.EffectColor);
+                    enemies[i].TakeDamage(1);
+                }
+                break;
+            }
+
+            case SpellCards.DissiparMagia:
+                t1.currentAttack = Mathf.Max(0, t1.currentAttack - t1.spellBonusAttack - t1.hymnAttackBonus);
+                t1.currentShield = Mathf.Max(0, t1.currentShield - t1.spellBonusShield);
+                t1.spellBonusAttack = 0;
+                t1.spellBonusShield = 0;
+                t1.hymnAttackBonus = 0;
+                t1.spellExtraAttacks = 0;
+                t1.stoneSkinRoundsLeft = 0;
+                t1.spellBonusMoves = 0;
+                FloatingTextFX.ShowAboveCard(t1, "DISSIPADA!", new Color(0.8f, 0.6f, 1f));
+                t1.UpdateDisplay();
+                break;
+
+            // ── Leva 2 ──
+
+            case SpellCards.ConjuraMonstro:
+            case SpellCards.MuroDePedra:
+            {
+                // r1/c1 = a CASA escolhida. Se foi ocupada nesse meio-tempo
+                // (não deve acontecer — o turno é do lançador), o feitiço é
+                // perdido, igual ao alvo que morreu
+                CardTile tile = boardManager != null ? boardManager.GetTile(r1, c1) : null;
+                if (tile == null || tile.IsOccupied())
+                {
+                    Debug.LogWarning($"[Feitiço] Casa ({r1},{c1}) de {spellName} indisponível — feitiço perdido");
+                    return;
+                }
+                Card unit = spellId == SpellCards.ConjuraMonstro
+                    ? SpellCards.GetMonsterCard() : SpellCards.GetWallCard();
+                CardDisplay spawned = CardManager.Instance != null
+                    ? CardManager.Instance.SpawnCardOnTile(unit, tile, casterPlayer) : null;
+                if (spawned == null)
+                {
+                    Debug.LogError($"[Feitiço] Falha ao invocar {unit.cardName}!");
+                    return;
+                }
+                if (spellId == SpellCards.MuroDePedra)
+                {
+                    spawned.wallRoundsLeft = 3;
+                    spawned.UpdateDisplay(); // mostra o contador de rounds
+                    FloatingTextFX.ShowAboveCard(spawned, "MURO ERGUIDO!", new Color(0.7f, 0.65f, 0.55f));
+                }
+                else
+                {
+                    FloatingTextFX.ShowAboveCard(spawned, "CONJURADO!", FloatingTextFX.EffectColor);
+                }
+                break;
+            }
+
+            case SpellCards.Hipnotismo:
+            {
+                // t1 = o hipnotizado; t2 = a vítima (aliado DELE, escolhida
+                // pelo lançador). O golpe conta como ATAQUE do hipnotizado
+                // (attackerCardDisplay viaja junto), mas não gasta o ataque
+                // do turno dele — é um ato fora de si
+                if (t2 == null || t2.ownerPlayerNumber != t1.ownerPlayerNumber || t1 == t2)
+                {
+                    Debug.LogWarning("[Feitiço] Hipnotismo sem vítima válida — feitiço perdido");
+                    return;
+                }
+                int dmg = t1.currentAttack;
+                FloatingTextFX.ShowAboveCard(t1, "HIPNOTIZADO!", new Color(0.75f, 0.5f, 1f));
+                if (dmg > 0)
+                {
+                    t2.attackerCardDisplay = t1;
+                    t2.TakeDamage(dmg);
+                }
+                break;
+            }
+
+            case SpellCards.BotasDoVento:
+                t1.spellBonusMoves = 1;
+                FloatingTextFX.ShowAboveCard(t1, "BOTAS DO VENTO!", FloatingTextFX.EffectColor);
+                t1.UpdateDisplay();
+                break;
+
+            default:
+                Debug.LogError($"[Feitiço] spellId {spellId} sem implementação!");
+                break;
+        }
     }
 }

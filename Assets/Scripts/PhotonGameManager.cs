@@ -227,6 +227,39 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
         }
     }
 
+    // ========== LANÇAR FEITIÇO (v4.5) ==========
+    // O feitiço é identificado pelo índice na mão do lançador + spellId de
+    // conferência; alvos viajam como coordenadas de tile ((-1,-1) = sem alvo;
+    // r2/c2 só a Troca Tática usa). Executa idêntico nos DOIS clientes.
+
+    public void SendCastSpellRPC(int casterPlayer, int handIndex, int spellId,
+                                 int r1, int c1, int r2, int c2)
+    {
+        if (!PhotonNetwork.connected) return;
+
+        PhotonView photonView = GetComponent<PhotonView>();
+        if (photonView != null)
+        {
+            photonView.RPC("RPC_CastSpell", PhotonTargets.All,
+                casterPlayer, handIndex, spellId, r1, c1, r2, c2);
+            Debug.Log($"[PhotonGame] Enviado RPC: P{casterPlayer} lançou feitiço {spellId} (mão[{handIndex}])");
+        }
+    }
+
+    [PunRPC]
+    public void RPC_CastSpell(int casterPlayer, int handIndex, int spellId,
+                              int r1, int c1, int r2, int c2)
+    {
+        Debug.Log($"[PhotonGame] RPC_CastSpell: P{casterPlayer} feitiço {spellId} mão[{handIndex}] → ({r1},{c1})/({r2},{c2})");
+
+        ReseedForAction();
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.ExecuteCastSpell(casterPlayer, handIndex, spellId, r1, c1, r2, c2);
+        }
+    }
+
     // Executa a compra nos DOIS clientes (identifica a carta pelo índice na loja)
     [PunRPC]
     public void RPC_BuyCard(int shopIndex, int buyerPlayerNumber)

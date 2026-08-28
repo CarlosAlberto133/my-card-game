@@ -202,6 +202,12 @@ public class CardManager : MonoBehaviour
         bool useLobbyQueues = lobbyPhase && UsePerPlayerShops();
         int cardsToSpawn = lobbyPhase ? LobbyShopSize : numberOfCards;
 
+        // FEITIÇOS (v4.5): a loja da PARTIDA ganha um 6º slot que é SEMPRE um
+        // feitiço. A loja inicial (lobby) NÃO tem feitiço — pedido do Carlos.
+        // O slot extra entra no mesmo loop/lista (índice 5): trava, refresh e
+        // compra por índice funcionam sem caso especial
+        int totalSlots = lobbyPhase ? cardsToSpawn : cardsToSpawn + 1;
+
         if (useLobbyQueues && PhotonGameManager.Instance != null &&
             PhotonGameManager.Instance.currentGameSeed > 0)
         {
@@ -229,14 +235,19 @@ public class CardManager : MonoBehaviour
         }
 
         // Spawna cartas aleatórias (slots travados mantêm a carta que já estava)
-        for (int i = 0; i < cardsToSpawn; i++)
+        for (int i = 0; i < totalSlots; i++)
         {
+            // Último slot da loja da partida = feitiço (nunca no lobby)
+            bool spellSlot = !lobbyPhase && i == cardsToSpawn;
             Vector3 position;
 
             if (verticalLayout)
             {
-                // Layout vertical: cartas uma abaixo da outra (eixo Z)
-                float totalDepth = (cardsToSpawn - 1) * cardSpacing;
+                // Layout vertical: cartas uma abaixo da outra (eixo Z).
+                // Com o 6º slot (feitiço) a coluna cresceu para 45 de altura —
+                // centrada em z=0 ela vai de -22.5 a 22.5, ainda dentro da
+                // borda do tabuleiro 7x7 (22.8), então a posição x fica igual
+                float totalDepth = (totalSlots - 1) * cardSpacing;
                 Vector3 startPosition = currentSpawnPosition - new Vector3(0, 0, totalDepth / 2f);
                 position = startPosition + new Vector3(0, 0, i * cardSpacing);
             }
@@ -257,7 +268,7 @@ public class CardManager : MonoBehaviour
             else
             {
                 // Layout horizontal: cartas lado a lado (eixo X)
-                float totalWidth = (cardsToSpawn - 1) * cardSpacing;
+                float totalWidth = (totalSlots - 1) * cardSpacing;
                 Vector3 startPosition = currentSpawnPosition - new Vector3(totalWidth / 2f, 0, 0);
                 position = startPosition + new Vector3(i * cardSpacing, 0, 0);
             }
@@ -283,6 +294,26 @@ public class CardManager : MonoBehaviour
             // Sorteio com porcentagens de tier (TierOdds): no lobby a fila já foi
             // montada com as chances; na partida a chance evolui com o round
             int currentRound = TurnManager.Instance != null ? TurnManager.Instance.currentRound : 1;
+
+            // Slot de feitiço: sorteia do catálogo de SpellCards (fora do pool
+            // de cartas normais; cópias ilimitadas, dedup pelo ownedNames)
+            if (spellSlot)
+            {
+                Card spellData = SpellCards.DrawRandomSpell(currentRound, ownedNames);
+                if (spellData != null)
+                {
+                    GameObject spellObject = SpawnCard(spellData, position);
+                    if (spellObject != null)
+                    {
+                        spellObject.transform.rotation = CardDisplay.BoardRotation;
+                        if (hiddenShop) spellObject.SetActive(false);
+                        shop.Add(spellObject);
+                        Debug.Log($"Spawnou FEITIÇO (loja {shopNumber}): {spellData.cardName}");
+                    }
+                }
+                continue;
+            }
+
             CardInstance randomCard = useLobbyQueues
                 ? cardPool.DrawFromLobbyQueue(shopNumber, ownedNames)
                 : cardPool.DrawRandomCard(lobbyPhase, currentRound, ownedNames);
@@ -305,7 +336,7 @@ public class CardManager : MonoBehaviour
         {
             foreach (var kv in lockedBySlot)
             {
-                if (kv.Key < cardsToSpawn || kv.Value == null) continue;
+                if (kv.Key < totalSlots || kv.Value == null) continue;
                 CardDisplay lostCd = kv.Value.GetComponent<CardDisplay>();
                 if (cardPool != null && lostCd != null && lostCd.card != null)
                     cardPool.ReturnCardCopyToDeck(lostCd.card);
@@ -418,8 +449,10 @@ public class CardManager : MonoBehaviour
                 }
 
                 // Devolve a cópia não comprada ao pool — com duas lojas, o consumo
-                // dobrou e sem isso o pool esvaziava no fim da partida
-                if (cardPool != null && cardDisplay != null && cardDisplay.card != null)
+                // dobrou e sem isso o pool esvaziava no fim da partida.
+                // Feitiço NÃO: ele não vive no pool (SpellCards, cópias ilimitadas)
+                if (cardPool != null && cardDisplay != null && cardDisplay.card != null &&
+                    !cardDisplay.card.isSpell)
                 {
                     cardPool.ReturnCardCopyToDeck(cardDisplay.card);
                 }

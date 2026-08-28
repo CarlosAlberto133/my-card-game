@@ -83,7 +83,16 @@ public class CameraController : MonoBehaviour
             shopTopCamera.fieldOfView = mainCamera.fieldOfView;
             shopTopCamera.nearClipPlane = mainCamera.nearClipPlane;
             shopTopCamera.farClipPlane = mainCamera.farClipPlane;
-            shopTopCamera.eventMask = 0; // cliques continuam pela principal
+            // Os eventos de mouse da loja vêm DESTA câmera: o SendMouseEvents
+            // do Unity só entrega OnMouseDown/Enter por uma câmera cujo
+            // cullingMask E eventMask incluem a camada do collider — a
+            // principal não vê mais a camada 30, então sem isto as cartas da
+            // loja ficavam inclicáveis (bug real: não dava para comprar)
+            shopTopCamera.eventMask = 1 << ShopTopLayer;
+            // Desempate de clique: se loja e tabuleiro disputarem o mesmo
+            // pixel, ganha quem desenha por cima (a URP ignora depth para
+            // overlay, mas o SendMouseEvents respeita)
+            shopTopCamera.depth = mainCamera.depth + 1;
 
             // URP: overlay entra no stack da câmera base
             // (clearDepth é read-only nesta versão da URP; overlay já limpa

@@ -9,6 +9,14 @@ public class PlayerData
     public int health; // Vida do jogador (torre)
     public int cardsBoughtThisTurn;
     public int storeResetsThisTurn; // Quantas vezes resetou a loja neste turno
+    public int spellsCastThisTurn;  // Feitiços lançados neste turno (máx. 1) — só muda dentro de RPCs
+
+    // MANA (v4.6): recurso de INVOCAÇÃO. Colocar uma carta da mão em campo
+    // custa o TIER dela; restaura para o máximo quando o jogador PASSA o
+    // turno (ResetTurn). Feitiços e invocações de efeito NÃO gastam mana.
+    // Só muda dentro de RPCs (lockstep)
+    public const int MaxMana = 6;
+    public int mana = MaxMana;
     public int freePurchases = 0; // Compras grátis pendentes (Healer 5) — não gastam ouro nem limite; persistem até usar
 
     // Fase inicial de compras: começa com 20 de ouro (teto 20); quando a partida
@@ -76,6 +84,26 @@ public class PlayerData
     {
         cardsBoughtThisTurn = 0;
         storeResetsThisTurn = 0;
+        spellsCastThisTurn = 0;
+        mana = MaxMana; // mana volta cheia ao passar o turno (não acumula)
+    }
+
+    public bool CanPayMana(int cost)
+    {
+        return mana >= cost;
+    }
+
+    public void SpendMana(int cost)
+    {
+        mana -= cost;
+        if (mana < 0) mana = 0;
+        Debug.Log($"{playerName} gastou {cost} de mana. Restante: {mana}/{MaxMana}");
+    }
+
+    // Regra da casa: 1 feitiço por turno
+    public bool CanCastSpell()
+    {
+        return spellsCastThisTurn < 1;
     }
 
     public void AddGold(int amount, int maxGold = 10)

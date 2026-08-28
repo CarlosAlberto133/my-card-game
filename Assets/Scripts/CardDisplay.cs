@@ -121,6 +121,60 @@ public class CardDisplay : MonoBehaviour
     public CardDisplay tauntedBy = null;
     public int tauntTurnsLeft = 0;
 
+    // ===== FEITIÇOS (v4.5) — estados aplicados por ExecuteCastSpell =====
+    // Todos só mudam dentro de RPCs (lockstep). Durações na régua do stun:
+    // contam fins de turno DO DONO da carta afetada.
+    public int sleepTurnsLeft = 0;      // Sono: não age; ACORDA ao levar dano
+    public int rootTurnsLeft = 0;       // Teia: presa (não anda, ainda ataca)
+    public int stoneSkinRoundsLeft = 0; // Pele de Pedra: -1 em todo dano (conta ROUNDS)
+    public int spellExtraAttacks = 0;   // Concentração: ataques extras NESTE turno
+    public int hymnAttackBonus = 0;     // Hino de Coragem: +ATK até o fim do turno do dono
+    public int spellBonusAttack = 0;    // Lâmina Encantada (equip): removível pelo Dissipar
+    public int spellBonusShield = 0;    // Armadura Arcana (equip): removível pelo Dissipar
+    public int spellBonusMoves = 0;     // Botas do Vento (equip): +1 movimento por turno
+    public int wallRoundsLeft = 0;      // Muro de Pedra: rounds até desmoronar (>0 = é muro: não age)
+
+    public bool IsSleeping() { return sleepTurnsLeft > 0; }
+    public bool IsRooted() { return rootTurnsLeft > 0; }
+
+    // A carta tem QUALQUER coisa que o Dissipar Magia remove?
+    public bool HasSpellBonuses()
+    {
+        return spellBonusAttack > 0 || spellBonusShield > 0 || hymnAttackBonus > 0 ||
+               spellExtraAttacks > 0 || stoneSkinRoundsLeft > 0 || spellBonusMoves > 0;
+    }
+
+    // Sono (feitiço): dorme por 2 turnos DELA, ou até levar dano.
+    // Duração +1 sobre a régua do stun: o stun tira 1 turno, o sono tira 2
+    public void CastSleep()
+    {
+        if (TurnManager.Instance == null) return;
+        sleepTurnsLeft = StatusDurationForVictim() + 1;
+        UpdateCardDisplay();
+        FloatingTextFX.ShowAboveCard(this, "DORMINDO...", new Color(0.72f, 0.58f, 0.95f));
+        Debug.Log($"[Sono] {card.cardName} dormiu por {sleepTurnsLeft} turno(s) dela!");
+    }
+
+    // Teia (feitiço): presa por 2 turnos DELA — não se move, mas ainda ataca
+    public void CastRoot()
+    {
+        if (TurnManager.Instance == null) return;
+        rootTurnsLeft = StatusDurationForVictim() + 1;
+        UpdateCardDisplay();
+        FloatingTextFX.ShowAboveCard(this, "PRESA NA TEIA!", new Color(0.85f, 0.85f, 0.80f));
+        Debug.Log($"[Teia] {card.cardName} foi presa por {rootTurnsLeft} turno(s) dela!");
+    }
+
+    // Acorda a carta se estava dormindo e levou dano DE VERDADE (escudo
+    // consumido também conta como "levar dano")
+    void WakeIfSleeping(int effectiveDamage)
+    {
+        if (sleepTurnsLeft <= 0 || effectiveDamage <= 0) return;
+        sleepTurnsLeft = 0;
+        FloatingTextFX.ShowAboveCard(this, "ACORDOU!", new Color(1f, 0.88f, 0.40f));
+        Debug.Log($"[Sono] {card.cardName} acordou ao levar dano!");
+    }
+
     // Provocação ainda vale? (o provocador precisa estar vivo em campo —
     // checagem preguiçosa: se ele morreu, a marca simplesmente deixa de valer)
     public bool IsTaunted()
@@ -264,6 +318,21 @@ public class CardDisplay : MonoBehaviour
             return false;
         }
 
+        // Dormindo (Sono) ou presa na teia: não anda
+        if (IsSleeping())
+        {
+            Debug.Log($"{card.cardName} está dormindo, não pode se mover!");
+            return false;
+        }
+        if (IsRooted())
+        {
+            Debug.Log($"{card.cardName} está presa na teia, não pode se mover!");
+            return false;
+        }
+
+        // Muro de Pedra: estrutura, não anda
+        if (wallRoundsLeft > 0) return false;
+
         if (TurnManager.Instance == null) return true;
 
         // Verifica se o contador de movimentações foi resetado para este round
@@ -275,6 +344,9 @@ public class CardDisplay : MonoBehaviour
 
         // Se nunca se moveu ou se moveu em um round anterior, pode mover
         if (lastMovedRound < TurnManager.Instance.currentRound) return true;
+
+        // Botas do Vento (feitiço): a carta equipada move 2x por turno
+        if (spellBonusMoves > 0 && moveCountThisRound < 1 + spellBonusMoves) return true;
 
         // Archer 3 (3/2, tier 3) com Mago aliado: pode se mover 2 vezes por
         // round. (O mecanismo nunca tinha sido ligado — moveCountThisRound
@@ -328,9 +400,22 @@ public class CardDisplay : MonoBehaviour
             return false;
         }
 
+        // Dormindo (Sono): não ataca (presa na teia PODE atacar)
+        if (IsSleeping())
+        {
+            Debug.Log($"{card.cardName} está dormindo, não pode atacar!");
+            return false;
+        }
+
+        // Muro de Pedra: estrutura, não ataca
+        if (wallRoundsLeft > 0) return false;
+
         if (TurnManager.Instance == null) return true;
         if (!isOnBoard) return false;
         if (lastAttackedRound < TurnManager.Instance.currentRound) return true;
+
+        // Concentração de Combate (feitiço): ataque extra neste turno
+        if (spellExtraAttacks > 0) return true;
 
         // Tank 4 (2/6/8): com as 4 classes em campo, Arqueiros do dono podem
         // atacar uma SEGUNDA vez no mesmo turno (aura contínua, avaliada aqui
@@ -431,6 +516,13 @@ public class CardDisplay : MonoBehaviour
         int round = TurnManager.Instance.currentRound;
         if (lastAttackedRound == round)
         {
+            // Ataque extra: consome PRIMEIRO o da Concentração (feitiço) —
+            // não queima a aura do Tank 4 à toa
+            if (spellExtraAttacks > 0)
+            {
+                spellExtraAttacks--;
+                return;
+            }
             extraAttackUsedRound = round;
             MarkArcherAuraUsed(round);
         }
@@ -458,11 +550,15 @@ public class CardDisplay : MonoBehaviour
     // (CardActionDots), que consultam o estado a cada frame.
     public bool CanMovePeek()
     {
-        if (isFrozen || isStunned) return false;
+        if (isFrozen || isStunned || IsSleeping() || IsRooted() || wallRoundsLeft > 0) return false;
         if (TurnManager.Instance == null) return true;
         int round = TurnManager.Instance.currentRound;
 
         if (lastMovedRound < round) return true;
+
+        // Botas do Vento (feitiço): movimento extra por turno
+        int movesUsed = (lastMoveCountRound < round) ? 0 : moveCountThisRound;
+        if (spellBonusMoves > 0 && movesUsed < 1 + spellBonusMoves) return true;
 
         // Archer 3 (3/2) com Mago aliado: 2º movimento no mesmo round
         int moves = (lastMoveCountRound < round) ? 0 : moveCountThisRound;
@@ -477,12 +573,15 @@ public class CardDisplay : MonoBehaviour
 
     public bool CanAttackPeek()
     {
-        if (eagleMarked || isFrozen || isStunned) return false;
+        if (eagleMarked || isFrozen || isStunned || IsSleeping() || wallRoundsLeft > 0) return false;
         if (TurnManager.Instance == null) return true;
         if (!isOnBoard) return false;
         int round = TurnManager.Instance.currentRound;
 
         if (lastAttackedRound < round) return true;
+
+        // Concentração de Combate (feitiço): ataque extra neste turno
+        if (spellExtraAttacks > 0) return true;
 
         // Aura do Tank 4 (2/6/8): 2º ataque dos Arqueiros com as 4 classes
         if (card != null && card.cardClass == CardClass.Arqueiro &&
@@ -700,6 +799,20 @@ public class CardDisplay : MonoBehaviour
         }
         if (tierText != null) tierText.text = ((int)card.tier).ToString();
 
+        // FEITIÇO (v4.5): não tem stats — esconde os escudos heráldicos de
+        // ATK/DEF/HP, o medalhão dourado mostra o CUSTO em ouro (o custo do
+        // feitiço não segue o tier) e o selo de classe vira "Feitiço"
+        if (card.isSpell)
+        {
+            if (attackText != null) attackText.gameObject.SetActive(false);
+            if (shieldText != null) shieldText.gameObject.SetActive(false);
+            if (healthText != null) healthText.gameObject.SetActive(false);
+            HideChild("AtkChip"); HideChild("AtkRing");
+            HideChild("ShieldChip"); HideChild("ShieldRing");
+            HideChild("HpChip"); HideChild("HpRing");
+            if (tierText != null) tierText.text = card.spellCost.ToString();
+        }
+
         // Atualiza artwork
         if (artworkRenderer != null && card.artwork != null)
         {
@@ -742,10 +855,11 @@ public class CardDisplay : MonoBehaviour
             effectText.text = string.IsNullOrEmpty(card.effectDescription) ? "Sem efeito" : card.effectDescription;
         }
 
-        // Atualiza texto de classe
+        // Atualiza texto de classe (feitiço tem selo próprio — a classe Mago
+        // dele só empresta o gradiente roxo do fundo)
         if (classText != null)
         {
-            classText.text = card.cardClass.ToString();
+            classText.text = card.isSpell ? "Feitiço" : card.cardClass.ToString();
         }
 
         // Medalhão de tier: moeda DOURADA (tema medieval do design-carta.png);
@@ -821,7 +935,8 @@ public class CardDisplay : MonoBehaviour
         }
 
         visuals.SetFrozen(isFrozen);
-        visuals.SetStunned(isStunned);
+        // Dormindo (Sono) reusa o overlay de atordoada: comunica "não age"
+        visuals.SetStunned(isStunned || IsSleeping());
         visuals.SetEagleMark(eagleMarked);
         visuals.SetInvulnerable(invulnerableRoundsLeft > 0);
         visuals.SetTreeDefense(treeDefenseActive);
@@ -833,9 +948,12 @@ public class CardDisplay : MonoBehaviour
         bool counterIsRound = false;
         if (isFrozen && freezeTurnsLeft > 0) { counterShown = freezeTurnsLeft; }
         else if (isStunned && stunTurnsLeft > 0) { counterShown = stunTurnsLeft; }
+        else if (sleepTurnsLeft > 0) { counterShown = sleepTurnsLeft; }
+        else if (rootTurnsLeft > 0) { counterShown = rootTurnsLeft; }
         else if (eagleMarked && eagleTurnsLeft > 0) { counterShown = eagleTurnsLeft; }
         else if (IsTaunted()) { counterShown = tauntTurnsLeft; }
         else if (invulnerableRoundsLeft > 0) { counterShown = invulnerableRoundsLeft; counterIsRound = true; }
+        else if (wallRoundsLeft > 0) { counterShown = wallRoundsLeft; counterIsRound = true; }
         else if (isOnBoard && effectCounter > 0) { counterShown = effectCounter; counterIsRound = effectCounterIsRound; }
 
         if (counterShown > 0) visuals.SetEffectCounter(counterShown, counterIsRound);
@@ -2540,6 +2658,15 @@ public class CardDisplay : MonoBehaviour
             return;
         }
 
+        // Feitiço aguardando escolha de CASA (Conjura/Muro): cliques em carta
+        // não valem — só tile livre (ESC cancela). Sem isso, o clique caía na
+        // seleção normal e duas seleções se atropelavam
+        if (GameManager.Instance != null && GameManager.Instance.IsWaitingForSpellTile())
+        {
+            Debug.Log("[CardDisplay] Escolha uma CASA livre para o feitiço (ESC cancela)!");
+            return;
+        }
+
         // Se o jogo aguarda seleção de alvo de efeito (congelar / quebrar armadura),
         // qualquer clique em carta do tabuleiro vai direto para a escolha de alvo —
         // sem isso, cliques em cartas inimigas nunca chegariam à seleção
@@ -2746,6 +2873,18 @@ public class CardDisplay : MonoBehaviour
             return;
         }
 
+        // Feitiço: máximo 2 na mão (regra da casa) — bloqueia antes do RPC
+        if (card.isSpell &&
+            SpellCards.CountSpellsInHand(currentPlayer.playerNumber) >= SpellCards.MaxSpellsInHand)
+        {
+            Debug.Log($"[CardDisplay] Máximo de {SpellCards.MaxSpellsInHand} feitiços na mão! Lance um antes de comprar outro.");
+            if (GameUIManager.Instance != null)
+                GameUIManager.Instance.ShowDecisionPopup(
+                    $"Você já tem {SpellCards.MaxSpellsInHand} feitiços na mão.\nLance um antes de comprar outro!",
+                    "Entendi", () => { }, "Fechar", () => { });
+            return;
+        }
+
         // Em multiplayer, envia RPC — a compra executa nos DOIS clientes (inclusive este)
         if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null && CardManager.Instance != null)
         {
@@ -2925,6 +3064,15 @@ public class CardDisplay : MonoBehaviour
         if (correctHandManager.IsHandFull())
         {
             Debug.Log($"[CardDisplay] Mão de {buyer.playerName} cheia — compra cancelada.");
+            return;
+        }
+
+        // Feitiço: máx. 2 na mão — mesma decisão nos DOIS clientes (as mãos
+        // são espelhadas), então a compra aborta igual dos dois lados
+        if (card.isSpell &&
+            SpellCards.CountSpellsInHand(buyerPlayerNumber) >= SpellCards.MaxSpellsInHand)
+        {
+            Debug.Log($"[CardDisplay] {buyer.playerName} já tem {SpellCards.MaxSpellsInHand} feitiços — compra cancelada.");
             return;
         }
 
@@ -3692,6 +3840,9 @@ public class CardDisplay : MonoBehaviour
         // Atualiza a UI
         UpdateCardDisplay();
 
+        // Sono (feitiço): levar dano de verdade acorda a carta
+        WakeIfSleeping(effectiveDamage);
+
         // Tank tier-5 efeito 2 (ATK 3, Shield 7, HP 10): +1 ATK ao receber dano
         if (card.cardClass == CardClass.Tank && card.attack == 3 && card.shield == 7 && card.health == 10 &&
             card.tier == CardTier.Tier5)
@@ -3864,6 +4015,14 @@ public class CardDisplay : MonoBehaviour
     // hoje não faz nada, mantido só para não mexer em todas as assinaturas.
     int ApplyTankDamageReductions(int damage, ref bool alreadyHalved)
     {
+        // Pele de Pedra (feitiço, v4.5): -1 em TODO dano recebido enquanto
+        // durar. Este é o ponto único compartilhado por TakeDamage e
+        // TakeRedirectedDamage — a redução vale nos dois caminhos
+        if (stoneSkinRoundsLeft > 0 && damage > 0)
+        {
+            damage = Mathf.Max(0, damage - 1);
+            Debug.Log($"[PeleDePedra] {card.cardName} reduziu o dano em 1 (restou {damage})");
+        }
         return damage;
     }
 
@@ -3960,6 +4119,10 @@ public class CardDisplay : MonoBehaviour
 
         // Atualiza a UI
         UpdateCardDisplay();
+
+        // Sono (feitiço): levar dano de verdade acorda a carta (este caminho
+        // cobre dano redirecionado/adiado por popup)
+        WakeIfSleeping(effectiveDamage);
 
         // Tanks tier-5: +1 ATK ao receber dano — estes ganchos só existiam no
         // TakeDamage, então dano redirecionado/adiado por popup não disparava
@@ -4255,6 +4418,41 @@ public class CardDisplay : MonoBehaviour
             }
         }
 
+        // Sono e Teia (feitiços): mesma régua do stun — contam no fim do
+        // turno do dono da carta afetada
+        if (sleepTurnsLeft > 0 && ownerPlayerNumber == endedTurnPlayerNumber)
+        {
+            sleepTurnsLeft--;
+            changed = true;
+            if (sleepTurnsLeft <= 0)
+                Debug.Log($"[Sono] {card.cardName} acordou naturalmente!");
+        }
+
+        if (rootTurnsLeft > 0 && ownerPlayerNumber == endedTurnPlayerNumber)
+        {
+            rootTurnsLeft--;
+            changed = true;
+            if (rootTurnsLeft <= 0)
+                Debug.Log($"[Teia] {card.cardName} se soltou da teia!");
+        }
+
+        // Concentração e Hino de Coragem (feitiços): valem só até o fim do
+        // turno do DONO da carta
+        if (ownerPlayerNumber == endedTurnPlayerNumber)
+        {
+            if (spellExtraAttacks > 0)
+            {
+                spellExtraAttacks = 0;
+                changed = true;
+            }
+            if (hymnAttackBonus > 0)
+            {
+                currentAttack -= hymnAttackBonus;
+                hymnAttackBonus = 0;
+                changed = true;
+            }
+        }
+
         // Provocada (Titã de Bronze, v4.4): mesma régua do stun — conta no fim
         // do turno do dono da carta provocada
         if (tauntTurnsLeft > 0 && ownerPlayerNumber == endedTurnPlayerNumber)
@@ -4287,6 +4485,31 @@ public class CardDisplay : MonoBehaviour
             changed = true;
             if (invulnerableRoundsLeft <= 0)
                 Debug.Log($"[Invulnerável] {card.cardName} perdeu a invulnerabilidade!");
+        }
+
+        // Pele de Pedra (feitiço): conta ROUNDS, como a invulnerabilidade
+        if (stoneSkinRoundsLeft > 0 && roundCompleted)
+        {
+            stoneSkinRoundsLeft--;
+            changed = true;
+            if (stoneSkinRoundsLeft <= 0)
+                Debug.Log($"[PeleDePedra] {card.cardName} perdeu a pele de pedra!");
+        }
+
+        // Muro de Pedra (feitiço): desmorona quando os rounds acabam.
+        // DestroyCard é adiado pelo Destroy() do Unity, então destruir aqui
+        // dentro do tique é seguro (a varredura já tem a lista em mãos)
+        if (wallRoundsLeft > 0 && roundCompleted)
+        {
+            wallRoundsLeft--;
+            changed = true;
+            if (wallRoundsLeft <= 0)
+            {
+                Debug.Log($"[MuroDePedra] {card.cardName} desmoronou!");
+                FloatingTextFX.ShowAboveCard(this, "DESMORONOU!", new Color(0.7f, 0.65f, 0.55f));
+                DestroyCard();
+                return;
+            }
         }
 
         if (changed) UpdateCardDisplay();

@@ -230,6 +230,20 @@ public class BotController : MonoBehaviour
             if (cd == null || cd.card == null) continue;
             if (cd.isInHand || cd.isOnBoard) continue; // já comprada
 
+            // FEITIÇOS (v4.5): respeita o limite de 2 na mão e pula os que o
+            // bot não sabe usar bem (Troca/Transmutação/Muro/Hipnotismo pedem
+            // juízo de posicionamento que ele não tem)
+            if (cd.card.isSpell)
+            {
+                if (SpellCards.CountSpellsInHand(BotMode.BotPlayerNumber) >= SpellCards.MaxSpellsInHand)
+                    continue;
+                if (cd.card.spellId == SpellCards.TrocaTatica ||
+                    cd.card.spellId == SpellCards.Transmutacao ||
+                    cd.card.spellId == SpellCards.MuroDePedra ||
+                    cd.card.spellId == SpellCards.Hipnotismo)
+                    continue;
+            }
+
             // Custo real (com o desconto da Healer 3 [2/3], se o bot a tiver)
             if (!freeBuy && !bot.HasEnoughGold(CardDisplay.DiscountedCost(cd.card, bot))) continue;
             affordable.Add(i);
@@ -372,6 +386,8 @@ public class BotController : MonoBehaviour
                 GameObject go = hand.GetCardAtIndex(i);
                 CardDisplay cd = go != null ? go.GetComponent<CardDisplay>() : null;
                 if (cd == null || cd.card == null) continue;
+                if (cd.card.isSpell) continue; // feitiço não é colocado em campo
+                if ((int)cd.card.tier > bot.mana) continue; // MANA (v4.6): sem mana, nem tenta
                 if (cd.card.attack > bestAtk) { bestAtk = cd.card.attack; bestIdx = i; bestCard = cd; }
             }
             if (bestIdx < 0) break;
@@ -383,6 +399,9 @@ public class BotController : MonoBehaviour
             yield return new WaitForSeconds(ActionDelay);
             yield return WaitDecisionsClear(); // Efeitos de entrada podem abrir popup/escolha
         }
+
+        // 2.5) Lança 1 feitiço da mão, se tiver e valer a pena (v4.5)
+        yield return TryCastSpell(bot);
 
         // 3) Combate + movimento
         if (BotMode.Difficulty == 0)
@@ -400,6 +419,113 @@ public class BotController : MonoBehaviour
         }
 
         yield return WaitDecisionsClear();
+    }
+
+    // ================== FEITIÇOS (v4.5) ==================
+    // Lança no máximo 1 feitiço por turno (a regra da casa), pelo MESMO
+    // RPC_CastSpell dos jogadores. Heurística simples: primeiro feitiço da
+    // mão que tiver um alvo que valha a pena.
+    IEnumerator TryCastSpell(PlayerData bot)
+    {
+        if (!StillMyTurn() || bot == null || !bot.CanCastSpell()) yield break;
+        if (GameManager.Instance == null || PhotonGameManager.Instance == null) yield break;
+
+        HandManager hand = GetBotHand();
+        if (hand == null) yield break;
+
+        BoardManager board = BoardManager.Instance;
+        if (board == null) yield break;
+
+        for (int i = 0; i < hand.GetCardCount(); i++)
+        {
+            GameObject go = hand.GetCardAtIndex(i);
+            CardDisplay cd = go != null ? go.GetComponent<CardDisplay>() : null;
+            if (cd == null || cd.card == null || !cd.card.isSpell) continue;
+
+            int spellId = cd.card.spellId;
+
+            // Os que o bot nem compra, mas se aparecerem na mão, ignora —
+            // pedem juízo que ele não tem
+            if (spellId == SpellCards.TrocaTatica || spellId == SpellCards.Transmutacao ||
+                spellId == SpellCards.MuroDePedra || spellId == SpellCards.Hipnotismo) continue;
+
+            int r1 = -1, c1 = -1;
+
+            if (spellId == SpellCards.ConjuraMonstro)
+            {
+                // Conjura numa casa da zona de colocação (mesma lógica das
+                // cartas normais do bot)
+                CardTile tile = ChoosePlacementTile(SpellCards.GetMonsterCard());
+                if (tile == null) continue;
+                r1 = tile.row; c1 = tile.column;
+            }
+            else if (spellId == SpellCards.HinoDeCoragem)
+            {
+                // Buff em massa só compensa com exército: 3+ aliados
+                if (board.GetCardsByOwner(BotMode.BotPlayerNumber).Count < 3) continue;
+            }
+            else if (spellId == SpellCards.SetaInfalivel)
+            {
+                if (board.GetCardsByOwner(3 - BotMode.BotPlayerNumber).Count < 2) continue;
+            }
+            else
+            {
+                var candidates = GameManager.Instance.BuildSpellCandidates(
+                    spellId, BotMode.BotPlayerNumber, null);
+                if (candidates == null || candidates.Count == 0) continue;
+
+                CardDisplay target = ChooseSpellTarget(spellId, candidates);
+                if (target == null || target.currentTile == null) continue;
+
+                // Poção: só se a cura render pelo menos 2 de vida
+                if (spellId == SpellCards.PocaoRevigorante &&
+                    (target.card.health + target.maxHealthBonus) - target.currentHealth < 2)
+                    continue;
+
+                r1 = target.currentTile.row;
+                c1 = target.currentTile.column;
+            }
+
+            PhotonGameManager.Instance.SendCastSpellRPC(
+                BotMode.BotPlayerNumber, i, spellId, r1, c1, -1, -1);
+            yield return new WaitForSeconds(ActionDelay);
+            yield return WaitDecisionsClear();
+            yield break; // 1 feitiço por turno
+        }
+    }
+
+    CardDisplay ChooseSpellTarget(int spellId, List<CardDisplay> candidates)
+    {
+        CardDisplay best = null;
+        int bestScore = int.MinValue;
+        BoardManager board = BoardManager.Instance;
+
+        foreach (CardDisplay cand in candidates)
+        {
+            if (cand == null || cand.currentTile == null) continue;
+            int score;
+
+            if (spellId == SpellCards.PocaoRevigorante)
+            {
+                // Aliado que mais se beneficia da cura
+                score = (cand.card.health + cand.maxHealthBonus) - cand.currentHealth;
+            }
+            else if (spellId == SpellCards.Amedrontar || spellId == SpellCards.ExplosaoDeChamas)
+            {
+                // Inimigo mais AVANÇADO (o que mais ameaça a torre)
+                score = cand.ownerPlayerNumber == 1
+                    ? cand.currentTile.row
+                    : (board != null ? board.rows - 1 : 6) - cand.currentTile.row;
+            }
+            else
+            {
+                // Buffs no aliado mais forte; debuffs no inimigo mais forte
+                score = cand.currentAttack;
+            }
+
+            if (score > bestScore) { bestScore = score; best = cand; }
+        }
+        return best;
     }
 
     // ================== COMBATE (Fácil: guloso e distraído) ==================

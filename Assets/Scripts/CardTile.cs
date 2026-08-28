@@ -137,6 +137,14 @@ public class CardTile : MonoBehaviour
             UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
             return;
 
+        // Feitiço de casa (Conjura Monstro / Muro de Pedra): o clique no tile
+        // é a escolha da casa — vem antes de qualquer outra lógica
+        if (GameManager.Instance != null && GameManager.Instance.IsWaitingForSpellTile())
+        {
+            GameManager.Instance.TrySpellTileChosen(this);
+            return;
+        }
+
         // Se há uma carta selecionada, tenta colocar neste tile
         if (GameManager.Instance != null && GameManager.Instance.HasSelectedCard())
         {

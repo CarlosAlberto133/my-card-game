@@ -65,4 +65,5 @@ MonoBehaviour:
   - RPC_SetShopCardLock
   - RPC_TowerEffectTarget
   - RPC_SellCard
+  - RPC_CastSpell
   DisableAutoOpenWizard: 1

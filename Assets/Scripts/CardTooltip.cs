@@ -71,13 +71,23 @@ public class CardTooltip : MonoBehaviour
         Card c = cd.card;
         nameText.text = c.cardName;
         nameText.color = ClassColor(c.cardClass);
-        subText.text = $"Tier {(int)c.tier}  ·  {ClassName(c.cardClass)}";
 
-        // Stats atuais se está no tabuleiro (com buffs); senão os base da carta
-        int atk = cd.isOnBoard ? cd.currentAttack : c.attack;
-        int shd = cd.isOnBoard ? cd.currentShield : c.shield;
-        int hp = cd.isOnBoard ? cd.currentHealth : c.health;
-        statsText.text = $"<color=#FF8C6B>ATQ {atk}</color>   <color=#7FC7FF>ARM {shd}</color>   <color=#7BE08B>VIDA {hp}</color>";
+        // FEITIÇO (v4.5): sem stats — mostra o custo e as regras da casa
+        if (c.isSpell)
+        {
+            subText.text = $"Feitiço  ·  Custo {c.spellCost} de ouro";
+            statsText.text = "<color=#C9A3FF>Uso único · 1 por turno · máx. 2 na mão</color>";
+        }
+        else
+        {
+            subText.text = $"Tier {(int)c.tier}  ·  {ClassName(c.cardClass)}";
+
+            // Stats atuais se está no tabuleiro (com buffs); senão os base da carta
+            int atk = cd.isOnBoard ? cd.currentAttack : c.attack;
+            int shd = cd.isOnBoard ? cd.currentShield : c.shield;
+            int hp = cd.isOnBoard ? cd.currentHealth : c.health;
+            statsText.text = $"<color=#FF8C6B>ATQ {atk}</color>   <color=#7FC7FF>ARM {shd}</color>   <color=#7BE08B>VIDA {hp}</color>";
+        }
 
         effectText.text = string.IsNullOrEmpty(c.effectDescription)
             ? "<i>Sem efeito especial.</i>" : c.effectDescription;
