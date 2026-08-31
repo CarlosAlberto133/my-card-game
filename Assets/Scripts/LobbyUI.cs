@@ -41,6 +41,22 @@ public class LobbyUI
     private Toggle mapSpaceToggle;
     private Toggle mapTesteToggle;
 
+    // [DECKMODE] Toggles do modo de jogo (host e popup do treino)
+    private Toggle modePadraoToggle;
+    private Toggle modeDeckToggle;
+    private Toggle botModePadrao;
+    private Toggle botModeDeck;
+
+    // [DECKMODE] 0 = Padrão (loja), 1 = Deck — vira a room property "mode"
+    public int SelectedGameMode
+    {
+        get { return modeDeckToggle != null && modeDeckToggle.isOn ? 1 : 0; }
+    }
+    public int SelectedBotGameMode
+    {
+        get { return botModeDeck != null && botModeDeck.isOn ? 1 : 0; }
+    }
+
     // Mapa escolhido pelo anfitrião: 1 = Mesa de RPG (padrão), 2 = Floresta,
     // 0 = Espaço, 3 = Teste (mesmos códigos da room property "theme")
     public int SelectedMapTheme
@@ -129,7 +145,17 @@ public class LobbyUI
         WireMapRadio(mapSpaceToggle, mapTableToggle, mapForestToggle, mapTesteToggle);
         WireMapRadio(mapTesteToggle, mapTableToggle, mapForestToggle, mapSpaceToggle);
 
-        startButton = MakeButton(hostPanel.transform, "Iniciar Partida", new Vector2(0f, -74f),
+        // [DECKMODE] Modo de jogo (teste): Padrão (loja) x Deck (baralho de 30).
+        // Para DESATIVAR o modo deck: comente estas 4 linhas — todo o resto
+        // do modo fica inerte sem a room property "mode"
+        MakeText(hostPanel.transform, "ModeLabel", "Modo de jogo:", 17, TextMuted,
+            TextAlignmentOptions.Center, new Vector2(0f, -26f), new Vector2(500f, 26f));
+        modePadraoToggle = MakeCheckbox(hostPanel.transform, "Padrão", new Vector2(-110f, -52f), true, 110f);
+        modeDeckToggle = MakeCheckbox(hostPanel.transform, "Deck (teste)", new Vector2(50f, -52f), false, 160f);
+        WireMapRadio(modePadraoToggle, modeDeckToggle);
+        WireMapRadio(modeDeckToggle, modePadraoToggle);
+
+        startButton = MakeButton(hostPanel.transform, "Iniciar Partida", new Vector2(0f, -104f),
             new Vector2(260f, 56f), Gold, GoldTextDark, 21, null);
         startButton.interactable = false;
 
@@ -220,6 +246,12 @@ public class LobbyUI
         WireMapRadio(botMapForest, botMapTable, botMapSpace, botMapTeste);
         WireMapRadio(botMapSpace, botMapTable, botMapForest, botMapTeste);
         WireMapRadio(botMapTeste, botMapTable, botMapForest, botMapSpace);
+
+        // [DECKMODE] Modo de jogo do treino (Padrão x Deck)
+        botModePadrao = MakeCheckbox(botPanel.transform, "Padrão", new Vector2(-115f, -104f), true, 110f);
+        botModeDeck = MakeCheckbox(botPanel.transform, "Deck (teste)", new Vector2(55f, -104f), false, 160f);
+        WireMapRadio(botModePadrao, botModeDeck);
+        WireMapRadio(botModeDeck, botModePadrao);
 
         MakeButton(botPanel.transform, "Voltar", new Vector2(0f, -158f),
             new Vector2(220f, 44f), Slate, TextLight, 17, () => HideAll());

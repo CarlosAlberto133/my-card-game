@@ -349,7 +349,8 @@ public class BotController : MonoBehaviour
         if (TowerSystem.IsOfferRound(tm.currentRound) &&
             !TowerSystem.HasBoughtThisWindow(BotMode.BotPlayerNumber, tm.currentRound) &&
             TowerSystem.EquippedOf(BotMode.BotPlayerNumber).Count < 2 &&
-            bot.gold >= TowerCard.GoldCost + 2) // guarda um troco pra loja normal
+            // [DECKMODE] modo deck: torre é grátis, o bot sempre pega
+            (DeckMode.Active || bot.gold >= TowerCard.GoldCost + 2)) // guarda um troco pra loja normal
         {
             int[] towerOffer = TowerSystem.GetOffer(BotMode.BotPlayerNumber, tm.currentRound);
             if (towerOffer.Length > 0)

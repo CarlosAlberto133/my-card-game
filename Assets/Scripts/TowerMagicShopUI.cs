@@ -128,8 +128,10 @@ public static class TowerMagicShopUI
         MakeText(panel.transform, "T", "» MAGIA DA TORRE", 22, Gold, TextAlignmentOptions.Center,
             FontStyles.Bold, new Vector2(0f, 300f), new Vector2(360f, 30f));
         string towerName = TowerCards.TowerName(TowerSystem.TowerClassOf(me));
-        MakeText(panel.transform, "S", towerName + " — round " + round + " · escolha 1 (custa " +
-            TowerCard.GoldCost + " de ouro)", 13.5f, Muted, TextAlignmentOptions.Center,
+        // [DECKMODE] No modo deck a magia de torre é gratuita (1 por janela)
+        string custoLabel = DeckMode.Active ? "GRÁTIS" : "custa " + TowerCard.GoldCost + " de ouro";
+        MakeText(panel.transform, "S", towerName + " — round " + round + " · escolha 1 (" +
+            custoLabel + ")", 13.5f, Muted, TextAlignmentOptions.Center,
             FontStyles.Normal, new Vector2(0f, 272f), new Vector2(370f, 22f));
 
         MakeButton(panel.transform, "X", new Vector2(178f, 304f), new Vector2(32f, 32f),
@@ -178,7 +180,9 @@ public static class TowerMagicShopUI
         t.fontSizeMax = 15f;
 
         int cardId = card.id;
-        GameObject buy = MakeButton(go.transform, "Comprar (" + TowerCard.GoldCost + " ouro)",
+        // [DECKMODE] Rótulo do botão: gratuita no modo deck
+        string buyLabel = DeckMode.Active ? "Equipar (grátis)" : "Comprar (" + TowerCard.GoldCost + " ouro)";
+        GameObject buy = MakeButton(go.transform, buyLabel,
             new Vector2(0f, -62f), new Vector2(210f, 30f), Gold, new Color(0.12f, 0.09f, 0.02f), 13,
             () => OnBuyClicked(cardId));
 
@@ -205,7 +209,9 @@ public static class TowerMagicShopUI
         int me = LocalPlayer();
         TurnManager tm = TurnManager.Instance;
         PlayerData p = tm != null ? tm.GetPlayer(me) : null;
-        bool canBuy = p != null && p.gold >= TowerCard.GoldCost &&
+        // [DECKMODE] Modo deck: custo 0 (só a trava de 1 por janela vale)
+        int liveCost = DeckMode.Active ? 0 : TowerCard.GoldCost;
+        bool canBuy = p != null && p.gold >= liveCost &&
                       !TowerSystem.HasBoughtThisWindow(me, currentOfferRound);
 
         foreach (Button b in buyButtons)
@@ -221,7 +227,7 @@ public static class TowerMagicShopUI
         PlayerData p = tm != null ? tm.GetPlayer(me) : null;
         if (TowerSystem.HasBoughtThisWindow(me, currentOfferRound))
             statusText.text = "Você já comprou nesta janela.";
-        else if (p != null && p.gold < TowerCard.GoldCost)
+        else if (!DeckMode.Active && p != null && p.gold < TowerCard.GoldCost) // [DECKMODE] sem ouro no modo deck
             statusText.text = "Ouro insuficiente (" + p.gold + "/" + TowerCard.GoldCost + ").";
         else if (TowerSystem.EquippedOf(me).Count >= TowerSystem.MaxEquipped)
             statusText.text = "Slots cheios: comprar vai pedir qual substituir.";

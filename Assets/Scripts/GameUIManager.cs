@@ -1594,6 +1594,10 @@ public class GameUIManager : MonoBehaviour
         {
             player1NameText.text = TurnManager.Instance.player1.playerName;
         }
+        // [DECKMODE] Poll da sincronização dos decks (multiplayer: espera as
+        // room properties dos 2 decks chegarem antes do Iniciar liberar)
+        if (DeckMode.Active) DeckMode.TickSync();
+
         // A linha da MANA só existe na partida (no lobby não há invocação —
         // ficaria só ocupando espaço). Esconder o texto encolhe o card do HUD
         // no próximo rebuild e mantém o painel enxuto na fase de compras
@@ -1601,12 +1605,12 @@ public class GameUIManager : MonoBehaviour
         if (player1ManaText != null)
         {
             player1ManaText.gameObject.SetActive(showMana);
-            player1ManaText.text = $"Mana: {TurnManager.Instance.player1.mana}/{PlayerData.MaxMana}";
+            player1ManaText.text = $"Mana: {TurnManager.Instance.player1.mana}/{TurnManager.Instance.player1.manaCap}";
         }
         if (player2ManaText != null)
         {
             player2ManaText.gameObject.SetActive(showMana);
-            player2ManaText.text = $"Mana: {TurnManager.Instance.player2.mana}/{PlayerData.MaxMana}";
+            player2ManaText.text = $"Mana: {TurnManager.Instance.player2.mana}/{TurnManager.Instance.player2.manaCap}";
         }
 
         // A linha da mana aparece quando a partida começa: o card de fundo
@@ -1618,9 +1622,13 @@ public class GameUIManager : MonoBehaviour
             StartCoroutine(BuildHudCardsDeferred());
         }
 
+        // [DECKMODE] Modo deck: sem ouro — a linha vira o contador do BARALHO
+        bool deckHud = DeckMode.Active;
         if (player1GoldText != null)
         {
-            player1GoldText.text = $"Ouro: {TurnManager.Instance.player1.gold}";
+            player1GoldText.text = deckHud
+                ? $"Deck: {DeckMode.Remaining(1)}"
+                : $"Ouro: {TurnManager.Instance.player1.gold}";
         }
         if (player1HealthText != null)
         {
@@ -1634,8 +1642,14 @@ public class GameUIManager : MonoBehaviour
         }
         if (player2GoldText != null)
         {
-            player2GoldText.text = $"Ouro: {TurnManager.Instance.player2.gold}";
+            player2GoldText.text = deckHud
+                ? $"Deck: {DeckMode.Remaining(2)}"
+                : $"Ouro: {TurnManager.Instance.player2.gold}";
         }
+
+        // [DECKMODE] Sem loja = sem botão de reset da loja
+        if (deckHud && resetStoreButton != null && resetStoreButton.gameObject.activeSelf)
+            resetStoreButton.gameObject.SetActive(false);
         if (player2HealthText != null)
         {
             player2HealthText.text = $"Vida: {TurnManager.Instance.player2.health}/{TowerSystem.MaxTowerHealth(2)}";
@@ -1744,6 +1758,16 @@ public class GameUIManager : MonoBehaviour
     void OnStartGameButtonClicked()
     {
         Debug.Log("Botão 'Iniciar Partida' foi clicado!");
+
+        // [DECKMODE] O jogo só pode começar com os DOIS decks sincronizados
+        // (senão o StartGame distribuiria mãos de um deck que não chegou)
+        if (DeckMode.Active && !DeckMode.DecksReady())
+        {
+            Debug.Log("[DeckMode] Aguardando o deck do oponente chegar...");
+            ShowDecisionPopup("Sincronizando os decks...\nTente de novo em 1 segundo!",
+                "Entendi", () => { }, "Fechar", () => { });
+            return;
+        }
 
         // Em multiplayer, marca ESTE jogador como pronto nos dois clientes
         if (PhotonNetwork.inRoom && PhotonGameManager.Instance != null)

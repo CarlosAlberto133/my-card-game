@@ -87,7 +87,67 @@ public class CardDisplay : MonoBehaviour
 
     // No TABULEIRO a carta fica DEITADA sobre o tile, centralizada
     public const float BoardYOffset = 0.75f; // Um pouco acima do topo do tile (evita z-fighting)
-    public static readonly Quaternion BoardRotation = Quaternion.Euler(0f, 180f, 0f); // Deitada, face para cima
+    // ╔══════════════════════════════════════════════════════════════════╗
+    // ║  DE QUE LADO DA MESA ESTE CLIENTE ESTÁ SENTADO                    ║
+    // ║                                                                   ║
+    // ║  Os dois jogadores olhavam a mesa do MESMO lado: o jogador 2 via  ║
+    // ║  a mão dele no alto da tela e a do inimigo embaixo, como se       ║
+    // ║  estivesse sentado AO LADO do jogador 1 em vez de DE FRENTE.      ║
+    // ║                                                                   ║
+    // ║  Agora, no cliente do jogador 2, a câmera e a face das cartas     ║
+    // ║  giram 180° em torno do Y do mundo. Girar a cena inteira E a      ║
+    // ║  câmera pelo mesmo ângulo dá exatamente a MESMA imagem — então    ║
+    // ║  ele vê a própria mão embaixo, o inimigo em cima e a carta na     ║
+    // ║  leitura certa, sem que nada mude de lugar no mundo.              ║
+    // ║                                                                   ║
+    // ║  100% local: o mundo não se mexe, só o ponto de vista. O lockstep ║
+    // ║  não vê diferença nenhuma — offline/treino usam o lado do P1.     ║
+    // ╚══════════════════════════════════════════════════════════════════╝
+    public static int LocalViewPlayer
+    {
+        get
+        {
+            if (PhotonNetwork.inRoom && !PhotonNetwork.offlineMode &&
+                PhotonGameManager.Instance != null &&
+                PhotonGameManager.Instance.myPlayerNumber != 0)
+                return PhotonGameManager.Instance.myPlayerNumber;
+            return 1;
+        }
+    }
+
+    public static bool ViewFlipped { get { return LocalViewPlayer == 2; } }
+
+    // O giro que TODA carta recebe para ficar de frente para quem está vendo
+    public static float ViewYaw { get { return ViewFlipped ? 0f : 180f; } }
+
+    // Deitada sobre o tile (tabuleiro e loja), face para cima
+    public static Quaternion BoardRotation { get { return Quaternion.Euler(0f, ViewYaw, 0f); } }
+
+    // Em pé na mão, de frente para a câmera
+    public static Quaternion HandRotation { get { return Quaternion.Euler(90f, ViewYaw, 0f); } }
+
+    // Reaplica o giro em todas as cartas já criadas. Necessário porque o
+    // número do jogador local chega DEPOIS (SyncPlayers do Photon): as cartas
+    // que nasceram antes disso vieram viradas para o lado errado.
+    public static void RefreshViewRotation()
+    {
+        foreach (CardDisplay cd in FindObjectsByType<CardDisplay>(FindObjectsSortMode.None))
+            if (cd != null) cd.ApplyViewRotation();
+    }
+
+    public void ApplyViewRotation()
+    {
+        Quaternion want = isInHand ? HandRotation : BoardRotation;
+        if (transform.rotation == want) return;
+
+        // O personagem 3D encara o lado INIMIGO em coordenadas de MUNDO — ele
+        // não pode girar junto com a carta, senão passa a lutar de costas.
+        // (A posição dele, essa sim, acompanha: o boneco fica na metade da
+        // carta virada para longe de quem olha, dos dois lados.)
+        Quaternion figRot = boardFigure != null ? boardFigure.transform.rotation : Quaternion.identity;
+        transform.rotation = want;
+        if (boardFigure != null) boardFigure.transform.rotation = figRot;
+    }
 
     // Na LOJA e na MÃO a carta fica "em pé" (de frente para a câmera): o centro
     // precisa subir metade do comprimento dela (1.25 × escala) + folga,
@@ -913,6 +973,12 @@ public class CardDisplay : MonoBehaviour
     private CardActionDots actionDots;
     private CardAuraIndicator auraIndicator;
 
+    // Carta em campo vira UNIDADE: o papel se dissolve e sobra o personagem
+    // com a placa de stats + os nomes dos status embaixo dele (CardBoardPlaque).
+    // null = a carta ainda está inteira (loja, mão, ou fora do tabuleiro).
+    private CardBoardPlaque boardPlaque;
+    public bool InPlaqueMode { get { return boardPlaque != null; } }
+
     void UpdateStatusVisuals()
     {
         CardStatusVisuals visuals = GetComponent<CardStatusVisuals>();
@@ -934,19 +1000,33 @@ public class CardDisplay : MonoBehaviour
             auraIndicator.Init(this);
         }
 
-        visuals.SetFrozen(isFrozen);
+        // Carta em campo (modo placa): os painéis translúcidos e as faixas
+        // gigantes eram desenhados EM CIMA DA CARTA — sem carta eles viravam
+        // retângulos coloridos soltos no tile. Quem comunica status agora é a
+        // linha de nomes embaixo do personagem (CardBoardPlaque).
+        bool placa = boardPlaque != null;
+
+        visuals.SetFrozen(!placa && isFrozen);
         // Dormindo (Sono) reusa o overlay de atordoada: comunica "não age"
-        visuals.SetStunned(isStunned || IsSleeping());
-        visuals.SetEagleMark(eagleMarked);
-        visuals.SetInvulnerable(invulnerableRoundsLeft > 0);
-        visuals.SetTreeDefense(treeDefenseActive);
-        visuals.SetTaunted(IsTaunted());
+        visuals.SetStunned(!placa && (isStunned || IsSleeping()));
+        visuals.SetEagleMark(!placa && eagleMarked);
+        visuals.SetInvulnerable(!placa && invulnerableRoundsLeft > 0);
+        visuals.SetTreeDefense(!placa && treeDefenseActive);
+        visuals.SetTaunted(!placa && IsTaunted());
+
+        if (placa) boardPlaque.RefreshStatus();
 
         // Número acima da carta: duração de status tem prioridade sobre o
         // contador de efeito periódico. Amarelo = turnos, rosa = rounds.
+        // No modo placa a duração de cada status já vai escrita no chip dele
+        // ("CONGELADA 2"), então sobra o contador de efeito PERIÓDICO
         int counterShown = -1;
         bool counterIsRound = false;
-        if (isFrozen && freezeTurnsLeft > 0) { counterShown = freezeTurnsLeft; }
+        if (placa)
+        {
+            if (effectCounter > 0) { counterShown = effectCounter; counterIsRound = effectCounterIsRound; }
+        }
+        else if (isFrozen && freezeTurnsLeft > 0) { counterShown = freezeTurnsLeft; }
         else if (isStunned && stunTurnsLeft > 0) { counterShown = stunTurnsLeft; }
         else if (sleepTurnsLeft > 0) { counterShown = sleepTurnsLeft; }
         else if (rootTurnsLeft > 0) { counterShown = rootTurnsLeft; }
@@ -1257,7 +1337,7 @@ public class CardDisplay : MonoBehaviour
     static readonly System.Collections.Generic.Dictionary<string, Mesh> roundedMeshCache =
         new System.Collections.Generic.Dictionary<string, Mesh>();
 
-    static Mesh GetRoundedRectMesh(float width, float height, float radius)
+    internal static Mesh GetRoundedRectMesh(float width, float height, float radius)
     {
         string key = width.ToString("F3") + "x" + height.ToString("F3") + "x" + radius.ToString("F3");
         Mesh cached;
@@ -1385,7 +1465,7 @@ public class CardDisplay : MonoBehaviour
     }
 
     // Aro (contorno) de retângulo arredondado — os filetes dourados
-    static Mesh GetRoundedRingMesh(float width, float height, float radius, float thickness)
+    internal static Mesh GetRoundedRingMesh(float width, float height, float radius, float thickness)
     {
         string key = "ring:" + width.ToString("F3") + "x" + height.ToString("F3") +
                      "x" + radius.ToString("F3") + "x" + thickness.ToString("F3");
@@ -2162,9 +2242,16 @@ public class CardDisplay : MonoBehaviour
         GameObject prefab = ownPrefab != null ? ownPrefab
                           : (isOnBoard && card != null ? GetFigurePrefab(card.cardClass) : null);
 
-        // Saiu do tabuleiro (ou classe sem modelo): remove a figura
+        // Saiu do tabuleiro (ou classe sem modelo): remove a figura e devolve
+        // o papel da carta (ela volta a ser lida como carta)
         if (prefab == null)
         {
+            if (boardPlaque != null)
+            {
+                boardPlaque.Exit();
+                Destroy(boardPlaque);
+                boardPlaque = null;
+            }
             if (boardFigure != null)
             {
                 Destroy(boardFigure);
@@ -2242,6 +2329,22 @@ public class CardDisplay : MonoBehaviour
             // sozinho (se a arma entrasse antes, um arco mais alto que o
             // arqueiro encolheria ele para caber)
             if (kaykit) AttachHandItems(boardFigure, card.cardClass);
+
+            // A CARTA VIRA UNIDADE: o papel se dissolve numa onda dourada e
+            // ficam só o personagem, a placa de stats e os nomes dos status.
+            // Nome, arte e efeito seguem no tooltip (mouse em cima) e na
+            // inspeção do botão direito.
+            if (boardPlaque == null)
+            {
+                boardPlaque = gameObject.AddComponent<CardBoardPlaque>();
+                boardPlaque.Enter(this, true);
+                // O UpdateStatusVisuals desta passada rodou ANTES da placa
+                // existir e pode ter criado os painéis antigos (uma unidade
+                // invocada já congelada, por exemplo). Roda de novo agora que
+                // o modo placa está ligado — sem efeito colateral: os flashes
+                // comparam com os stats já registrados.
+                UpdateStatusVisuals();
+            }
         }
 
         // Tom do dono (azul = P1, vermelho = P2). Como agora há textura, é um
@@ -2258,9 +2361,10 @@ public class CardDisplay : MonoBehaviour
             figureBaseMat.SetColor("_BaseColor", ownerTint);
         }
 
-        // Com o mouse em cima a figura fica FANTASMA (translúcida): o efeito
-        // da carta continua legível e as animações seguem visíveis
-        SetFigureGhost(isMouseOver);
+        // Com o mouse em cima a figura ficava FANTASMA para deixar ler a carta
+        // por baixo. No modo placa não há carta por baixo — quem informa é o
+        // tooltip, então o personagem continua sólido.
+        SetFigureGhost(isMouseOver && boardPlaque == null);
     }
 
     // Material único da figura: shader URP com a textura do modelo. Unlit
@@ -2383,6 +2487,18 @@ public class CardDisplay : MonoBehaviour
             float k = TargetWorldHeight / b.size.y;
             boardFigure.transform.localScale = boardFigure.transform.localScale * k * tweak.scale;
         }
+
+        // ...mas a ALTURA não pode ser o único critério: modelos que vêm com
+        // pedestal/base larga ficavam com a pegada enorme e o pé passando por
+        // cima da linha de status (bug relatado pelo Carlos). Se a pegada
+        // estourar o limite, encolhe mais — na casa, quem manda é a base.
+        const float MaxWorldFootprint = 2.8f;
+        b = renderers[0].bounds;
+        for (int i = 1; i < renderers.Length; i++) b.Encapsulate(renderers[i].bounds);
+        float pegada = Mathf.Max(b.size.x, b.size.z);
+        if (pegada > MaxWorldFootprint)
+            boardFigure.transform.localScale =
+                boardFigure.transform.localScale * (MaxWorldFootprint / pegada);
 
         // Re-mede depois da escala e posiciona a figura EM CIMA DA ARTE da
         // carta (zona local z -0.35, metade de cima) — assim a caixa de efeito
@@ -2591,7 +2707,7 @@ public class CardDisplay : MonoBehaviour
             // Destaque leve no tabuleiro; a figura 3D fica translúcida para o
             // efeito da carta ficar legível enquanto o mouse estiver em cima
             transform.localScale = preHoverScale * 1.15f;
-            SetFigureGhost(true);
+            if (boardPlaque == null) SetFigureGhost(true);
         }
     }
 
@@ -3152,6 +3268,14 @@ public class CardDisplay : MonoBehaviour
         if (discount > 0)
             Debug.Log($"[DiscountedCost] Desconto de {discount} na 1ª compra do turno ({cost} → {Mathf.Max(0, cost - discount)})");
         return Mathf.Max(0, cost - discount);
+    }
+
+    // [DECKMODE] O modo deck entrega cartas compradas do baralho direto na mão
+    // (DeckMode.GiveCardToHand) e precisa apontar o handManager privado — o
+    // mesmo que o ExecuteBuy faz por dentro
+    public void AssignHandManager(HandManager hm)
+    {
+        handManager = hm;
     }
 
     // Busca o HandManager correto para o jogador

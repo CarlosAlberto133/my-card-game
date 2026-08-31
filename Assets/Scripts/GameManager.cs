@@ -353,11 +353,19 @@ public class GameManager : MonoBehaviour
         {
             Debug.Log($"[Mana] Sem mana para invocar {selectedCardDisplay.card.cardName} " +
                       $"(custa {manaCost}, você tem {placer.mana})!");
+
+            string aviso = $"Mana insuficiente!\n{selectedCardDisplay.card.cardName} custa {manaCost} de mana " +
+                           $"e você tem {placer.mana}.\nA mana restaura ao passar o turno.";
+
+            // A carta NÃO tem como ser jogada neste turno (a mana só volta ao
+            // passar a vez), então a seleção não serve mais para nada: solta ela
+            // junto com os destaques das casas. Cancelar AQUI, e não no botão
+            // do popup, cobre qualquer jeito de fechar o aviso.
+            CancelSelection();
+
             if (GameUIManager.Instance != null)
                 GameUIManager.Instance.ShowDecisionPopup(
-                    $"Mana insuficiente!\n{selectedCardDisplay.card.cardName} custa {manaCost} de mana " +
-                    $"e você tem {placer.mana}.\nA mana restaura ao passar o turno.",
-                    "Entendi", () => { }, "Fechar", () => { });
+                    aviso, "Entendi", () => { }, "Fechar", () => { });
             return false;
         }
 

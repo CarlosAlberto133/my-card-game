@@ -129,7 +129,10 @@ public static class TowerSystem
         { Debug.LogWarning($"[TowerSystem] P{player}: carta {cardId} não está na oferta do round {round}"); return; }
         if (lastBuyRound[player] == round)
         { Debug.LogWarning($"[TowerSystem] P{player}: já comprou nesta janela"); return; }
-        if (p.gold < TowerCard.GoldCost)
+        // [DECKMODE] Modo deck não tem ouro: a carta de torre é GRATUITA
+        // (segue 1 por janela, via lastBuyRound)
+        int towerCost = DeckMode.Active ? 0 : TowerCard.GoldCost;
+        if (p.gold < towerCost)
         { Debug.LogWarning($"[TowerSystem] P{player}: ouro insuficiente"); return; }
         if (equipped[player].Contains(cardId)) return;
 
@@ -150,7 +153,7 @@ public static class TowerSystem
             return;
         }
 
-        p.gold -= TowerCard.GoldCost;
+        p.gold -= towerCost; // [DECKMODE] 0 no modo deck
         lastBuyRound[player] = round;
         Debug.Log($"[TowerSystem] P{player} equipou '{card.cardName}' na torre (round {round})");
 

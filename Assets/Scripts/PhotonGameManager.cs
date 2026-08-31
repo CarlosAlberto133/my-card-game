@@ -775,6 +775,10 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
         // anfitrião — room property "theme" —, só a decoração é re-semeada)
         BoardThemeManager.SetSeed(seed);
 
+        // [DECKMODE] Revanche: re-embaralha com a seed nova e republica o deck
+        // (chaves das props escopadas pela seed — as velhas não vazam)
+        if (DeckMode.Active) DeckMode.OnSeedKnown(seed);
+
         if (TurnManager.Instance != null)
             TurnManager.Instance.RestartGame();
     }
@@ -875,6 +879,10 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
         // Entrega a seed ao cenário (decoração determinística; o mapa em si vem
         // da escolha do anfitrião via room property "theme")
         BoardThemeManager.SetSeed(seed);
+
+        // [DECKMODE] Modo deck: publica o deck local e prepara a sincronização
+        // (o SpawnRandomCards abaixo vira no-op — a guarda está no CardManager)
+        if (DeckMode.Active) DeckMode.OnSeedKnown(seed);
 
         UnityEngine.Random.InitState(seed);
         Debug.Log($"[PhotonGame] Random.InitState({seed}) aplicado");

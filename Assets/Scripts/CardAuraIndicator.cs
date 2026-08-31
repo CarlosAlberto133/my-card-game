@@ -312,6 +312,8 @@ public class CardAuraIndicator : MonoBehaviour
     //           Flecha Fiel)
     // Um manager único reavalia o campo 4x por segundo (barato, só leitura).
 
+    const string HaloDiscName = "AuraHaloDisc";
+
     static readonly Color ProtectHalo = new Color(0.24f, 0.85f, 0.36f);
     static readonly Color BuffHalo = new Color(0.30f, 0.62f, 1.00f);
 
@@ -362,6 +364,18 @@ public class CardAuraIndicator : MonoBehaviour
             foreach (var kv in wanted)
             {
                 Renderer halo;
+                // O halo é criado uma vez e guardado. Se a carta entrou em
+                // campo DEPOIS dele (o tique roda 4x por segundo, pode pegar a
+                // janela entre "isOnBoard" e a placa nascer), a placa antiga
+                // precisa virar disco — senão fica um retângulo solto na casa.
+                bool quer = kv.Key.InPlaqueMode;
+                if (halos.TryGetValue(kv.Key, out halo) && halo != null &&
+                    quer != (halo.gameObject.name == HaloDiscName))
+                {
+                    Destroy(halo.gameObject);
+                    halo = null;
+                    halos.Remove(kv.Key);
+                }
                 if (!halos.TryGetValue(kv.Key, out halo) || halo == null)
                 {
                     halo = BuildHalo(kv.Key);
@@ -384,10 +398,17 @@ public class CardAuraIndicator : MonoBehaviour
             foreach (var dead in toRemove) halos.Remove(dead);
         }
 
-        // Placa fina e OPACA sob a carta, maior que o corpo (1.8 x 2.5) — as
-        // bordas aparecem em volta, como uma base iluminada
+        // Base iluminada sob a unidade.
+        //
+        // ATENÇÃO: com a carta em campo virando UNIDADE (CardBoardPlaque), a
+        // placa antiga — do tamanho da carta, 1.8 x 2.5 — deixava de ser "uma
+        // borda acesa por baixo da carta" e virava um retângulo colorido solto
+        // na casa. Em campo ela vira um DISCO em volta dos pés, no lugar do
+        // anel do dono; fora dele (loja/mão) continua a placa de antes.
         static Renderer BuildHalo(CardDisplay target)
         {
+            if (target.InPlaqueMode) return BuildHaloDisc(target);
+
             GameObject plate = GameObject.CreatePrimitive(PrimitiveType.Cube);
             plate.name = "AuraHalo";
             plate.transform.SetParent(target.transform, false);
@@ -403,6 +424,24 @@ public class CardAuraIndicator : MonoBehaviour
             if (shader != null && r != null) r.material = new Material(shader);
             return r;
         }
+    }
+
+    // Disco aceso em volta dos pés da unidade (modo placa). Fica logo por
+    // fora do anel do dono, então lê como uma auréola no chão.
+    static Renderer BuildHaloDisc(CardDisplay target)
+    {
+        GameObject go = new GameObject(HaloDiscName);
+        go.transform.SetParent(target.transform, false);
+        go.transform.localPosition = new Vector3(0f, 0.003f, -0.35f);
+        go.AddComponent<MeshFilter>().sharedMesh =
+            CardDisplay.GetRoundedRingMesh(1.72f, 1.72f, 0.86f, 0.10f);
+
+        Renderer r = go.AddComponent<MeshRenderer>();
+        Shader shader = Shader.Find("Sprites/Default")
+                     ?? Shader.Find("Universal Render Pipeline/Unlit")
+                     ?? Shader.Find("Unlit/Color");
+        if (shader != null) r.material = new Material(shader);
+        return r;
     }
 
     // Moldura OPACA (4 barras — quads transparentes dão bug de sorting no

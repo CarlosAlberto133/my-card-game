@@ -25,6 +25,14 @@ Recordings/
 # Biblioteca de assets de decoração (fora do build; só os curados vão em Resources/decor)
 decor-library/
 
+# Biblioteca de sons (Sonniss GDC Bundle, ~1.2GB; só os curados vão em Resources/Sounds)
+sons-library/
+Sonniss*
+
+# Pasta de trabalho das peças de cenário geradas no Meshy (FBX + os 4 mapas PBR
+# 2K de cada peça). Só a versão instalada em Resources/decor/cenario é versionada.
+peças-cenário/
+
 # Pasta de triagem de modelos (FBX pesados, ainda sem nome/uso definido)
 Assets/_Import/
 Assets/_Import.meta
@@ -35,3 +43,30 @@ Assets/_Import.meta
 # versionadas normalmente.
 Assets/Resources/cards/figures/*.fbx
 Assets/Resources/cards/figures/*.fbx.meta
+
+# Recuperação de crash do Unity e upgrade automático de terreno (lixo gerado)
+Assets/_Recovery/
+Assets/_Recovery.meta
+Assets/_TerrainAutoUpgrade/
+Assets/_TerrainAutoUpgrade.meta
+
+# Packs de decoração CRUS despejados em Resources. O código só carrega a pasta
+# curada decor/kaykit — e tudo o que fica sob Resources/ entra no build inteiro,
+# então estes não podem ser versionados nem ficar aí.
+Assets/Resources/decor/KayKit_*
+Assets/Resources/decor/*MegaKit*
+Assets/Resources/decor/*megakit*
+
+# Pastas de trabalho fora do projeto (arte, áudio, releases, instalador)
+audio/
+cg-releases/
+installer/*.exe
+personagens/
+animações-teste/
+Cartas mágicas/
+arte-ia/__pycache__/
+
+# Prints e planilhas de referência soltos NA RAIZ (a barra inicial é essencial:
+# sem ela isto engoliria a arte 2D das cartas em Assets/Resources/cards)
+/*.png
+/*.xlsx

@@ -152,6 +152,12 @@ public class BoardThemeManager : MonoBehaviour
     // false = casas simples, para você colocar o visual que quiser por baixo
     public const bool TesteUseStoneTiles = true;
 
+    // Peça de chão PRÓPRIA (Meshy) no lugar da casa de pedra do KayKit, nos
+    // mapas que usam pedra (Mesa de RPG, Floresta e Teste). O arquivo mora em
+    // Resources/decor/cenario/<slug>.fbx com <slug>_tex.png ao lado.
+    // null = volta para o KayKit, sem mais nenhuma mudança.
+    public const string CustomStoneTile = "piso-tabuleiro";
+
     // Liga/desliga o cenário montado à mão. Procura INCLUSIVE objetos
     // desativados (é assim que ele fica guardado na cena).
     static void ShowTesteStage(bool show)
@@ -231,8 +237,14 @@ public class BoardThemeManager : MonoBehaviour
                 float yRot = 90f * rng.Next(4); // giro aleatório (quebra a repetição)
 
                 Renderer pieceRenderer;
-                GameObject piece = DecorProps.PlaceFloor(tile.transform, model,
-                    tile.transform.position, board.tileSize, yRot, out pieceRenderer);
+                GameObject piece;
+
+                if (!dirt && CustomStoneTile != null)
+                    piece = DecorProps.PlaceSceneryFloor(tile.transform, CustomStoneTile,
+                        tile.transform.position, board.tileSize, yRot, out pieceRenderer);
+                else
+                    piece = DecorProps.PlaceFloor(tile.transform, model,
+                        tile.transform.position, board.tileSize, yRot, out pieceRenderer);
 
                 if (piece != null && pieceRenderer != null)
                     tile.AdoptVisual(piece, pieceRenderer);

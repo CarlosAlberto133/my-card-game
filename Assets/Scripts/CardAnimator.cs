@@ -25,7 +25,37 @@ public class CardAnimator : MonoBehaviour
         if (active) transform.position = home;
         else home = transform.position;
         StopAllCoroutines();
+        lastApplied = transform.position;
         active = true;
+    }
+
+    // ⚠️ O movimento entre casas é um TELEPORTE (GameManager.ExecuteMoveCard
+    // escreve transform.position direto). Se um pulinho/tremor estivesse
+    // rodando na hora, ele terminava devolvendo a carta para a posição de
+    // descanso ANTIGA: a unidade voltava sozinha para a casa de onde saiu e
+    // parecia "travada, sem poder andar" (ela já tinha gasto o movimento).
+    // Solução: toda animação anda em OFFSETS a partir de 'home', e a cada
+    // frame conferimos se alguém mexeu na carta por fora — se mexeu, 'home'
+    // acompanha o novo lugar e a animação continua lá.
+    private Vector3 lastApplied;
+
+    private void Reanchor()
+    {
+        Vector3 pos = transform.position;
+        if ((pos - lastApplied).sqrMagnitude > 0.0001f) home += pos - lastApplied;
+    }
+
+    private void Apply(Vector3 pos)
+    {
+        transform.position = pos;
+        lastApplied = pos;
+    }
+
+    private void Settle()
+    {
+        Reanchor();
+        Apply(home);
+        active = false;
     }
 
     // Investida: avança na direção do alvo e recua (ataque)
@@ -42,12 +72,11 @@ public class CardAnimator : MonoBehaviour
         dir.y = 0f; // Mantém no plano do tabuleiro
         if (dir.sqrMagnitude < 0.0001f) dir = Vector3.forward;
         // Avança ~35% do caminho até o alvo (limitado para não voar longe)
-        Vector3 peak = home + Vector3.ClampMagnitude(dir * 0.35f, 3.5f);
+        Vector3 peak = Vector3.ClampMagnitude(dir * 0.35f, 3.5f);
 
-        yield return Move(home, peak, 0.10f, EaseOut);   // Estocada rápida
-        yield return Move(peak, home, 0.16f, EaseIn);    // Recuo mais lento
-        transform.position = home;
-        active = false;
+        yield return Move(Vector3.zero, peak, 0.10f, EaseOut);   // Estocada rápida
+        yield return Move(peak, Vector3.zero, 0.16f, EaseIn);    // Recuo mais lento
+        Settle();
     }
 
     // Tremor: sacode a carta ao levar dano
@@ -66,13 +95,13 @@ public class CardAnimator : MonoBehaviour
         while (t < duration)
         {
             t += Time.deltaTime;
+            Reanchor();
             float decay = 1f - (t / duration);              // Some com o tempo
             float offset = Mathf.Sin(t * 60f) * amplitude * decay;
-            transform.position = home + new Vector3(offset, 0f, 0f);
+            Apply(home + new Vector3(offset, 0f, 0f));
             yield return null;
         }
-        transform.position = home;
-        active = false;
+        Settle();
     }
 
     // Pulinho: pequeno salto ao ganhar status/ser curada
@@ -85,22 +114,22 @@ public class CardAnimator : MonoBehaviour
 
     private IEnumerator HopRoutine()
     {
-        const float height = 0.6f;
-        Vector3 top = home + new Vector3(0f, height, 0f);
-        yield return Move(home, top, 0.12f, EaseOut);
-        yield return Move(top, home, 0.16f, EaseIn);
-        transform.position = home;
-        active = false;
+        Vector3 top = new Vector3(0f, 0.6f, 0f);
+        yield return Move(Vector3.zero, top, 0.12f, EaseOut);
+        yield return Move(top, Vector3.zero, 0.16f, EaseIn);
+        Settle();
     }
 
+    // from/to são DESLOCAMENTOS em relação a 'home' (ver Reanchor)
     private IEnumerator Move(Vector3 from, Vector3 to, float duration, System.Func<float, float> ease)
     {
         float t = 0f;
         while (t < duration)
         {
             t += Time.deltaTime;
+            Reanchor();
             float k = ease(Mathf.Clamp01(t / duration));
-            transform.position = Vector3.LerpUnclamped(from, to, k);
+            Apply(home + Vector3.LerpUnclamped(from, to, k));
             yield return null;
         }
     }

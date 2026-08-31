@@ -100,6 +100,10 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         ui = new LobbyUI(canvas);
         ui.OnListClosed = () => { state = State.Idle; };
 
+        // [DECKMODE] Botão "Montar Deck (beta)" no canto — abre o construtor
+        // de decks do modo deck. Para DESATIVAR o modo: comente esta linha
+        DeckBuilderUI.AddEntryButton(canvas);
+
         // Título do jogo + painel de perfil (estatísticas da conta do launcher)
         LobbyProfileUI.Build(canvas);
 
@@ -421,6 +425,8 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         // properties normalmente — a cena do jogo lê "theme" como sempre
         Hashtable props = new Hashtable();
         props["theme"] = botMapTheme;
+        // [DECKMODE] modo escolhido no popup do treino (0 = padrão, 1 = deck)
+        props["mode"] = ui != null ? ui.SelectedBotGameMode : 0;
         if (PhotonNetwork.room != null) PhotonNetwork.room.SetCustomProperties(props);
 
         LoadGameScene();
@@ -613,6 +619,8 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         Hashtable props = new Hashtable();
         props["start"] = 1;
         props["theme"] = ui != null ? ui.SelectedMapTheme : 1;
+        // [DECKMODE] modo de jogo escolhido pelo anfitrião (0 = padrão, 1 = deck)
+        props["mode"] = ui != null ? ui.SelectedGameMode : 0;
         PhotonNetwork.room.SetCustomProperties(props);
 
         LoadGameScene();

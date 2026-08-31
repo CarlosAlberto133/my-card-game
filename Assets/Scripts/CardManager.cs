@@ -118,6 +118,10 @@ public class CardManager : MonoBehaviour
 
     public void SpawnRandomCards()
     {
+        // [DECKMODE] Modo deck: NÃO existe loja — as cartas vêm do baralho
+        // (cobre o spawn inicial, o OnGameStart e o refresh de round)
+        if (DeckMode.Active) return;
+
         Debug.Log("[CardManager] SpawnRandomCards() chamado");
 
         if (UsePerPlayerShops())
@@ -507,7 +511,9 @@ public class CardManager : MonoBehaviour
             return null;
         }
 
-        GameObject cardObject = Instantiate(cardPrefab, position, Quaternion.Euler(90, 180, 0));
+        // Nasce em pé, de frente para QUEM ESTÁ VENDO (o jogador 2 olha a
+        // mesa do outro lado — ver CardDisplay.ViewFlipped)
+        GameObject cardObject = Instantiate(cardPrefab, position, CardDisplay.HandRotation);
         cardObject.transform.localScale = Vector3.one * cardScale;
 
         CardDisplay display = cardObject.GetComponent<CardDisplay>();

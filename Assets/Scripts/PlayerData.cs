@@ -17,6 +17,9 @@ public class PlayerData
     // Só muda dentro de RPCs (lockstep)
     public const int MaxMana = 6;
     public int mana = MaxMana;
+    // [DECKMODE] Teto ATUAL de mana: no modo padrão é sempre 6 (comportamento
+    // idêntico ao anterior); no modo deck sobe com a rampa (DeckMode.OnTurnStarted)
+    public int manaCap = MaxMana;
     public int freePurchases = 0; // Compras grátis pendentes (Healer 5) — não gastam ouro nem limite; persistem até usar
 
     // Fase inicial de compras: começa com 20 de ouro (teto 20); quando a partida
@@ -85,7 +88,8 @@ public class PlayerData
         cardsBoughtThisTurn = 0;
         storeResetsThisTurn = 0;
         spellsCastThisTurn = 0;
-        mana = MaxMana; // mana volta cheia ao passar o turno (não acumula)
+        mana = manaCap; // mana volta cheia ao passar o turno (não acumula)
+                        // [DECKMODE] manaCap = 6 fixo no padrão; rampa no modo deck
     }
 
     public bool CanPayMana(int cost)

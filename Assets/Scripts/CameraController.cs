@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Rendering.Universal;
@@ -41,12 +42,44 @@ public class CameraController : MonoBehaviour
     [Range(20f, 60f)]
     public float fieldOfView = 35f;
 
+    [Header("Abertura (fase de compras)")]
+    [Tooltip("Inclinação na fase de compras. 60° é a visão de cima da versão antiga: dá para ver o tabuleiro inteiro e as duas mãos de uma vez.")]
+    [Range(25f, 90f)]
+    public float openingTilt = 60f;
+    [Tooltip("Zoom (meia-altura visível) da fase de compras — grande o bastante para caber tabuleiro + mãos.")]
+    public float openingZoom = 28f;
+    [Tooltip("Quanto o enquadramento da abertura desce no eixo Z em relação ao da partida. Negativo puxa para a mão do jogador 1, centralizando as duas mãos na tela.")]
+    public float openingOffsetZ = -7f;
+    [Tooltip("Duração (segundos) da descida suave quando os 2 jogadores clicam em Iniciar Partida.")]
+    public float descentDuration = 2.2f;
+
+    private static CameraController instance;
+
     private Vector3 lastMousePos;
     private Camera mainCamera;
     private float targetZoom;
     private float currentZoom;             // meia-altura visível (em unidades) no ponto do chão olhado
     private float appliedTilt = float.NaN; // última inclinação aplicada (NaN = nenhuma)
     private float appliedFov = float.NaN;
+
+    // Enquadramento da PARTIDA (o de hoje), capturado da cena no Start: o ponto
+    // do chão que a câmera original olha. É para cá que a descida termina.
+    private Vector3 playTarget;
+    private float playTilt;
+    private float playZoom;
+    private Coroutine descida;             // != null enquanto a câmera se move sozinha
+    private bool naAbertura;               // true enquanto a fase de compras não acabou
+    private int appliedViewPlayer;         // lado da mesa já aplicado (0 = nenhum)
+
+    void Awake()
+    {
+        instance = this;
+    }
+
+    void OnDestroy()
+    {
+        if (instance == this) instance = null;
+    }
 
     void Start()
     {
@@ -69,9 +102,30 @@ public class CameraController : MonoBehaviour
             mainCamera.farClipPlane = 1000f;
             appliedFov = fieldOfView;
 
+            // Enquadramento da PARTIDA: o ponto do chão que a câmera da cena
+            // olha (≈ centro do tabuleiro), com o tilt e o zoom de jogo.
+            // Guardado antes de qualquer coisa — é o destino da descida.
+            playTilt = tiltAngle;
+            playZoom = targetZoom;
+            if (!GroundTarget(out playTarget)) playTarget = Vector3.zero;
+
             // A cena guarda a câmera a 60° (quase de cima); aqui ela deita
             // para o ângulo configurado, mirando o mesmo ponto do tabuleiro
             ApplyTilt();
+
+            // Fase de compras: começa NA VISÃO DE CIMA (a antiga), mostrando
+            // tabuleiro e mãos inteiros. Só desce quando os dois clicarem em
+            // Iniciar Partida. Entrar direto no meio de uma partida (recarga
+            // de cena) mantém a câmera de jogo.
+            if (TurnManager.Instance == null ||
+                TurnManager.Instance.gameState == GameState.Lobby)
+            {
+                AplicarAbertura();
+            }
+
+            // De que lado da mesa este cliente senta (jogador 2 = 180°).
+            // Pode ainda não se saber aqui — o Update reconfere.
+            SincronizarLadoDaMesa();
 
             // Câmera overlay da loja: filha da principal (acompanha posição,
             // rotação e lente), desenha SÓ a camada da loja limpando o depth
@@ -126,15 +180,122 @@ public class CameraController : MonoBehaviour
     {
         Vector3 alvoNoChao;
         if (!GroundTarget(out alvoNoChao)) return; // câmera não olha para baixo
+        Enquadrar(alvoNoChao);
+    }
 
+    // Coloca a câmera no tilt/zoom atuais olhando exatamente para 'alvoNoChao'
+    void Enquadrar(Vector3 alvoNoChao)
+    {
         transform.rotation = Quaternion.Euler(tiltAngle, transform.eulerAngles.y, 0f);
         transform.position = alvoNoChao - transform.forward * DistanceForZoom();
         appliedTilt = tiltAngle;
     }
 
+    // ╔══════════════════════════════════════════════════════════════════╗
+    // ║  ABERTURA → PARTIDA                                               ║
+    // ║  A fase de compras usa a câmera antiga (de cima, tabuleiro e as   ║
+    // ║  duas mãos na tela). Quando os DOIS clicam em Iniciar Partida a   ║
+    // ║  câmera desce suavemente até o enquadramento de jogo.             ║
+    // ║  Puramente visual: nada aqui mexe em estado de partida, então     ║
+    // ║  não precisa de RPC (o StartGame já roda nos dois clientes).      ║
+    // ╚══════════════════════════════════════════════════════════════════╝
+    void AplicarAbertura()
+    {
+        naAbertura = true;
+        tiltAngle = openingTilt;
+        currentZoom = targetZoom = openingZoom;
+        Enquadrar(AlvoDaAbertura());
+    }
+
+    // "Para baixo na tela" é +z para o jogador 1 e -z para o jogador 2 — o
+    // deslocamento da abertura acompanha o lado de quem está vendo.
+    Vector3 AlvoDaAbertura()
+    {
+        float lado = CardDisplay.ViewFlipped ? -1f : 1f;
+        return playTarget + new Vector3(0f, 0f, openingOffsetZ * lado);
+    }
+
+    // ── LADO DA MESA ─────────────────────────────────────────────────────
+    // O jogador 2 senta DE FRENTE: a câmera dele gira 180° em torno do Y, e
+    // as cartas giram junto (CardDisplay.RefreshViewRotation) — a imagem sai
+    // idêntica à do jogador 1, com a mão dele embaixo. Não dá para fazer isso
+    // só no Start: o número do jogador local chega pelo Photon depois.
+    void SincronizarLadoDaMesa()
+    {
+        int me = CardDisplay.LocalViewPlayer;
+        if (me == appliedViewPlayer) return;
+        appliedViewPlayer = me;
+
+        // O ponto que a câmera enquadra espelha junto (veio da câmera da cena,
+        // que estava um pouco à frente do centro — do lado do jogador 1)
+        playTarget = new Vector3(playTarget.x, 0f,
+            Mathf.Abs(playTarget.z) * (me == 2 ? -1f : 1f));
+
+        transform.rotation = Quaternion.Euler(tiltAngle, me == 2 ? 180f : 0f, 0f);
+        Enquadrar(naAbertura ? AlvoDaAbertura() : playTarget);
+
+        CardDisplay.RefreshViewRotation();
+        Debug.Log($"[Camera] Vendo a mesa do lado do jogador {me}.");
+    }
+
+    // Chamado pelo TurnManager quando a partida começa de verdade
+    public static void DescerParaPartida()
+    {
+        if (instance == null || instance.mainCamera == null) return;
+        if (instance.descida != null) instance.StopCoroutine(instance.descida);
+        instance.descida = instance.StartCoroutine(instance.Descer());
+    }
+
+    // Chamado no reinício (revanche): a fase de compras volta a ser vista de cima
+    public static void VoltarParaAbertura()
+    {
+        if (instance == null || instance.mainCamera == null) return;
+        if (instance.descida != null) { instance.StopCoroutine(instance.descida); instance.descida = null; }
+        instance.AplicarAbertura();
+    }
+
+    IEnumerator Descer()
+    {
+        // A escolha da torre abre um painel que cobre a tela inteira: descer
+        // atrás dele seria animação jogada fora. Espera ele sair da frente.
+        while (TowerSelectUI.IsOpen) yield return null;
+
+        Vector3 alvo0;
+        if (!GroundTarget(out alvo0)) alvo0 = AlvoDaAbertura();
+        Vector3 alvo1 = new Vector3(alvo0.x, 0f, playTarget.z); // mantém o lado para onde o jogador arrastou
+        float tilt0 = tiltAngle, zoom0 = currentZoom;
+
+        float t = 0f;
+        while (t < 1f)
+        {
+            t += Time.deltaTime / Mathf.Max(0.01f, descentDuration);
+            // SmoothStep: sai devagar, ganha corpo no meio e encosta macio no fim
+            float k = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(t));
+            tiltAngle = Mathf.Lerp(tilt0, playTilt, k);
+            currentZoom = targetZoom = Mathf.Lerp(zoom0, playZoom, k);
+            Enquadrar(Vector3.Lerp(alvo0, alvo1, k));
+            yield return null;
+        }
+
+        tiltAngle = playTilt;
+        currentZoom = targetZoom = playZoom;
+        Enquadrar(alvo1);
+        naAbertura = false;
+        descida = null;
+    }
+
     void Update()
     {
-        if (Mouse.current == null || mainCamera == null) return;
+        if (mainCamera == null) return;
+
+        // O lado da mesa só é conhecido depois do SyncPlayers do Photon
+        SincronizarLadoDaMesa();
+
+        if (Mouse.current == null) return;
+
+        // Durante a descida a câmera é do roteiro, não do mouse: arrasto e
+        // zoom aqui só brigariam com o lerp (e o Inspector idem)
+        if (descida != null) return;
 
         // Sliders de inclinação/lente mexidos no Inspector durante o jogo: reaplica
         if (!float.IsNaN(appliedFov) && !Mathf.Approximately(appliedFov, fieldOfView))

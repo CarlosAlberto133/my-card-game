@@ -23,7 +23,9 @@ public class HandManager : MonoBehaviour
         // maiores (HandScale 2.4) — espaçamento maior evita sobreposição lateral
         cardSpacing = 5f;
         // Limite da mão: 8 cartas (o valor serializado na cena era 10)
-        maxCardsInHand = 8;
+        // [DECKMODE] No modo deck a mão comporta 10 (padrão de TCG — as cartas
+        // chegam do baralho e acumulam mais)
+        maxCardsInHand = DeckMode.Active ? DeckMode.DeckModeHandLimit : 8;
         // Altura correta para a nova escala (a base da carta não afunda no chão)
         handYPosition = CardDisplay.GroundY(CardDisplay.HandScale);
         // Mão mais afastada do tabuleiro (cartas 2x maiores invadiam a visão do campo).
@@ -71,8 +73,12 @@ public class HandManager : MonoBehaviour
         // Calcula largura total
         float totalWidth = (cardsInHand.Count - 1) * cardSpacing;
 
-        // Posição inicial centralizada
-        Vector3 startPosition = new Vector3(-totalWidth / 2f, handYPosition, handZPosition);
+        // Posição inicial centralizada. O jogador 2 olha a mesa do outro lado
+        // (ver CardDisplay.ViewFlipped), então o X do mundo aparece espelhado
+        // na tela dele: a fileira é montada ao contrário para a carta NOVA
+        // cair à direita da mão nos dois clientes.
+        float lado = CardDisplay.ViewFlipped ? -1f : 1f;
+        Vector3 startPosition = new Vector3(-totalWidth / 2f * lado, handYPosition, handZPosition);
 
         // Posiciona cada carta
         for (int i = 0; i < cardsInHand.Count; i++)
@@ -80,10 +86,11 @@ public class HandManager : MonoBehaviour
             GameObject card = cardsInHand[i];
             if (card != null)
             {
-                Vector3 targetPosition = startPosition + new Vector3(i * cardSpacing, 0, 0);
+                Vector3 targetPosition = startPosition + new Vector3(i * cardSpacing * lado, 0, 0);
 
-                // Na mão a carta fica EM PÉ — quem veio da loja chega deitada
-                card.transform.rotation = Quaternion.Euler(90, 180, 0);
+                // Na mão a carta fica EM PÉ, de frente para QUEM ESTÁ VENDO —
+                // quem veio da loja chega deitada
+                card.transform.rotation = CardDisplay.HandRotation;
 
                 // Move suavemente para a posição
                 StartCoroutine(MoveCardToPosition(card, targetPosition));

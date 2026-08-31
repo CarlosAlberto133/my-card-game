@@ -94,6 +94,52 @@ public static class DecorProps
         return mat;
     }
 
+    // ── Peças de cenário próprias (geradas no Meshy) ─────────────────────
+    // Vivem em Resources/decor/cenario/<slug>.fbx com textura PRÓPRIA ao lado
+    // (<slug>_tex.png de cor + <slug>_normal.png opcional) — ao contrário do
+    // KayKit, que compartilha um atlas entre todos os modelos. Uma peça = um
+    // material, cacheado: as 49 casas do tabuleiro dividem o mesmo.
+    static readonly System.Collections.Generic.Dictionary<string, Material> sceneryMats =
+        new System.Collections.Generic.Dictionary<string, Material>();
+
+    static Material GetSceneryMaterial(string slug)
+    {
+        Material cached;
+        if (sceneryMats.TryGetValue(slug, out cached)) return cached;
+
+        Shader shader = Shader.Find("Universal Render Pipeline/Lit")
+                     ?? Shader.Find("Sprites/Default");
+        Material mat = null;
+        if (shader != null)
+        {
+            mat = new Material(shader);
+            mat.color = Color.white;
+
+            Texture2D tex = Resources.Load<Texture2D>("decor/cenario/" + slug + "_tex");
+            if (tex != null)
+            {
+                mat.mainTexture = tex;
+                mat.SetTexture("_BaseMap", tex);
+            }
+
+            // Relevo: é o normal map que faz a pedra ler como pedra na câmera
+            // inclinada — sem ele a peça vira um desenho chapado
+            Texture2D nrm = Resources.Load<Texture2D>("decor/cenario/" + slug + "_normal");
+            if (nrm != null && mat.HasProperty("_BumpMap"))
+            {
+                mat.SetTexture("_BumpMap", nrm);
+                mat.EnableKeyword("_NORMALMAP");
+            }
+
+            // Pedra fosca: o padrão do URP Lit (0.5) deixa o chão plastificado
+            if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", 0.12f);
+            if (mat.HasProperty("_Metallic")) mat.SetFloat("_Metallic", 0f);
+        }
+
+        sceneryMats[slug] = mat;
+        return mat;
+    }
+
     // Instancia um prop do KayKit em pé sobre uma superfície:
     //   basePos = ponto de apoio; up = normal da superfície;
     //   lookDir = para onde o prop "olha"; targetHeight = altura final.
@@ -160,6 +206,57 @@ public static class DecorProps
 
         go.transform.rotation = Quaternion.Euler(0f, yRotation, 0f);
 
+        Bounds b = BoundsOf(go);
+        float foot = Mathf.Max(b.size.x, b.size.z);
+        if (foot > 0.0001f)
+            go.transform.localScale = go.transform.localScale * (size / foot);
+
+        b = BoundsOf(go);
+        go.transform.position += topCenter - new Vector3(b.center.x, b.max.y, b.center.z);
+        return go;
+    }
+
+    // Igual ao PlaceFloor, mas para as peças PRÓPRIAS de Resources/decor/cenario
+    // (textura por peça em vez do atlas do KayKit).
+    //
+    // ⚠️ Os modelos do Meshy costumam vir Z-up: a laje chega EM PÉ, como uma
+    // parede. Em vez de confiar na importação (que converte umas sim, outras
+    // não — ver os bonecos das cartas), medimos e deitamos sozinhos: o eixo
+    // mais FINO de uma peça de chão é, por definição, a espessura dela, então
+    // se o fino não for o Y, giramos -90° no X.
+    public static GameObject PlaceSceneryFloor(Transform parent, string slug, Vector3 topCenter,
+        float size, float yRotation, out Renderer mainRenderer)
+    {
+        mainRenderer = null;
+
+        GameObject prefab = Resources.Load<GameObject>("decor/cenario/" + slug);
+        if (prefab == null)
+        {
+            Debug.LogWarning($"[DecorProps] Peça de cenário não encontrada: decor/cenario/{slug}");
+            return null;
+        }
+
+        GameObject go = Object.Instantiate(prefab, parent);
+        go.name = "Floor_" + slug;
+
+        foreach (Collider c in go.GetComponentsInChildren<Collider>(true))
+            Object.Destroy(c);
+
+        Material mat = GetSceneryMaterial(slug);
+        foreach (Renderer r in go.GetComponentsInChildren<Renderer>(true))
+        {
+            if (mat != null) r.sharedMaterial = mat;
+            if (mainRenderer == null) mainRenderer = r;
+        }
+
+        // Deita a peça se ela veio em pé, e só então aplica o giro do tabuleiro
+        go.transform.rotation = Quaternion.identity;
+        Vector3 raw = BoundsOf(go).size;
+        bool emPe = raw.y > Mathf.Min(raw.x, raw.z);
+        Quaternion deitar = emPe ? Quaternion.Euler(-90f, 0f, 0f) : Quaternion.identity;
+        go.transform.rotation = Quaternion.Euler(0f, yRotation, 0f) * deitar;
+
+        // Dimensiona pela pegada (largura da casa) e encosta o TOPO no tile
         Bounds b = BoundsOf(go);
         float foot = Mathf.Max(b.size.x, b.size.z);
         if (foot > 0.0001f)

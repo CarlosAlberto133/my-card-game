@@ -177,6 +177,11 @@ public class TurnManager : MonoBehaviour
         TowerSystem.ResetForMatch();
         TowerSelectUI.Open();
 
+        // A câmera sai da visão de cima da fase de compras e desce suavemente
+        // para o enquadramento de jogo (ela mesma espera a tela da torre sair
+        // da frente antes de começar o movimento)
+        CameraController.DescerParaPartida();
+
         // Painel da Devoção de Classe (contagens e bônus ativos, canto esquerdo)
         ClassDevotionUI.Ensure();
 
@@ -194,6 +199,10 @@ public class TurnManager : MonoBehaviour
         // sobra acima de 10 vira 10, abaixo de 10 fica como está
         if (player1.gold > 10) player1.gold = 10;
         if (player2.gold > 10) player2.gold = 10;
+
+        // [DECKMODE] Modo deck: mãos iniciais (4 cada) + mana do round 1 (1/1).
+        // Roda dentro do fluxo de ready dos 2 clientes — determinístico
+        if (DeckMode.Active) DeckMode.OnMatchStart();
 
         Debug.Log($"Estado mudou para: {gameState}");
         Debug.Log($"Round: {currentRound}");
@@ -355,6 +364,15 @@ public class TurnManager : MonoBehaviour
                 CardManager.Instance.RefreshShop();
             }
         }
+
+        // [DECKMODE] Início do turno do novo jogador: rampa de mana
+        // (min(round, 10)) + compra de 1 carta do baralho. Dentro do
+        // RPC_EndTurn — idêntico nos 2 clientes
+        if (DeckMode.Active)
+        {
+            try { DeckMode.OnTurnStarted(currentPlayerNumber, currentRound); }
+            catch (System.Exception e) { Debug.LogError($"[EndTurn] DeckMode: {e}"); }
+        }
     }
 
     public bool IsPlayerTurn(int playerNum)
@@ -468,6 +486,9 @@ public class TurnManager : MonoBehaviour
         player1Ready = false;
         player2Ready = false;
         DuplicateEffectGate.ResetTurn();
+
+        // Nova fase de compras: a câmera volta para a visão de cima
+        CameraController.VoltarParaAbertura();
 
         // 6. Esconde a tela de vitória
         if (GameUIManager.Instance != null)
