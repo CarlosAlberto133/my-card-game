@@ -8,6 +8,31 @@ using UnityEngine;
 // usam System.Random com a seed da partida, idênticas nos dois clientes).
 public static class TabletopEnvironment
 {
+    // ── Moldura do tabuleiro ──────────────────────────────────────────────
+    // Peças próprias do Meshy (Resources/decor/cenario): a mureta de blocos
+    // de pedra + o canto em "L". Troque FrameWallPiece por null para voltar
+    // à mureta do KayKit sem mais nenhuma mudança.
+    public const string FrameWallPiece = "borda-tabuleiro";
+    public const string FrameCornerPiece = "canto-tabuleiro";
+    public const int FrameSegments = 6; // muretas por lado, entre os 2 cantos
+
+    // O diamante do vértice do canto estica a caixa da peça na diagonal, então
+    // o encaixe pela caixa deixa os braços curtos e recuados. Compensação
+    // conferida em jogo: aumenta o canto e empurra para FORA na diagonal.
+    public const float FrameCornerScale = 1.20f; // multiplicador do tamanho
+    public const float FrameCornerOut = 0.97f;   // empurrão para fora (mundo)
+    public const float FrameCornerHeight = 2.61f; // teto de altura do canto
+                                                  // (a mureta tem ~1.95)
+
+    // Sentido de cada lado da moldura (true = mureta girada 180°). A face
+    // trabalhada tem que olhar para o lado certo; acertado em jogo pelo
+    // Carlos com as caixinhas do BoardFrameTuning. "Cima" = lado de cima da
+    // tela do jogador 1 (z+).
+    public const bool FrameFlipCima = true;
+    public const bool FrameFlipBaixo = false;
+    public const bool FrameFlipDireita = true;
+    public const bool FrameFlipEsquerda = false;
+
     private static GameObject root;
     private static Texture2D woodTexture;
 
@@ -17,6 +42,116 @@ public static class TabletopEnvironment
         {
             Object.Destroy(root);
             root = null;
+        }
+    }
+
+    // Centro usado na última montagem — a remontagem da moldura precisa dele
+    private static Vector3 lastCenter;
+
+    // Remonta SÓ a moldura (chamado pelo BoardFrameTuning quando os sliders
+    // mudam em Play mode — o resto do cenário fica quieto)
+    public static void RebuildFrame()
+    {
+        if (root == null) return;
+        Transform velha = root.transform.Find("Moldura");
+        if (velha != null) Object.Destroy(velha.gameObject);
+        BuildFrame();
+    }
+
+    // Moldura do campo em volta dos tiles. Tabuleiro 7x7 = 45.6 de lado
+    // (meia-largura 22.8). Os valores vêm do componente BoardFrameTuning se
+    // houver um na cena (calibração ao vivo); senão, dos consts da classe.
+    static void BuildFrame()
+    {
+        if (root == null) return;
+        GameObject moldura = new GameObject("Moldura");
+        moldura.transform.SetParent(root.transform, false);
+
+        Vector3 center = lastCenter;
+        float half = 22.8f;
+        float top = -0.15f;
+
+        BoardFrameTuning tune = BoardFrameTuning.Ativa;
+
+        if (FrameWallPiece != null)
+        {
+            // Peças PRÓPRIAS (Meshy, decor/cenario): mureta de blocos de pedra
+            // + canto em "L" com o diamante no vértice. Tudo alinhado pela
+            // FACE EXTERNA, num quadrado de lado 2*outerHalf; a conta do seg
+            // usa a proporção grossura/comprimento da mureta (0.54/1.9 no
+            // arquivo) para a face INTERNA cair rente ao limite das casas.
+            int segs = tune != null ? tune.muretasPorLado : FrameSegments;
+            float escalaCanto = tune != null ? tune.escalaCanto : FrameCornerScale;
+            float empurrao = tune != null ? tune.empurraoCanto : FrameCornerOut;
+            float alturaCanto = tune != null ? tune.alturaCanto : FrameCornerHeight;
+            float sobeCanto = tune != null ? tune.sobeCanto : 0f;
+            bool gCima = tune != null ? tune.girarCima : FrameFlipCima;
+            bool gBaixo = tune != null ? tune.girarBaixo : FrameFlipBaixo;
+            bool gDir = tune != null ? tune.girarDireita : FrameFlipDireita;
+            bool gEsq = tune != null ? tune.girarEsquerda : FrameFlipEsquerda;
+
+            const float proporcao = 0.284f; // grossura ÷ comprimento da mureta
+            float seg = 2f * half / (segs + 2f - 2f * proporcao);
+            float outerHalf = half + seg * proporcao;
+
+            for (int i = 0; i < segs; i++)
+            {
+                float t = -outerHalf + seg * (i + 1.5f); // pula o canto (1 braço)
+
+                // Inverter o "along" gira a mureta 180° — a face trabalhada
+                // tem que olhar para o lado certo, e cada lado tem o seu
+                // sentido (os flips, calibrados em jogo, vivem nos consts
+                // FrameFlip* / nas caixinhas do BoardFrameTuning)
+                DecorProps.PlaceSceneryWall(moldura.transform, FrameWallPiece,
+                    center + new Vector3(t, top, outerHalf),
+                    gCima ? Vector3.left : Vector3.right, Vector3.forward, seg);
+                DecorProps.PlaceSceneryWall(moldura.transform, FrameWallPiece,
+                    center + new Vector3(t, top, -outerHalf),
+                    gBaixo ? Vector3.left : Vector3.right, Vector3.back, seg);
+                DecorProps.PlaceSceneryWall(moldura.transform, FrameWallPiece,
+                    center + new Vector3(outerHalf, top, t),
+                    gDir ? Vector3.back : Vector3.forward, Vector3.right, seg);
+                DecorProps.PlaceSceneryWall(moldura.transform, FrameWallPiece,
+                    center + new Vector3(-outerHalf, top, t),
+                    gEsq ? Vector3.back : Vector3.forward, Vector3.left, seg);
+            }
+            for (int sx = -1; sx <= 1; sx += 2)
+                for (int sz = -1; sz <= 1; sz += 2)
+                {
+                    GameObject canto = DecorProps.PlaceSceneryCorner(moldura.transform,
+                        FrameCornerPiece,
+                        center + new Vector3(sx * outerHalf, top, sz * outerHalf),
+                        sx, sz, seg * escalaCanto, alturaCanto);
+                    if (canto != null)
+                        canto.transform.position +=
+                            new Vector3(sx * empurrao, sobeCanto, sz * empurrao);
+                }
+        }
+        else
+        {
+            // Mureta de pedra do KayKit (a moldura antiga): segmentos ao longo
+            // de cada lado + coluna baixa em cada canto
+            float th = 2f;
+            float frameHalf = half + th / 2f;          // linha central da mureta
+            int segs = 8;                              // segmentos por lado
+            float segLen = (2f * frameHalf) / segs;    // ~6.2 → mureta baixa (~1.5)
+            for (int i = 0; i < segs; i++)
+            {
+                float t = -frameHalf + segLen * (i + 0.5f);
+                DecorProps.PlaceSpan(moldura.transform, "barrier",
+                    center + new Vector3(t, top, frameHalf), Vector3.up, Vector3.right, segLen);
+                DecorProps.PlaceSpan(moldura.transform, "barrier",
+                    center + new Vector3(t, top, -frameHalf), Vector3.up, Vector3.right, segLen);
+                DecorProps.PlaceSpan(moldura.transform, "barrier",
+                    center + new Vector3(frameHalf, top, t), Vector3.up, Vector3.forward, segLen);
+                DecorProps.PlaceSpan(moldura.transform, "barrier",
+                    center + new Vector3(-frameHalf, top, t), Vector3.up, Vector3.forward, segLen);
+            }
+            for (int sx = -1; sx <= 1; sx += 2)
+                for (int sz = -1; sz <= 1; sz += 2)
+                    DecorProps.Place(moldura.transform, "barrier_column",
+                        center + new Vector3(sx * frameHalf, top, sz * frameHalf),
+                        2.4f, Vector3.up, new Vector3(-sx, 0f, -sz));
         }
     }
 
@@ -74,34 +209,13 @@ public static class TabletopEnvironment
             new Vector3(700f, 3f, 700f), new Color(0.30f, 0.20f, 0.12f), GetWoodTexture());
         SetTextureTiling(floor, 24f, 24f);
 
-        // ── Moldura do campo: mureta de pedra do KayKit em volta dos tiles ──
-        // Tabuleiro 7x7 = 45.6 de lado (meia-largura 22.8). Segmentos de mureta
-        // ao longo de cada lado + coluna baixa em cada canto (combina com as
-        // casas de pedra do campo).
-        float half = 22.8f, th = 2f;
-        float top = -0.15f; // Altura do tampo (base das miniaturas e da mureta)
-
-        float frameHalf = half + th / 2f;          // linha central da mureta
-        int segs = 8;                              // segmentos por lado
-        float segLen = (2f * frameHalf) / segs;    // ~6.2 → mureta baixa (~1.5)
-        for (int i = 0; i < segs; i++)
-        {
-            float t = -frameHalf + segLen * (i + 0.5f);
-            DecorProps.PlaceSpan(root.transform, "barrier",
-                center + new Vector3(t, top, frameHalf), Vector3.up, Vector3.right, segLen);
-            DecorProps.PlaceSpan(root.transform, "barrier",
-                center + new Vector3(t, top, -frameHalf), Vector3.up, Vector3.right, segLen);
-            DecorProps.PlaceSpan(root.transform, "barrier",
-                center + new Vector3(frameHalf, top, t), Vector3.up, Vector3.forward, segLen);
-            DecorProps.PlaceSpan(root.transform, "barrier",
-                center + new Vector3(-frameHalf, top, t), Vector3.up, Vector3.forward, segLen);
-        }
-        // Colunas nos 4 cantos amarram os dois lados da mureta
-        for (int sx = -1; sx <= 1; sx += 2)
-            for (int sz = -1; sz <= 1; sz += 2)
-                DecorProps.Place(root.transform, "barrier_column",
-                    center + new Vector3(sx * frameHalf, top, sz * frameHalf),
-                    2.4f, Vector3.up, new Vector3(-sx, 0f, -sz));
+        // ── Moldura do campo ──────────────────────────────────────────────
+        // Extraída para BuildFrame() para poder ser remontada AO VIVO pelos
+        // sliders do componente BoardFrameTuning (calibração no Play mode).
+        float half = 22.8f;
+        float top = -0.15f; // Altura do tampo (base das miniaturas e da borda)
+        lastCenter = center;
+        BuildFrame();
 
         // ── Árvores em miniatura (KayKit Forest, CC0) ─────────────────────
         // Posições seguras: fora do campo, da coluna da loja (x≈-27.5, |z|<22)

@@ -229,24 +229,12 @@ public static class DecorProps
     {
         mainRenderer = null;
 
-        GameObject prefab = Resources.Load<GameObject>("decor/cenario/" + slug);
-        if (prefab == null)
-        {
-            Debug.LogWarning($"[DecorProps] Peça de cenário não encontrada: decor/cenario/{slug}");
-            return null;
-        }
+        GameObject go = InstantiateScenery(parent, slug, "Floor_" + slug);
+        if (go == null) return null;
 
-        GameObject go = Object.Instantiate(prefab, parent);
-        go.name = "Floor_" + slug;
-
-        foreach (Collider c in go.GetComponentsInChildren<Collider>(true))
-            Object.Destroy(c);
-
-        Material mat = GetSceneryMaterial(slug);
         foreach (Renderer r in go.GetComponentsInChildren<Renderer>(true))
         {
-            if (mat != null) r.sharedMaterial = mat;
-            if (mainRenderer == null) mainRenderer = r;
+            if (mainRenderer == null) { mainRenderer = r; break; }
         }
 
         // Deita a peça se ela veio em pé, e só então aplica o giro do tabuleiro
@@ -264,6 +252,186 @@ public static class DecorProps
 
         b = BoundsOf(go);
         go.transform.position += topCenter - new Vector3(b.center.x, b.max.y, b.center.z);
+        return go;
+    }
+
+    // Carrega e instancia uma peça PRÓPRIA de Resources/decor/cenario, já sem
+    // colliders e com o material da peça (textura + normal map + pedra fosca)
+    static GameObject InstantiateScenery(Transform parent, string slug, string name)
+    {
+        GameObject prefab = Resources.Load<GameObject>("decor/cenario/" + slug);
+        if (prefab == null)
+        {
+            Debug.LogWarning($"[DecorProps] Peça de cenário não encontrada: decor/cenario/{slug}");
+            return null;
+        }
+
+        GameObject go = Object.Instantiate(prefab, parent);
+        go.name = name;
+
+        foreach (Collider c in go.GetComponentsInChildren<Collider>(true))
+            Object.Destroy(c);
+
+        Material mat = GetSceneryMaterial(slug);
+        if (mat != null)
+        {
+            foreach (Renderer r in go.GetComponentsInChildren<Renderer>(true))
+                r.sharedMaterial = mat;
+        }
+        return go;
+    }
+
+    // Rotação que leva o eixo LOCAL "a" (0=X, 1=Y, 2=Z) na direção dirA e o
+    // eixo local "b" na direção dirB (ortogonais entre si). O terceiro eixo
+    // sai do produto vetorial — sempre rotação de verdade, nunca espelho.
+    static Quaternion MapAxes(int a, Vector3 dirA, int b, Vector3 dirB)
+    {
+        Vector3[] img = new Vector3[3];
+        img[a] = dirA.normalized;
+        img[b] = dirB.normalized;
+        int c = 3 - a - b;
+        img[c] = c == 0 ? Vector3.Cross(img[1], img[2])
+               : c == 1 ? Vector3.Cross(img[2], img[0])
+               : Vector3.Cross(img[0], img[1]);
+        return Quaternion.LookRotation(img[2], img[1]);
+    }
+
+    // ── Moldura de pedra PRÓPRIA (Meshy) em volta do tabuleiro ──────────
+    // A mureta reta e o canto em "L" vêm do mesmo lote do piso-tabuleiro,
+    // então valem as mesmas suspeitas: o importador pode entregar a peça
+    // girada. Em vez de confiar, MEDIMOS a malha e remontamos a orientação.
+
+    // Mureta: estica ao longo de "along" (X ou Z), com a FACE EXTERNA
+    // encostada na linha que passa por outerPos na direção "outward" e a base
+    // na altura outerPos.y. O centro do vão é a componente de outerPos em
+    // "along".
+    public static GameObject PlaceSceneryWall(Transform parent, string slug,
+        Vector3 outerPos, Vector3 along, Vector3 outward, float spanLength)
+    {
+        GameObject go = InstantiateScenery(parent, slug, "Wall_" + slug);
+        if (go == null) return null;
+
+        // Remonta a orientação pelas medidas: o eixo mais COMPRIDO é o vão;
+        // dos dois que sobram, o maior vira altura (a mureta é mais alta que
+        // grossa — 0.60 contra 0.54 no arquivo; se empatar, conferir no
+        // render_fbx.py antes de culpar este código)
+        go.transform.rotation = Quaternion.identity;
+        Vector3 s = BoundsOf(go).size;
+        int eixoLongo = s.x >= s.y && s.x >= s.z ? 0 : s.y >= s.z ? 1 : 2;
+        int eixoAlto = -1; float alto = -1f;
+        for (int i = 0; i < 3; i++)
+            if (i != eixoLongo && s[i] > alto) { alto = s[i]; eixoAlto = i; }
+        go.transform.rotation = MapAxes(eixoLongo, along, eixoAlto, Vector3.up);
+
+        Bounds b = BoundsOf(go);
+        float len = SizeAlong(b, along);
+        if (len > 0.0001f)
+            go.transform.localScale = go.transform.localScale * (spanLength / len);
+
+        // Face externa na linha, base na altura, centrada no vão
+        b = BoundsOf(go);
+        Vector3 delta = along * Vector3.Dot(outerPos - b.center, along);
+        float faceExterna = Vector3.Dot(b.center, outward) + SizeAlong(b, outward) * 0.5f;
+        delta += outward * (Vector3.Dot(outerPos, outward) - faceExterna);
+        delta += Vector3.up * (outerPos.y - b.min.y);
+        go.transform.position += delta;
+        return go;
+    }
+
+    // Canto em "L" da moldura, deitado no chão, com o VÉRTICE externo do L
+    // no canto (sx, sz) do quadrado da moldura e os braços correndo pelos
+    // dois lados. sx/sz = ±1 dizem qual dos 4 cantos é.
+    // maxHeight > 0 trava a ALTURA em unidades de mundo, independente do
+    // tamanho no chão — senão, engordar o canto o deixaria mais alto que a
+    // mureta ao lado (aconteceu; o Carlos viu na hora).
+    public static GameObject PlaceSceneryCorner(Transform parent, string slug,
+        Vector3 outerCorner, int sx, int sz, float armLength, float maxHeight = 0f)
+    {
+        GameObject go = InstantiateScenery(parent, slug, "Corner_" + slug);
+        if (go == null) return null;
+
+        // 1) Deita: o eixo mais FINO do L é a altura dele
+        go.transform.rotation = Quaternion.identity;
+        Vector3 s = BoundsOf(go).size;
+        int eixoFino = s.x <= s.y && s.x <= s.z ? 0 : s.y <= s.z ? 1 : 2;
+        if (eixoFino != 1)
+            go.transform.rotation = MapAxes(eixoFino, Vector3.up,
+                eixoFino == 0 ? 1 : 0, eixoFino == 0 ? Vector3.forward : Vector3.right);
+
+        // 2) Acha o miolo VAZIO do L contando vértices por quadrante — a
+        // bounding box não diz (o L é quase quadrado), os vértices dizem
+        Bounds b = BoundsOf(go);
+        int[] conta = new int[4]; // (x-,z-) (x-,z+) (x+,z-) (x+,z+)
+        foreach (MeshFilter mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            foreach (Vector3 v in mf.sharedMesh.vertices)
+            {
+                Vector3 w = mf.transform.TransformPoint(v);
+                conta[(w.x > b.center.x ? 2 : 0) + (w.z > b.center.z ? 1 : 0)]++;
+            }
+        }
+        int vazio = 0;
+        for (int i = 1; i < 4; i++) if (conta[i] < conta[vazio]) vazio = i;
+        int cheioX = (vazio & 2) != 0 ? -1 : 1; // vértice do L = oposto ao vazio
+        int cheioZ = (vazio & 1) != 0 ? -1 : 1;
+
+        // 3) Gira em passos de 90° até o vértice apontar para (sx, sz).
+        // Os -90 são calibração CONFERIDA EM JOGO (Carlos, 31/ago, em duas
+        // rodadas de ajuste): a contagem de vértices erra o quadrante do
+        // miolo por um passo — o diamante do vértice engorda um dos braços
+        // e desloca a leitura. Não consertar sem olhar o jogo.
+        float atual = Mathf.Atan2(cheioX, cheioZ) * Mathf.Rad2Deg;
+        float alvo = Mathf.Atan2(sx, sz) * Mathf.Rad2Deg;
+        go.transform.rotation = Quaternion.Euler(0f, alvo - atual - 90f, 0f) * go.transform.rotation;
+
+        // 4) Escala pelo braço e encosta o vértice externo no canto
+        b = BoundsOf(go);
+        float braco = Mathf.Max(b.size.x, b.size.z);
+        if (braco > 0.0001f)
+            go.transform.localScale = go.transform.localScale * (armLength / braco);
+
+        // Achata só a altura se passou do teto. A peça está girada, então o
+        // eixo LOCAL que aponta para cima precisa ser descoberto — com giros
+        // em passos de 90°, é o que tiver |Y| ≈ 1 depois da rotação
+        b = BoundsOf(go);
+        if (maxHeight > 0f && b.size.y > maxHeight)
+        {
+            int eixoCima = 0; float maiorY = -1f;
+            for (int i = 0; i < 3; i++)
+            {
+                Vector3 e = Vector3.zero; e[i] = 1f;
+                float y = Mathf.Abs((go.transform.rotation * e).y);
+                if (y > maiorY) { maiorY = y; eixoCima = i; }
+            }
+            Vector3 esc = go.transform.localScale;
+            esc[eixoCima] *= maxHeight / b.size.y;
+            go.transform.localScale = esc;
+        }
+
+        // Base de APOIO: a ponta de baixo do diamante desce ALÉM da base dos
+        // braços — apoiar pelo mínimo global deixava os braços flutuando
+        // (aconteceu; o Carlos viu). A base de verdade é o fundo das PONTAS
+        // dos braços, longe do vértice; o diamante afunda na mesa e pronto.
+        b = BoundsOf(go);
+        float quinaX = sx > 0 ? b.max.x : b.min.x;
+        float quinaZ = sz > 0 ? b.max.z : b.min.z;
+        float alcance = Mathf.Max(b.size.x, b.size.z);
+        float baseY = float.MaxValue;
+        foreach (MeshFilter mf in go.GetComponentsInChildren<MeshFilter>())
+        {
+            if (mf.sharedMesh == null) continue;
+            foreach (Vector3 v in mf.sharedMesh.vertices)
+            {
+                Vector3 w = mf.transform.TransformPoint(v);
+                float longe = Mathf.Max(Mathf.Abs(w.x - quinaX), Mathf.Abs(w.z - quinaZ));
+                if (longe > alcance * 0.6f && w.y < baseY) baseY = w.y;
+            }
+        }
+        if (baseY == float.MaxValue) baseY = b.min.y;
+
+        Vector3 quina = new Vector3(quinaX, baseY, quinaZ);
+        go.transform.position += outerCorner - quina;
         return go;
     }
 
