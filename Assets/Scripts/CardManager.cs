@@ -56,10 +56,13 @@ public class CardManager : MonoBehaviour
         // chão) — cresce só para cima porque a base fica fixa em GroundY
         float shopY = CardDisplay.GroundY(cardScale);
         centerPosition = new Vector3(centerPosition.x, shopY, centerPosition.z);
-        // X forçado por código (a cena tem -42 serializado, do tabuleiro 12x12):
-        // tabuleiro 7x7 tem borda em -22.8. Cartas maiores → loja um pouco mais
-        // afastada para a carta (mais larga) não invadir o tile do tabuleiro
-        shopPosition = new Vector3(-27.5f, shopY, 0f);
+        // X forçado por código (a cena tem -42 serializado, do tabuleiro 12x12).
+        // A conta: casas até 22.8, e a MOLDURA (mureta própria) ocupa daí até
+        // 24.54. A carta da loja tem 1.8 de largura x 3.4 de escala = 6.12, ou
+        // seja, 3.06 de cada lado do centro. Em -27.5 a borda direita caía em
+        // -24.44, DENTRO da faixa da mureta (a loja ficava em cima da borda);
+        // em -29.5 ela cai em -26.44, com ~1.9 de folga até a mureta.
+        shopPosition = new Vector3(-29.5f, shopY, 0f);
 
         // Inicialmente no centro (lobby)
         currentSpawnPosition = centerPosition;

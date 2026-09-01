@@ -771,6 +771,9 @@ public class PhotonGameManager : UnityEngine.MonoBehaviour
         syncedActionCount = 0;
         UnityEngine.Random.InitState(seed);
 
+        // Diário de batalha: revanche começa com a folha em branco
+        BattleLog.Clear();
+
         // Reaplica o cenário com a seed nova (o MAPA continua o escolhido pelo
         // anfitrião — room property "theme" —, só a decoração é re-semeada)
         BoardThemeManager.SetSeed(seed);

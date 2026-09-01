@@ -33,14 +33,49 @@ public static class TabletopEnvironment
     public const bool FrameFlipDireita = true;
     public const bool FrameFlipEsquerda = false;
 
+    // ── Cenário "ASSADO" na cena (MesaStage) ─────────────────────────────
+    // O menu do editor "Card Game → Mesa de RPG: assar cenário" transforma
+    // este cenário gerado por código em objetos DE VERDADE na cena, dentro de
+    // um GameObject chamado MesaStage — para o Carlos editar tudo à mão no
+    // editor (mover, girar, apagar, acrescentar). Com um MesaStage na cena,
+    // ELE manda: o código só o liga/desliga e pinta o fundo da câmera. Sem
+    // ele (apagado da cena), volta o gerador por código abaixo.
+    public const string BakedStageName = "MesaStage";
+
+    static GameObject FindBakedStage()
+    {
+        // Inclusive INATIVOS — o Clear desativa o palco nos outros mapas
+        // (mesma técnica do TesteStage no BoardThemeManager)
+        foreach (Transform t in Object.FindObjectsByType<Transform>(
+                     FindObjectsInactive.Include, FindObjectsSortMode.None))
+            if (t != null && t.name == BakedStageName) return t.gameObject;
+        return null;
+    }
+
+    // Entrega o root recém-montado para o assador do editor (que o renomeia
+    // para MesaStage). Soltamos a referência para um Clear futuro não apagar
+    // o que agora pertence à cena.
+    public static GameObject TakeRootForBake()
+    {
+        GameObject r = root;
+        root = null;
+        return r;
+    }
+
+    // O assador salva a textura gerada como asset e re-assa do zero — o cache
+    // não pode continuar apontando para o asset antigo
+    public static void ResetCachesForBake() { woodTexture = null; }
+
     private static GameObject root;
     private static Texture2D woodTexture;
 
     public static void Clear()
     {
+        GameObject baked = FindBakedStage();
+        if (baked != null) baked.SetActive(false);
         if (root != null)
         {
-            Object.Destroy(root);
+            DecorProps.Kill(root);
             root = null;
         }
     }
@@ -52,9 +87,10 @@ public static class TabletopEnvironment
     // mudam em Play mode — o resto do cenário fica quieto)
     public static void RebuildFrame()
     {
-        if (root == null) return;
+        if (root == null) return; // (com MesaStage assado, root fica null —
+                                  // edite a Moldura direto na cena)
         Transform velha = root.transform.Find("Moldura");
-        if (velha != null) Object.Destroy(velha.gameObject);
+        if (velha != null) DecorProps.Kill(velha.gameObject);
         BuildFrame();
     }
 
@@ -158,25 +194,31 @@ public static class TabletopEnvironment
     public static void Build(int seed)
     {
         Clear();
+
+        // Cenário assado na cena? Ele é o dono do visual — liga e pronto
+        GameObject baked = FindBakedStage();
+        if (baked != null)
+        {
+            baked.SetActive(true);
+            PaintBackground();
+            Debug.Log("[Tabletop] Cenário 'MesaStage' (assado na cena, editável) ativado.");
+            return;
+        }
+
         root = new GameObject("TabletopEnvironment");
 
         System.Random rng = new System.Random(seed * 7 + 3);
 
-        // Fundo: taverna escura e quente (contraste com o azul do espaço)
-        Camera cam = Camera.main;
-        if (cam == null) cam = Object.FindObjectOfType<Camera>();
-        if (cam != null)
-        {
-            cam.clearFlags = CameraClearFlags.SolidColor;
-            cam.backgroundColor = new Color(0.080f, 0.055f, 0.040f);
-        }
+        PaintBackground();
 
-        Vector3 center = BoardManager.Instance != null
-            ? BoardManager.Instance.transform.position
-            : Vector3.zero;
+        // Instance é null fora do Play mode — o assador do editor também
+        // chama este Build, então procuramos o objeto da cena de qualquer forma
+        BoardManager bm = BoardManager.Instance;
+        if (bm == null) bm = Object.FindObjectOfType<BoardManager>();
+        Vector3 center = bm != null ? bm.transform.position : Vector3.zero;
 
         // ── Tampo da mesa ─────────────────────────────────────────────────
-        // Grande o bastante para loja (x -27.5) e mãos (z ±29.5) ficarem sobre
+        // Grande o bastante para loja (x -29.5) e mãos (z ±29.5) ficarem sobre
         // ela. Topo em y = -0.15 (logo abaixo dos tiles, que estão em y = 0).
         // A textura REPETE (tiling) — esticada uma vez só sobre 112 unidades
         // ela virava um borrão; repetida, cada tábua fica nítida.
@@ -218,7 +260,7 @@ public static class TabletopEnvironment
         BuildFrame();
 
         // ── Árvores em miniatura (KayKit Forest, CC0) ─────────────────────
-        // Posições seguras: fora do campo, da coluna da loja (x≈-27.5, |z|<22)
+        // Posições seguras: fora do campo, da coluna da loja (x≈-29.5, |z|<27)
         // e das fileiras das mãos (z≈±29.5, |x|<20). Jitter determinístico.
         Vector2[] treeSpots =
         {
@@ -374,11 +416,25 @@ public static class TabletopEnvironment
         }
     }
 
+    // Fundo: taverna escura e quente (contraste com o azul do espaço). É a
+    // única coisa que continua por código mesmo com o MesaStage assado —
+    // fundo de câmera não dá para guardar num GameObject da cena.
+    static void PaintBackground()
+    {
+        Camera cam = Camera.main;
+        if (cam == null) cam = Object.FindObjectOfType<Camera>();
+        if (cam != null)
+        {
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = new Color(0.080f, 0.055f, 0.040f);
+        }
+    }
+
     // Material Unlit brilhante (vagalumes) — não depende de luz
     static void FinishGlow(GameObject go, Color color)
     {
         Collider col = go.GetComponent<Collider>();
-        if (col != null) Object.Destroy(col);
+        if (col != null) DecorProps.Kill(col);
 
         Renderer r = go.GetComponent<Renderer>();
         if (r == null) return;
@@ -424,7 +480,7 @@ public static class TabletopEnvironment
     static void FinishDecor(GameObject go, Color color, Texture2D tex)
     {
         Collider col = go.GetComponent<Collider>();
-        if (col != null) Object.Destroy(col);
+        if (col != null) DecorProps.Kill(col);
 
         Renderer r = go.GetComponent<Renderer>();
         if (r == null) return;
@@ -503,10 +559,13 @@ public static class TabletopEnvironment
     // Repetição da textura no material (URP Lit usa _BaseMap)
     static void SetTextureTiling(GameObject go, float tilesX, float tilesY)
     {
+        // sharedMaterial, não .material: cada peça já tem instância própria
+        // (FinishDecor cria uma por objeto), e LER .material fora do Play mode
+        // (o assar do MesaStage) duplicaria o material com aviso de vazamento
         Renderer r = go != null ? go.GetComponent<Renderer>() : null;
-        if (r == null) return;
-        r.material.mainTextureScale = new Vector2(tilesX, tilesY);
-        if (r.material.HasProperty("_BaseMap"))
-            r.material.SetTextureScale("_BaseMap", new Vector2(tilesX, tilesY));
+        if (r == null || r.sharedMaterial == null) return;
+        r.sharedMaterial.mainTextureScale = new Vector2(tilesX, tilesY);
+        if (r.sharedMaterial.HasProperty("_BaseMap"))
+            r.sharedMaterial.SetTextureScale("_BaseMap", new Vector2(tilesX, tilesY));
     }
 }

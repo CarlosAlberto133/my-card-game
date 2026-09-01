@@ -207,7 +207,7 @@ public static class ForestEnvironment
                       : side == 1 ? new Vector2(along, -off)
                       : side == 2 ? new Vector2(off, along)
                       : new Vector2(-off, along);
-            // Não invade a coluna da loja (x≈-27.5)
+            // Não invade a coluna da loja (x≈-29.5; o corte em -24 é folgado)
             if (p.x < -24f && Mathf.Abs(p.y) < 22f) continue;
             DecorProps.PlaceForest(root.transform, grassModels[rng.Next(grassModels.Length)],
                 center + new Vector3(p.x, top, p.y), 0.8f + (float)rng.NextDouble() * 0.6f,

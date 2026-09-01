@@ -53,6 +53,12 @@ public class ClassDevotionUI : MonoBehaviour
     float[] flashUntil = new float[4];
     float refreshTimer;
 
+    // Minimizar: o painel nasce FECHADO (pedido do Carlos — a tela começa
+    // limpa e quem quiser acompanhar abre). Só a plaquinha aparece; clicar
+    // nela abre o painel, e o X do cabeçalho fecha de novo.
+    GameObject painelGo, chipReabrir;
+    static bool minimizado = true;
+
     public static void Ensure()
     {
         if (instance != null) return;
@@ -119,7 +125,55 @@ public class ClassDevotionUI : MonoBehaviour
         enemyLine = MakeText(panel.transform, "Enemy", "", 11, TextMuted,
             new Vector2(0f, -104f), new Vector2(248f, 20f), TextAlignmentOptions.Center);
 
+        // ── Minimizar / reabrir ──────────────────────────────────────────
+        painelGo = panel;
+
+        GameObject fechar = MakeBotao(panel.transform, "X", new Vector2(24f, 24f), 14,
+                                      () => { minimizado = true; AplicarEstado(); });
+        RectTransform frt = fechar.GetComponent<RectTransform>();
+        frt.anchorMin = new Vector2(1f, 1f);
+        frt.anchorMax = new Vector2(1f, 1f);
+        frt.pivot = new Vector2(1f, 1f);
+        frt.anchoredPosition = new Vector2(-8f, -8f);
+
+        // Plaquinha no MESMO canto do painel (esquerda), como a do Diário de
+        // Batalha faz no canto oposto
+        chipReabrir = MakeBotao(canvasGo.transform, "» DEVOÇÃO DE CLASSE",
+                                new Vector2(210f, 36f), 13,
+                                () => { minimizado = false; AplicarEstado(); });
+        RectTransform crt2 = chipReabrir.GetComponent<RectTransform>();
+        crt2.anchorMin = new Vector2(0f, 0.5f);
+        crt2.anchorMax = new Vector2(0f, 0.5f);
+        crt2.pivot = new Vector2(0f, 0.5f);
+        crt2.anchoredPosition = new Vector2(12f, 148f);
+
+        AplicarEstado();
         Refresh(true);
+    }
+
+    void AplicarEstado()
+    {
+        if (painelGo != null) painelGo.SetActive(!minimizado);
+        if (chipReabrir != null) chipReabrir.SetActive(minimizado);
+    }
+
+    // Botão no estilo do HUD (mesma receita do BattleLog)
+    static GameObject MakeBotao(Transform parent, string label, Vector2 tamanho,
+                                float fonte, UnityEngine.Events.UnityAction onClick)
+    {
+        GameObject go = new GameObject("Botao_" + label,
+            typeof(RectTransform), typeof(Image), typeof(Button));
+        go.transform.SetParent(parent, false);
+        go.GetComponent<RectTransform>().sizeDelta = tamanho;
+        LobbySprites.MakeRounded(go.GetComponent<Image>(),
+            new Color(0.12f, 0.09f, 0.02f, 0.95f));
+        LobbySprites.AddRing(go.transform, new Color(0.96f, 0.77f, 0.32f, 0.45f));
+        go.GetComponent<Button>().onClick.AddListener(onClick);
+
+        TMP_Text tmp = MakeText(go.transform, "Label", label, (int)fonte, Gold,
+                                Vector2.zero, tamanho, TextAlignmentOptions.Center);
+        tmp.fontStyle = FontStyles.Bold;
+        return go;
     }
 
     void Update()

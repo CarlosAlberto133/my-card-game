@@ -63,6 +63,22 @@ public class CardTooltip : MonoBehaviour
         if (instance != null && instance.panel != null) instance.panel.SetActive(false);
     }
 
+    // Uma coluna de status do tooltip: "ATQ 5 (3 +2)". `mostrado` é o texto do
+    // número grande (a vida usa "4/9"), e `comparado` é o valor que entra na
+    // conta do bônus contra o stat base da carta. Sem diferença nenhuma, sai
+    // só o número — parênteses vazios poluiriam as cartas recém-jogadas.
+    static string StatWithBonus(string label, string hex, int baseValue,
+                                string mostrado, int comparado)
+    {
+        string txt = $"<color={hex}>{label} {mostrado}</color>";
+        int delta = comparado - baseValue;
+        if (delta > 0)
+            txt += $"<size=76%> <color=#8FE39B>({baseValue} +{delta})</color></size>";
+        else if (delta < 0)
+            txt += $"<size=76%> <color=#FF7A7A>({baseValue} {delta})</color></size>";
+        return txt;
+    }
+
     void Display(CardDisplay cd)
     {
         if (panel == null || canvas == null) Build();
@@ -82,11 +98,33 @@ public class CardTooltip : MonoBehaviour
         {
             subText.text = $"Tier {(int)c.tier}  ·  {ClassName(c.cardClass)}";
 
-            // Stats atuais se está no tabuleiro (com buffs); senão os base da carta
-            int atk = cd.isOnBoard ? cd.currentAttack : c.attack;
-            int shd = cd.isOnBoard ? cd.currentShield : c.shield;
-            int hp = cd.isOnBoard ? cd.currentHealth : c.health;
-            statsText.text = $"<color=#FF8C6B>ATQ {atk}</color>   <color=#7FC7FF>ARM {shd}</color>   <color=#7BE08B>VIDA {hp}</color>";
+            if (!cd.isOnBoard)
+            {
+                // Loja/mão: a carta ainda não recebeu nada em campo
+                statsText.text = $"<color=#FF8C6B>ATQ {c.attack}</color>   " +
+                                 $"<color=#7FC7FF>ARM {c.shield}</color>   " +
+                                 $"<color=#7BE08B>VIDA {c.health}</color>";
+            }
+            else
+            {
+                // No tabuleiro: valor ATUAL grande + "(base +ganho)" ao lado,
+                // para o jogador ver de quanto a carta cresceu (tríade,
+                // devoção, torre, feitiços, efeitos de aliados...) sem
+                // precisar decorar os stats originais dela.
+                // A VIDA tem duas contas diferentes: dano abaixa a atual mas
+                // NÃO o máximo, e alguns buffs empurram a vida acima do
+                // máximo base — o máximo mostrado é o maior dos dois.
+                int maxHp = Mathf.Max(c.health + cd.maxHealthBonus, cd.currentHealth);
+                string vida = cd.currentHealth < maxHp
+                    ? $"{cd.currentHealth}/{maxHp}" : maxHp.ToString();
+
+                statsText.text =
+                    StatWithBonus("ATQ", "#FF8C6B", c.attack, cd.currentAttack.ToString(), cd.currentAttack) +
+                    "   " +
+                    StatWithBonus("ARM", "#7FC7FF", c.shield, cd.currentShield.ToString(), cd.currentShield) +
+                    "   " +
+                    StatWithBonus("VIDA", "#7BE08B", c.health, vida, maxHp);
+            }
         }
 
         effectText.text = string.IsNullOrEmpty(c.effectDescription)

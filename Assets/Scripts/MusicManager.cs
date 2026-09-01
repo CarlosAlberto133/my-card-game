@@ -324,8 +324,8 @@ public class MusicManager : MonoBehaviour
         panelRt.pivot = new Vector2(0.5f, 0.5f);
         panelRt.anchoredPosition = Vector2.zero;
         // Mais alto agora: música + efeitos + Como Jogar/Reportar + (na partida)
-        // Desistir/Sair/Fechar — sem sobreposição
-        float panelH = inGame ? 640f : 520f;
+        // a linha "Sob o personagem" e Desistir/Sair/Fechar — sem sobreposição
+        float panelH = inGame ? 720f : 520f;
         panelRt.sizeDelta = new Vector2(440f, panelH);
         settingsModal.GetComponent<Image>().color = new Color(0.06f, 0.07f, 0.13f, 0.98f);
 
@@ -390,6 +390,23 @@ public class MusicManager : MonoBehaviour
 
         // Botões de saída ancorados a partir da BASE do painel (espaçamento 62).
         // Na partida: Desistir (conta derrota) / Sair / Fechar. No lobby: Fechar.
+        // ── O que aparece SOB O PERSONAGEM no tabuleiro (só faz sentido em
+        // partida). Preferência local: não viaja pela rede.
+        if (inGame)
+        {
+            MakeText(settingsModal.transform, "BoardViewLabel", "Sob o personagem:",
+                new Vector2(0.5f, 0.5f), new Vector2(0f, half - 352f), new Vector2(400f, 26f),
+                18f, FontStyles.Normal, Color.white);
+
+            float bvY = half - 392f;
+            boardViewButtons = new Button[3];
+            boardViewLabels = new TMP_Text[3];
+            MakeBoardViewButton(0, BoardCardStyle.Carta, "Carta", new Vector2(-130f, bvY));
+            MakeBoardViewButton(1, BoardCardStyle.Simbolo, "Símbolo", new Vector2(0f, bvY));
+            MakeBoardViewButton(2, BoardCardStyle.Circulo, "Nenhum", new Vector2(130f, bvY));
+            RefreshBoardViewButtons();
+        }
+
         if (inGame)
         {
             MakeWideButton(settingsModal.transform, "Desistir da partida",
@@ -406,6 +423,55 @@ public class MusicManager : MonoBehaviour
         }
 
         settingsModal.SetActive(false);
+    }
+
+    // ── Seletor "Sob o personagem" (Carta / Símbolo / Nenhum) ────────────
+    Button[] boardViewButtons;
+    TMP_Text[] boardViewLabels;
+    BoardCardStyle[] boardViewStyles = new BoardCardStyle[3];
+
+    void MakeBoardViewButton(int slot, BoardCardStyle style, string label, Vector2 pos)
+    {
+        boardViewStyles[slot] = style;
+
+        GameObject btnObj = new GameObject("BoardView_" + label,
+            typeof(RectTransform), typeof(Image), typeof(Button));
+        btnObj.transform.SetParent(settingsModal.transform, false);
+        RectTransform rt = btnObj.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = pos;
+        rt.sizeDelta = new Vector2(124f, 42f);
+
+        boardViewButtons[slot] = btnObj.GetComponent<Button>();
+        boardViewButtons[slot].onClick.AddListener(() =>
+        {
+            BoardCardView.Style = style;   // já reaplica nas unidades em campo
+            RefreshBoardViewButtons();
+        });
+
+        boardViewLabels[slot] = MakeText(btnObj.transform, "L", label,
+            new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(124f, 42f),
+            17f, FontStyles.Bold, Color.white);
+    }
+
+    // O escolhido fica dourado e aceso; os outros, apagados
+    void RefreshBoardViewButtons()
+    {
+        if (boardViewButtons == null) return;
+        for (int i = 0; i < boardViewButtons.Length; i++)
+        {
+            if (boardViewButtons[i] == null) continue;
+            bool on = boardViewStyles[i] == BoardCardView.Style;
+            Image img = boardViewButtons[i].GetComponent<Image>();
+            if (img != null)
+                img.color = on ? new Color(0.42f, 0.32f, 0.08f, 1f)
+                               : new Color(0.16f, 0.16f, 0.20f, 1f);
+            if (boardViewLabels[i] != null)
+                boardViewLabels[i].color = on ? new Color(0.96f, 0.77f, 0.32f)
+                                              : new Color(0.72f, 0.70f, 0.66f);
+        }
     }
 
     // Botão largo (usado pelas opções de saída dentro do modal)
@@ -573,6 +639,10 @@ public class MusicManager : MonoBehaviour
 
     void RefreshSettingsUI()
     {
+        // Estilo do tabuleiro: o valor vem do PlayerPrefs, então ao reabrir o
+        // modal (inclusive numa partida nova) o botão certo já vem aceso
+        RefreshBoardViewButtons();
+
         if (volumeLabel != null)
             volumeLabel.text = $"Volume da música: {Mathf.RoundToInt(volume * 100f)}%";
         if (volumeSlider != null && !Mathf.Approximately(volumeSlider.value, volume))

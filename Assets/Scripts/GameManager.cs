@@ -145,6 +145,17 @@ public class GameManager : MonoBehaviour
         return Vector3.zero;
     }
 
+    // Casa sob o CURSOR, medida no plano do tabuleiro — ignora o que estiver
+    // desenhado na frente dela. Necessário porque o clique do Unity entrega o
+    // collider mais próximo: com a câmera a 45°, uma figura de 4.5 de altura
+    // tapa 4.5 das 6 unidades de profundidade da casa seguinte (75% dela),
+    // então a casa da frente fica quase inclicável pelo collider.
+    public CardTile TileUnderCursor()
+    {
+        if (boardManager == null) return null;
+        return boardManager.TileAtWorld(GetMouseWorldPosition());
+    }
+
     // Retorna a câmera que está renderizando a área onde o mouse está (suporte a split screen)
     Camera GetCameraForMousePosition()
     {
@@ -263,9 +274,20 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        // Clicar de novo na carta JÁ selecionada desseleciona (apaga as cores)
+        // Clique na carta JÁ selecionada. São duas intenções bem diferentes e
+        // o collider sozinho não as distingue: o corpo do boneco é desenhado
+        // por cima da casa da frente (câmera a 45°, figura de 4.5 contra casa
+        // de 6 = 75% dela coberta), então "clicar na casa da frente para
+        // andar" caía aqui e DESSELECIONAVA a carta. Quem decide é a casa sob
+        // o CURSOR: outra casa = mandar andar; a casa dela mesma = desselecionar.
         if (selectedCard == card)
         {
+            CardTile sobCursor = TileUnderCursor();
+            if (sobCursor != null && sobCursor != tile)
+            {
+                TryPlaceCardOnTile(sobCursor);
+                return;
+            }
             CancelSelection();
             return;
         }
@@ -479,6 +501,9 @@ public class GameManager : MonoBehaviour
         cardDisplay.ApplyCardEffect("onEnter");
 
         Debug.Log($"[GameManager] {cardDisplay.card.cardName} colocada em ({row}, {column}) pelo P{ownerPlayerNumber}");
+        // Diário: aqui é o caminho do RPC, que RODA NOS DOIS CLIENTES — os
+        // dois jogadores leem a mesma linha (o offline loga em PlaceCard)
+        BattleLog.Jogou(ownerPlayerNumber, cardDisplay.card.cardName, row, column);
     }
 
     // Tenta mover uma carta do tabuleiro
@@ -569,6 +594,8 @@ public class GameManager : MonoBehaviour
         cardDisplay.MarkMoveUsed();
 
         Debug.Log($"[GameManager] {cardDisplay.card.cardName} moveu de ({fromRow},{fromCol}) para ({toRow},{toCol})");
+        BattleLog.Moveu(cardDisplay.ownerPlayerNumber, cardDisplay.card.cardName,
+                        fromRow, fromCol, toRow, toCol);
     }
 
     // Verifica se o movimento é válido — regras v4.2:
@@ -625,6 +652,14 @@ public class GameManager : MonoBehaviour
         // Archer 3 [3/2] com Mago)
         selectedCardDisplay.MarkMoveUsed();
 
+        // Diário (caminho OFFLINE/treino — o online loga em ExecuteMoveCard).
+        // Antes de zerar currentTile, que ainda guarda a casa de origem.
+        if (selectedCardDisplay.card != null && currentTile != null)
+            BattleLog.Moveu(selectedCardDisplay.ownerPlayerNumber,
+                            selectedCardDisplay.card.cardName,
+                            currentTile.row, currentTile.column,
+                            targetTile.row, targetTile.column);
+
         // Limpa os destaques
         ClearTileHighlights();
 
@@ -676,6 +711,11 @@ public class GameManager : MonoBehaviour
 
         // Aplica o efeito da carta ao entrar no tabuleiro
         selectedCardDisplay.ApplyCardEffect("onEnter");
+
+        // Diário (caminho OFFLINE/treino — o online loga em ExecutePlaceCard)
+        if (selectedCardDisplay.card != null)
+            BattleLog.Jogou(selectedCardDisplay.ownerPlayerNumber,
+                            selectedCardDisplay.card.cardName, tile.row, tile.column);
 
         // Limpa os destaques
         ClearTileHighlights();
@@ -1500,6 +1540,13 @@ public class GameManager : MonoBehaviour
             Debug.LogError($"[GameManager] Fonte do efeito {effectType} sem CardEffectSimple!");
             return;
         }
+
+        // Diário: ponto comum dos efeitos COM ALVO ESCOLHIDO — o online chega
+        // aqui pelo ExecuteEffectOnTarget (RPC) e o offline direto, então os
+        // dois clientes escrevem a mesma linha
+        if (source.card != null && target != null && target.card != null)
+            BattleLog.Efeito(source.ownerPlayerNumber, source.card.cardName,
+                             target.card.cardName);
 
         // Projétil visual do feitiço voando da carta lançadora até o alvo
         // (roxo = arcano ofensivo, dourado = bênção em aliado, azul = armadura,

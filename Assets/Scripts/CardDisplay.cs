@@ -123,8 +123,26 @@ public class CardDisplay : MonoBehaviour
     // Deitada sobre o tile (tabuleiro e loja), face para cima
     public static Quaternion BoardRotation { get { return Quaternion.Euler(0f, ViewYaw, 0f); } }
 
-    // Em pé na mão, de frente para a câmera
-    public static Quaternion HandRotation { get { return Quaternion.Euler(90f, ViewYaw, 0f); } }
+    // Inclinação da carta na mão, em graus a partir do tampo da mesa:
+    //   90 = totalmente EM PÉ. Era assim, e destoava: tudo o mais (tabuleiro,
+    //        loja) está deitado sobre a mesa e só a mão ficava espetada.
+    //   45 = APOIADA, de frente para a câmera. Como a câmera também olha a 45°
+    //        (CameraController.tiltAngle), a carta fica exatamente
+    //        perpendicular à visão: leitura sem distorção nenhuma.
+    //    0 = deitada na mesa, igual às do tabuleiro e da loja.
+    public const float HandTilt = 45f;
+
+    // Apoiada na mão, de frente para quem está vendo
+    public static Quaternion HandRotation { get { return Quaternion.Euler(HandTilt, ViewYaw, 0f); } }
+
+    // Altura do CENTRO da carta na mão para a borda de BAIXO continuar
+    // apoiada, seja qual for a inclinação: inclinar encurta a altura que ela
+    // ocupa (x sen do ângulo), e sem compensar a carta flutuaria.
+    // Com HandTilt = 90 dá exatamente o GroundY antigo.
+    public static float HandY(float scale)
+    {
+        return 1.25f * scale * Mathf.Sin(HandTilt * Mathf.Deg2Rad) + 0.6f;
+    }
 
     // Reaplica o giro em todas as cartas já criadas. Necessário porque o
     // número do jogador local chega DEPOIS (SyncPlayers do Photon): as cartas
@@ -149,9 +167,9 @@ public class CardDisplay : MonoBehaviour
         if (boardFigure != null) boardFigure.transform.rotation = figRot;
     }
 
-    // Na LOJA e na MÃO a carta fica "em pé" (de frente para a câmera): o centro
-    // precisa subir metade do comprimento dela (1.25 × escala) + folga,
-    // senão a base afunda no chão
+    // Altura do centro para uma carta EM PÉ (90°): sobe metade do comprimento
+    // dela (1.25 × escala) + folga, senão a base afunda no chão.
+    // (A MÃO não usa mais isto — ela é inclinada e usa HandY acima.)
     public static float GroundY(float scale)
     {
         return 1.25f * scale + 0.6f;
@@ -2779,6 +2797,16 @@ public class CardDisplay : MonoBehaviour
         // seleção normal e duas seleções se atropelavam
         if (GameManager.Instance != null && GameManager.Instance.IsWaitingForSpellTile())
         {
+            // Mesmo problema do movimento: o boneco tapa a casa de trás na
+            // câmera inclinada. Vale a casa sob o CURSOR — sem isto, mirar um
+            // Conjura Monstro / Muro de Pedra numa casa atrás de qualquer
+            // unidade era quase impossível
+            CardTile alvoFeitico = GameManager.Instance.TileUnderCursor();
+            if (alvoFeitico != null)
+            {
+                GameManager.Instance.TrySpellTileChosen(alvoFeitico);
+                return;
+            }
             Debug.Log("[CardDisplay] Escolha uma CASA livre para o feitiço (ESC cancela)!");
             return;
         }
@@ -3207,11 +3235,13 @@ public class CardDisplay : MonoBehaviour
         {
             buyer.freePurchases--;
             Debug.Log($"[CardDisplay] {buyer.playerName} usou a COMPRA GRÁTIS em {card.cardName}! (restam {buyer.freePurchases})");
+            BattleLog.Comprou(buyerPlayerNumber, card.cardName, 0);
         }
         else
         {
             buyer.BuyCard(cost);
             Debug.Log($"[CardDisplay] {buyer.playerName} comprou {card.cardName} por {cost} ouro. Ouro restante: {buyer.gold}");
+            BattleLog.Comprou(buyerPlayerNumber, card.cardName, cost);
         }
         MatchStatsTracker.RecordBought(card, buyerPlayerNumber); // telemetria de balanceamento
         SoundManager.Play(SoundManager.Sound.Buy);
@@ -3477,6 +3507,13 @@ public class CardDisplay : MonoBehaviour
             Debug.Log($"[Taunt] {card.cardName} está provocada — só pode atacar {tauntedBy.card.cardName}");
             return;
         }
+
+        // Diário: ponto ÚNICO por onde passam todos os ataques (clique, tecla
+        // A, bot e offline), já depois das guardas — só entra no diário o
+        // ataque que realmente aconteceu. Roda dentro do fluxo do RPC, então
+        // os dois clientes escrevem a mesma linha.
+        if (card != null && target.card != null)
+            BattleLog.Atacou(ownerPlayerNumber, card.cardName, target.card.cardName);
 
         int damageDealt = currentAttack;
 

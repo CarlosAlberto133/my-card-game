@@ -26,8 +26,10 @@ public class HandManager : MonoBehaviour
         // [DECKMODE] No modo deck a mão comporta 10 (padrão de TCG — as cartas
         // chegam do baralho e acumulam mais)
         maxCardsInHand = DeckMode.Active ? DeckMode.DeckModeHandLimit : 8;
-        // Altura correta para a nova escala (a base da carta não afunda no chão)
-        handYPosition = CardDisplay.GroundY(CardDisplay.HandScale);
+        // Altura correta para a escala E para a inclinação da mão (a carta
+        // apoiada ocupa menos altura que a em pé; HandY compensa para a borda
+        // de baixo continuar encostada, sem afundar nem flutuar)
+        handYPosition = CardDisplay.HandY(CardDisplay.HandScale);
         // Mão mais afastada do tabuleiro (cartas 2x maiores invadiam a visão do campo).
         // Cada jogador tem a mão do seu lado: P1 embaixo (-Z), P2 em cima (+Z).
         // Tabuleiro 7x7: borda em 22.8 + folga 6.7 = 29.5 (no 10x10 era 32.7 + 6.7 = 39.4)
@@ -88,8 +90,9 @@ public class HandManager : MonoBehaviour
             {
                 Vector3 targetPosition = startPosition + new Vector3(i * cardSpacing * lado, 0, 0);
 
-                // Na mão a carta fica EM PÉ, de frente para QUEM ESTÁ VENDO —
-                // quem veio da loja chega deitada
+                // Na mão a carta fica APOIADA (inclinada, ver CardDisplay.
+                // HandTilt), de frente para QUEM ESTÁ VENDO — quem veio da
+                // loja chega deitada
                 card.transform.rotation = CardDisplay.HandRotation;
 
                 // Move suavemente para a posição

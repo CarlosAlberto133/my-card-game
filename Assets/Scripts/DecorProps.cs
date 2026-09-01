@@ -8,6 +8,28 @@ using UnityEngine;
 // UnityEngine.Random (posições fixas — lockstep intocado).
 public static class DecorProps
 {
+    // Apaga um Object tanto em jogo quanto no EDITOR — o "assar cenário" do
+    // menu Card Game roda estes montadores fora do Play mode, onde Destroy()
+    // é proibido (só DestroyImmediate funciona)
+    public static void Kill(Object o)
+    {
+        if (o == null) return;
+        if (Application.isPlaying) Object.Destroy(o);
+        else Object.DestroyImmediate(o);
+    }
+
+    // Zera os materiais cacheados. O assador do MesaStage salva os materiais
+    // gerados como assets e apaga a pasta ao re-assar — sem isto os caches
+    // ficariam apontando para assets mortos
+    public static void ResetCachesForBake()
+    {
+        sharedMat = null;
+        forestMat = null;
+        toolsMat = null;
+        tintedMats.Clear();
+        sceneryMats.Clear();
+    }
+
     static Material sharedMat;
 
     static Material GetMaterial()
@@ -195,7 +217,7 @@ public static class DecorProps
         go.name = "Floor_" + model;
 
         foreach (Collider c in go.GetComponentsInChildren<Collider>(true))
-            Object.Destroy(c);
+            Kill(c);
 
         Material mat = GetMaterial();
         foreach (Renderer r in go.GetComponentsInChildren<Renderer>(true))
@@ -270,7 +292,7 @@ public static class DecorProps
         go.name = name;
 
         foreach (Collider c in go.GetComponentsInChildren<Collider>(true))
-            Object.Destroy(c);
+            Kill(c);
 
         Material mat = GetSceneryMaterial(slug);
         if (mat != null)
@@ -453,7 +475,7 @@ public static class DecorProps
         go.name = "Span_" + model;
 
         foreach (Collider c in go.GetComponentsInChildren<Collider>(true))
-            Object.Destroy(c);
+            Kill(c);
 
         Material mat = GetMaterial();
         if (mat != null)
@@ -496,7 +518,7 @@ public static class DecorProps
         go.name = "Decor_" + prefab.name;
 
         foreach (Collider c in go.GetComponentsInChildren<Collider>(true))
-            Object.Destroy(c);
+            Kill(c);
 
         if (mat != null)
         {
@@ -551,7 +573,7 @@ public static class DecorProps
         go.name = "Decor_" + model;
 
         foreach (Collider c in go.GetComponentsInChildren<Collider>(true))
-            Object.Destroy(c);
+            Kill(c);
 
         Material mat = GetCharMaterial(textureName);
         if (mat != null)
@@ -576,7 +598,7 @@ public static class DecorProps
         hero.name = "Hero_" + baseName.Replace("Models/", "");
 
         foreach (Collider c in hero.GetComponentsInChildren<Collider>(true))
-            Object.Destroy(c);
+            Kill(c);
 
         // Textura da classe se o modelo não tem própria (mesma regra do jogo)
         if (!HasOwnTexture(hero))
@@ -688,6 +710,17 @@ public class FlickerLight : MonoBehaviour
     Light lt;
     float baseIntensity;
     float seedOffset;
+
+    // Os campos privados NÃO são serializados: num FlickerLight "assado" na
+    // cena (MesaStage), eles chegam zerados ao carregar — reconstruímos aqui
+    // a partir do próprio Light (a intensidade dele é serializada normal)
+    void Awake()
+    {
+        if (lt == null) lt = GetComponent<Light>();
+        if (lt != null && baseIntensity <= 0f) baseIntensity = lt.intensity;
+        if (seedOffset == 0f)
+            seedOffset = transform.position.x * 3.7f + transform.position.z * 1.3f;
+    }
 
     public static void Attach(Transform parent, Vector3 pos, Color color, float intensity, float range)
     {

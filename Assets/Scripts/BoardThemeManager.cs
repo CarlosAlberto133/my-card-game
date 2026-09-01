@@ -35,6 +35,13 @@ public class BoardThemeManager : MonoBehaviour
         applied = false;
         themeSeed = 0;
         Current = null;
+
+        // Cenários montados/assados na cena começam ESCONDIDOS. Sem isto, um
+        // MesaStage deixado ativo no editor apareceria por um instante nos
+        // mapas Espaço/Floresta (a temática só é aplicada depois que o
+        // tabuleiro e a seed existem — até 1s numa sala online).
+        TabletopEnvironment.Clear();
+        ShowTesteStage(false);
     }
 
     // Chamado quando a seed sincronizada é conhecida (master ao gerar, P2 via

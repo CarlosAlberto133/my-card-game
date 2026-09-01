@@ -52,10 +52,15 @@ public class CardBoardPlaque : MonoBehaviour
                                    // do "esconde TMP desconhecido" do ApplyCardTheme,
                                    // que só varre os filhos DIRETOS da carta)
     Renderer statPlate, statPlateRing, statusPlate;
-    Renderer footRing;             // anel no chão na cor do dono — sem a carta,
-                                   // a borda azul/carmesim sumia junto e não
-                                   // dava mais para bater o olho e ver de quem
-                                   // é a unidade
+    Renderer footBase, footRing;   // base de miniatura no chão na cor do dono —
+                                   // sem a carta, a borda azul/carmesim sumia
+                                   // junto e não dava mais para bater o olho e
+                                   // ver de quem é a unidade
+
+    // Lado da base, em unidades locais da carta (x2 de escala no tabuleiro =
+    // 3.9 no mundo). A casa tem 6 de lado e os centros ficam a 6.6 de
+    // distância: sobra folga de sobra para as bases não se encostarem.
+    const float FootSize = 1.95f;
     Color ownerColor = Gold;
     TextMeshPro statusText;
     BoxCollider bodyCollider;      // corpo do personagem: é o que deixa passar o
@@ -166,6 +171,14 @@ public class CardBoardPlaque : MonoBehaviour
     void CollectPaper()
     {
         paper.Clear();
+
+        // Estilo escolhido pelo jogador nas Configurações (BoardCardView):
+        // no modo CARTA nada se desfaz — a miniatura fica de pé sobre a carta
+        // dela, como numa mesa de verdade. SÍMBOLO e NENHUM dissolvem igual: a
+        // diferença entre eles é só a base no chão (ver SetPlaqueAlpha —
+        // símbolo = círculo preenchido, nenhum = só o aro).
+        if (BoardCardView.Style == BoardCardStyle.Carta) return;
+
         foreach (Transform t in transform)
         {
             if (t == null || !t.gameObject.activeSelf) continue;
@@ -176,6 +189,26 @@ public class CardBoardPlaque : MonoBehaviour
             if (t.GetComponent<Renderer>() == null && t.GetComponent<TMP_Text>() == null) continue;
             paper.Add(t);
         }
+    }
+
+    // O jogador trocou o estilo nas Configurações no meio da partida: reaplica
+    // sem animação nenhuma (a dissolução é um efeito de ENTRADA; repetir aqui
+    // ficaria estranho numa unidade que já está em campo há rounds).
+    public void RefreshStyle()
+    {
+        if (card == null || !card.isOnBoard) return;
+        if (!Ready) return; // ainda entrando — a rotina já vai coletar pelo novo
+
+        // Devolve tudo ao normal antes de recolher pela regra nova
+        RestoreMaterials();
+        foreach (Transform t in paper)
+            if (t != null) t.gameObject.SetActive(true);
+
+        CollectPaper();
+        HidePaper();
+
+        // A base no chão também depende do estilo (ver SetPlaqueAlpha)
+        SetPlaqueAlpha(plaqueAlpha);
     }
 
     IEnumerator DissolveRoutine()
@@ -340,10 +373,18 @@ public class CardBoardPlaque : MonoBehaviour
         root.transform.localRotation = Quaternion.identity;
         plaque = root.transform;
 
-        // Anel no chão sob os pés (leitura de dono à distância, estilo MOBA)
+        // BASE DE MINIATURA sob os pés, na cor do dono. Antes era só um aro de
+        // 0.055 de espessura (0.11 no mundo): com a câmera a 45° ele aparecia
+        // achatado e o corpo do boneco cobria metade dele — num tabuleiro
+        // cheio não dava para bater o olho e saber de quem era cada unidade.
+        // Agora é um disco CHEIO (semitransparente, a pedra do tabuleiro ainda
+        // aparece por baixo) com um aro opaco por cima fechando a borda.
+        footBase = MakePlate("FootBase",
+            CardDisplay.GetRoundedRectMesh(FootSize, FootSize, FootSize * 0.5f),
+            new Vector3(0f, 0.005f, -0.35f), Gold);
         footRing = MakePlate("FootRing",
-            CardDisplay.GetRoundedRingMesh(1.40f, 1.40f, 0.70f, 0.055f),
-            new Vector3(0f, 0.006f, -0.35f), Gold);
+            CardDisplay.GetRoundedRingMesh(FootSize, FootSize, FootSize * 0.5f, 0.075f),
+            new Vector3(0f, 0.008f, -0.35f), Gold);
 
         // Placa sob os três escudos heráldicos (que vivem em y 0.009/0.012 e
         // continuam desenhando por cima dela)
@@ -405,7 +446,17 @@ public class CardBoardPlaque : MonoBehaviour
         plaqueAlpha = a;
         SetRendererAlpha(statPlate, PlateInk, a);
         SetRendererAlpha(statPlateRing, ownerColor, a);
-        SetRendererAlpha(footRing, ownerColor, a * 0.85f);
+        // A base do chão muda conforme o estilo escolhido nas Configurações:
+        //   CARTA   — some inteira: a borda colorida da PRÓPRIA carta já diz
+        //             de quem é a unidade, e o disco viraria poluição
+        //   SÍMBOLO — disco cheio (translúcido, deixando a pedra aparecer) +
+        //             aro, que é o que dá o contorno nítido
+        //   NENHUM  — só o aro, o contorno limpo
+        BoardCardStyle estilo = BoardCardView.Style;
+        float aDisco = estilo == BoardCardStyle.Simbolo ? a * 0.55f : 0f;
+        float aAro = estilo == BoardCardStyle.Carta ? 0f : a * 0.95f;
+        SetRendererAlpha(footBase, ownerColor, aDisco);
+        SetRendererAlpha(footRing, ownerColor, aAro);
         bool hasStatus = statusText != null && !string.IsNullOrEmpty(statusText.text);
         SetRendererAlpha(statusPlate, StatusInk, hasStatus ? a : 0f);
         if (statusText != null) statusText.alpha = hasStatus ? a : 0f;

@@ -82,6 +82,30 @@ public class BoardManager : MonoBehaviour
         Debug.Log($"Tabuleiro {rows}x{columns} criado com sucesso!");
     }
 
+    // Casa que está sob um ponto do MUNDO (no plano do tabuleiro) — o inverso
+    // exato da conta do CreateBoard. Devolve null se o ponto cair fora.
+    // Serve para resolver cliques pela casa apontada pelo cursor em vez de
+    // pelo collider mais próximo: com a câmera inclinada, o boneco de uma
+    // casa é desenhado por cima da casa seguinte e rouba o clique dela.
+    public CardTile TileAtWorld(Vector3 world)
+    {
+        if (board == null) return null;
+
+        float pitch = tileSize + tileSpacing;
+        float totalWidth = (columns * tileSize) + ((columns - 1) * tileSpacing);
+        float totalDepth = (rows * tileSize) + ((rows - 1) * tileSpacing);
+        Vector3 start = transform.position
+                      - new Vector3(totalWidth / 2f, 0f, totalDepth / 2f);
+
+        // Arredondar pelo CENTRO da casa: pontos caídos na fresta entre duas
+        // casas vão para a mais próxima, sem buraco morto entre elas
+        int col = Mathf.RoundToInt((world.x - start.x - tileSize / 2f) / pitch);
+        int row = Mathf.RoundToInt((world.z - start.z - tileSize / 2f) / pitch);
+
+        if (row < 0 || row >= rows || col < 0 || col >= columns) return null;
+        return board[row, col];
+    }
+
     GameObject CreateTile(Vector3 position)
     {
         GameObject tile;

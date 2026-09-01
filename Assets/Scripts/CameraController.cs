@@ -37,6 +37,14 @@ public class CameraController : MonoBehaviour
     [Range(25f, 90f)]
     public float tiltAngle = 45f;
 
+    [Header("Inclinação controlada pelo jogador (na partida)")]
+    [Tooltip("Ângulo MAIS BAIXO que o jogador pode chegar — a visão deitada de sempre.")]
+    public float minTilt = 45f;
+    [Tooltip("Ângulo MAIS ALTO — praticamente a visão de cima (90 é o topo exato; 89 evita a matemática degenerada do olhar reto para baixo).")]
+    public float maxTilt = 89f;
+    [Tooltip("Velocidade da subida/descida da câmera, em graus por segundo.")]
+    public float tiltSpeed = 45f;
+
     [Header("Perspectiva (profundidade real)")]
     [Tooltip("Abertura da lente em graus. Menor = mais 'achatada' (tele); maior = mais dramática. Pode ajustar em play mode.")]
     [Range(20f, 60f)]
@@ -56,6 +64,11 @@ public class CameraController : MonoBehaviour
     private static CameraController instance;
 
     private Vector3 lastMousePos;
+    // Arrasto com o botão ESQUERDO = inclinação da câmera. Como esse botão
+    // também seleciona carta/casa, o arrasto só começa depois da zona morta.
+    private Vector2 lastLeftPos;
+    private bool arrastouOEsquerdo;
+    private bool leftSobreUI;
     private Camera mainCamera;
     private float targetZoom;
     private float currentZoom;             // meia-altura visível (em unidades) no ponto do chão olhado
@@ -360,6 +373,57 @@ public class CameraController : MonoBehaviour
             }
 
             lastMousePos = currentMousePos;
+        }
+
+        // ── Inclinação: o jogador levanta/abaixa a câmera ──────────────────
+        // minTilt (45°) = a visão deitada de sempre, o mais baixo que dá;
+        // maxTilt (89°) = praticamente de cima, olhando o tabuleiro de topo.
+        // Segurar o botão ESQUERDO e arrastar: para cima sobe, para baixo desce.
+        // (As setas ↑/↓ fazem o mesmo, para quem preferir teclado.)
+        float tiltDelta = 0f;
+        if (Keyboard.current != null)
+        {
+            if (Keyboard.current.upArrowKey.isPressed) tiltDelta += 1f;
+            if (Keyboard.current.downArrowKey.isPressed) tiltDelta -= 1f;
+        }
+        tiltDelta *= tiltSpeed * Time.deltaTime;
+
+        if (Mouse.current.leftButton.wasPressedThisFrame)
+        {
+            lastLeftPos = Mouse.current.position.ReadValue();
+            arrastouOEsquerdo = false;
+            // Clique que começa na UI é da UI (botões, painéis): não vira câmera
+            leftSobreUI = UnityEngine.EventSystems.EventSystem.current != null &&
+                          UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
+        }
+        if (Mouse.current.leftButton.isPressed && !leftSobreUI)
+        {
+            Vector2 pos = Mouse.current.position.ReadValue();
+            float dy = pos.y - lastLeftPos.y;
+
+            // Zona morta: o botão esquerdo TAMBÉM seleciona carta e casa. Sem
+            // esta folga, o tremor natural da mão ao clicar já mexeria a
+            // câmera — só vira arrasto depois de sair do lugar de verdade.
+            if (!arrastouOEsquerdo && Mathf.Abs(dy) >= 6f) arrastouOEsquerdo = true;
+
+            if (arrastouOEsquerdo)
+            {
+                tiltDelta += dy * 0.20f;
+                lastLeftPos = pos;
+            }
+        }
+
+        if (!Mathf.Approximately(tiltDelta, 0f))
+        {
+            float novo = Mathf.Clamp(tiltAngle + tiltDelta, minTilt, maxTilt);
+            if (!Mathf.Approximately(novo, tiltAngle))
+            {
+                tiltAngle = novo;
+                // Guarda a preferência: sem isto, a descida da abertura de uma
+                // revanche devolveria a câmera ao ângulo antigo
+                playTilt = novo;
+                ApplyTilt();
+            }
         }
 
         // ── Zoom suave ─────────────────────────────────────────────────────
