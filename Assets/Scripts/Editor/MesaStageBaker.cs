@@ -88,6 +88,76 @@ public static class MesaStageBaker
             "cenário por código, apague o MesaStage.", "OK");
     }
 
+    // Troca SÓ o tampo dentro de um MesaStage já assado: as tábuas novas
+    // entram e o resto do cenário (moldura, tochas, dados, tudo o que foi
+    // movido à mão) fica exatamente como está. Re-assar tudo apagaria isso.
+    [MenuItem("Card Game/Mesa de RPG: refazer só o TAMPO com as tábuas")]
+    public static void RebakeTableTop()
+    {
+        if (Application.isPlaying)
+        {
+            EditorUtility.DisplayDialog("Tampo em tábuas",
+                "Saia do Play mode antes — o que é criado em Play se perde ao parar.",
+                "OK");
+            return;
+        }
+
+        GameObject stage = FindStage();
+        if (stage == null)
+        {
+            EditorUtility.DisplayDialog("Tampo em tábuas",
+                "Não há MesaStage nesta cena. Sem ele o cenário é montado por " +
+                "código e o tampo já sai em tábuas sozinho — não precisa deste menu.",
+                "OK");
+            return;
+        }
+
+        BoardManager bm = Object.FindObjectOfType<BoardManager>();
+        Vector3 center = bm != null ? bm.transform.position : Vector3.zero;
+
+        // Fora o tampo velho: o "Tampo" (tábuas) de uma rodada anterior OU a
+        // laje "TableTop" do bake original
+        int apagados = 0;
+        foreach (Transform t in stage.GetComponentsInChildren<Transform>(true))
+        {
+            if (t == null || t == stage.transform) continue;
+            if (t.name == "Tampo" || t.name == "TableTop" || t.name == "TableBody")
+            {
+                Object.DestroyImmediate(t.gameObject);
+                apagados++;
+            }
+        }
+
+        if (!AssetDatabase.IsValidFolder(RootFolder))
+            AssetDatabase.CreateFolder("Assets", "BakedMaps");
+        if (!AssetDatabase.IsValidFolder(BakeFolder))
+            AssetDatabase.CreateFolder(RootFolder, "MesaStage");
+
+        // Sem ResetCachesForBake aqui, de propósito: a pasta do bake continua
+        // no lugar, então o cache que aponta para os assets já salvos é o que
+        // evita salvar uma segunda cópia da mesma madeira.
+        GameObject tampo = TabletopEnvironment.BuildTableTopForBake(center);
+        if (tampo == null)
+        {
+            EditorUtility.DisplayDialog("Tampo em tábuas",
+                "Não consegui montar o tampo — veja o Console.", "OK");
+            return;
+        }
+
+        tampo.transform.SetParent(stage.transform, true);
+        tampo.transform.SetAsFirstSibling();
+
+        int salvos = PersistRuntimeAssets(tampo);
+
+        EditorSceneManager.MarkSceneDirty(stage.scene);
+        Selection.activeGameObject = tampo;
+        EditorGUIUtility.PingObject(tampo);
+        EditorUtility.DisplayDialog("Tampo em tábuas",
+            "Tampo refeito dentro do MesaStage (" + apagados + " peça(s) antiga(s) " +
+            "apagada(s), " + salvos + " material(is) salvo(s)).\n\nO resto do " +
+            "cenário ficou intocado. Salve a cena (Ctrl+S).", "OK");
+    }
+
     static GameObject FindStage()
     {
         foreach (Transform t in Object.FindObjectsByType<Transform>(

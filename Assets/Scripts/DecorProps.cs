@@ -277,6 +277,52 @@ public static class DecorProps
         return go;
     }
 
+    // Uma TÁBUA (peça própria de decor/cenario) esticada como ripa de tampo:
+    // o eixo mais COMPRIDO da malha vira o comprimento (na direção "along"),
+    // o mais FINO vira a espessura (deitada, no Y) e o que sobra vira a
+    // largura. Mesma desconfiança do resto do arquivo: nada de acreditar na
+    // orientação do import — mede-se a malha e remonta-se.
+    //
+    // O TOPO da tábua encosta em topCenter.y: é a superfície onde as cartas
+    // se apoiam, então é ela que tem de bater certo, não o centro.
+    public static GameObject PlaceSceneryPlank(Transform parent, string slug,
+        Vector3 topCenter, Vector3 along, float comprimento, float largura,
+        float espessura, bool girar180)
+    {
+        GameObject go = InstantiateScenery(parent, slug, "Tabua_" + slug);
+        if (go == null) return null;
+
+        // Mede sem rotação e SEM mexer na escala: os fatores saem relativos
+        // ao tamanho que a peça tem de fábrica
+        go.transform.rotation = Quaternion.identity;
+        Vector3 raw = BoundsOf(go).size;
+
+        int eixoLongo = 0, eixoFino = 0;
+        for (int i = 1; i < 3; i++)
+        {
+            if (raw[i] > raw[eixoLongo]) eixoLongo = i;
+            if (raw[i] < raw[eixoFino]) eixoFino = i;
+        }
+        if (eixoFino == eixoLongo) eixoFino = (eixoLongo + 1) % 3;
+        int eixoLargura = 3 - eixoLongo - eixoFino;
+
+        Vector3 fator = Vector3.one;
+        fator[eixoLongo] = comprimento / Mathf.Max(raw[eixoLongo], 0.0001f);
+        fator[eixoLargura] = largura / Mathf.Max(raw[eixoLargura], 0.0001f);
+        fator[eixoFino] = espessura / Mathf.Max(raw[eixoFino], 0.0001f);
+        go.transform.localScale = Vector3.Scale(go.transform.localScale, fator);
+
+        // Girar 180° troca a ponta da tábua: o MESMO modelo repetido doze
+        // vezes lado a lado fica bem menos óbvio
+        Vector3 dir = along.normalized;
+        if (girar180) dir = -dir;
+        go.transform.rotation = MapAxes(eixoLongo, dir, eixoFino, Vector3.up);
+
+        Bounds b = BoundsOf(go);
+        go.transform.position += topCenter - new Vector3(b.center.x, b.max.y, b.center.z);
+        return go;
+    }
+
     // Carrega e instancia uma peça PRÓPRIA de Resources/decor/cenario, já sem
     // colliders e com o material da peça (textura + normal map + pedra fosca)
     static GameObject InstantiateScenery(Transform parent, string slug, string name)

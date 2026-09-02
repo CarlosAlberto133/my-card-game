@@ -33,6 +33,19 @@ public static class TabletopEnvironment
     public const bool FrameFlipDireita = true;
     public const bool FrameFlipEsquerda = false;
 
+    // ── Tampo da mesa ──────────────────────────────────────────────────────
+    // Com uma peça em TableTopPiece, o tampo é feito de TÁBUAS de verdade
+    // (peça própria do Meshy repetida lado a lado) sobre uma base escura que
+    // fecha as frestas e dá a espessura vista de lado. Troque por null para
+    // voltar à laje única com a textura de madeira procedural.
+    public const string TableTopPiece = "tabua";
+    public const float TableTopWidth = 112f;      // eixo X: loja (-29.5) e
+    public const float TableTopDepth = 90f;       // mãos (z ±29.5) em cima
+    public const float TableTopSurface = -0.15f;  // logo abaixo dos tiles (y 0)
+    public const float PlankWidth = 8f;           // largura de cada tábua
+    public const float PlankThickness = 1.5f;     // espessura da tábua
+    public const float PlankOverlap = 0.15f;      // sobra lateral: sem fresta
+
     // ── Cenário "ASSADO" na cena (MesaStage) ─────────────────────────────
     // O menu do editor "Card Game → Mesa de RPG: assar cenário" transforma
     // este cenário gerado por código em objetos DE VERDADE na cena, dentro de
@@ -92,6 +105,116 @@ public static class TabletopEnvironment
         Transform velha = root.transform.Find("Moldura");
         if (velha != null) DecorProps.Kill(velha.gameObject);
         BuildFrame();
+    }
+
+    // Remonta SÓ o tampo (chamado pelo TableTopTuning quando os sliders mudam)
+    public static void RebuildTableTop()
+    {
+        // Com MesaStage assado o root fica null — aí remontamos DENTRO do
+        // palco da cena mesmo, para os sliders valerem também nesse caso (em
+        // Play mode; sair do Play desfaz, e aí é o menu do editor que grava)
+        GameObject alvo = root != null ? root : FindBakedStage();
+        if (alvo == null) return;
+
+        foreach (string nome in new[] { "Tampo", "TableTop", "TableBody" })
+        {
+            Transform velho = alvo.transform.Find(nome);
+            if (velho != null) DecorProps.Kill(velho.gameObject);
+        }
+
+        BoardManager bm = BoardManager.Instance;
+        if (bm == null) bm = Object.FindObjectOfType<BoardManager>();
+        if (bm != null) lastCenter = bm.transform.position;
+
+        GameObject anterior = root;
+        root = alvo;
+        BuildTableTop();
+        root = anterior;
+    }
+
+    // Monta o tampo SOZINHO e devolve solto (sem pai), para o menu do editor
+    // trocar só ele dentro de um MesaStage já assado — re-assar o cenário
+    // inteiro apagaria tudo o que foi editado à mão.
+    public static GameObject BuildTableTopForBake(Vector3 center)
+    {
+        GameObject anterior = root;
+        Vector3 centroAnterior = lastCenter;
+
+        root = new GameObject("TampoTemp");
+        lastCenter = center;
+        BuildTableTop();
+
+        Transform t = root.transform.Find("Tampo");
+        GameObject tampo = t != null ? t.gameObject : null;
+        if (tampo != null) tampo.transform.SetParent(null, true);
+
+        DecorProps.Kill(root);
+        root = anterior;
+        lastCenter = centroAnterior;
+        return tampo;
+    }
+
+    // Tábuas de verdade lado a lado + base escura por baixo. Cai na laje
+    // única de antes se a peça não carregar (o mapa nunca fica sem mesa).
+    static void BuildTableTop()
+    {
+        if (root == null) return;
+        Vector3 center = lastCenter;
+
+        GameObject tampo = new GameObject("Tampo");
+        tampo.transform.SetParent(root.transform, false);
+
+        TableTopTuning tune = TableTopTuning.Ativa;
+        bool usarTabuas = tune == null || tune.usarTabuas;
+        float largura = tune != null ? tune.larguraTabua : PlankWidth;
+        float espessura = tune != null ? tune.espessuraTabua : PlankThickness;
+        float sobra = tune != null ? tune.sobraLateral : PlankOverlap;
+        bool alternar = tune == null || tune.alternarSentido;
+
+        float topo = TableTopSurface;
+        int postas = 0;
+
+        if (usarTabuas && !string.IsNullOrEmpty(TableTopPiece))
+        {
+            // Tábuas ao longo do X (o lado comprido), empilhadas no Z.
+            // System.Random com seed FIXA: o sorteio de quais vêm giradas é
+            // decoração e tem de sair igual nos dois clientes (lockstep).
+            int n = Mathf.Max(1, Mathf.RoundToInt(TableTopDepth / Mathf.Max(largura, 0.5f)));
+            float passo = TableTopDepth / n;
+            System.Random rng = new System.Random(20260902);
+
+            for (int i = 0; i < n; i++)
+            {
+                float z = -TableTopDepth * 0.5f + passo * (i + 0.5f);
+                bool gira = alternar && rng.Next(2) == 0;
+                GameObject t = DecorProps.PlaceSceneryPlank(tampo.transform,
+                    TableTopPiece, center + new Vector3(0f, topo, z),
+                    Vector3.right, TableTopWidth, passo + sobra, espessura, gira);
+                if (t != null) postas++;
+            }
+        }
+
+        if (postas > 0)
+        {
+            // Base escura logo abaixo das tábuas: tapa qualquer fresta entre
+            // elas e faz a espessura da mesa (a câmera deitada vê a borda).
+            // Um dedo mais estreita para as tábuas serem a beirada visível.
+            GameObject corpo = MakeBox("TableBody",
+                center + new Vector3(0f, topo - espessura * 0.5f - 1.5f, 0f),
+                new Vector3(TableTopWidth - 0.8f, 3f, TableTopDepth - 0.8f),
+                new Color(0.34f, 0.22f, 0.13f), GetWoodTexture(), null, tampo.transform);
+            SetTextureTiling(corpo, 5f, 4f);
+        }
+        else
+        {
+            // Sem a peça: a laje única de antes, intacta. A textura REPETE —
+            // esticada uma vez só sobre 112 unidades ela virava um borrão.
+            GameObject slab = MakeBox("TableTop",
+                center + new Vector3(0f, topo - 1.5f, 0f),
+                new Vector3(TableTopWidth, 3f, TableTopDepth),
+                new Color(0.52f, 0.36f, 0.21f), GetWoodTexture(), null, tampo.transform);
+            SetTextureTiling(slab, 5f, 4f);
+        }
     }
 
     // Moldura do campo em volta dos tiles. Tabuleiro 7x7 = 45.6 de lado
@@ -218,13 +341,11 @@ public static class TabletopEnvironment
         Vector3 center = bm != null ? bm.transform.position : Vector3.zero;
 
         // ── Tampo da mesa ─────────────────────────────────────────────────
-        // Grande o bastante para loja (x -29.5) e mãos (z ±29.5) ficarem sobre
-        // ela. Topo em y = -0.15 (logo abaixo dos tiles, que estão em y = 0).
-        // A textura REPETE (tiling) — esticada uma vez só sobre 112 unidades
-        // ela virava um borrão; repetida, cada tábua fica nítida.
-        GameObject slab = MakeBox("TableTop", center + new Vector3(0f, -1.65f, 0f),
-            new Vector3(112f, 3f, 90f), new Color(0.52f, 0.36f, 0.21f), GetWoodTexture());
-        SetTextureTiling(slab, 5f, 4f);
+        // Em BuildTableTop() para os sliders do TableTopTuning poderem
+        // remontá-lo AO VIVO (e o menu do editor trocar só ele num MesaStage
+        // já assado, sem perder as edições feitas à mão no resto)
+        lastCenter = center;
+        BuildTableTop();
 
         // ── Pernas da mesa + chão da taverna ──────────────────────────────
         // Com a câmera de cima ninguém via, mas com a câmera deitada (estilo
@@ -463,11 +584,11 @@ public static class TabletopEnvironment
     }
 
     static GameObject MakeBox(string name, Vector3 pos, Vector3 scale, Color color,
-        Texture2D tex, Quaternion? rot = null)
+        Texture2D tex, Quaternion? rot = null, Transform parent = null)
     {
         GameObject box = GameObject.CreatePrimitive(PrimitiveType.Cube);
         box.name = name;
-        box.transform.SetParent(root.transform, false);
+        box.transform.SetParent(parent != null ? parent : root.transform, false);
         box.transform.position = pos;
         box.transform.localScale = scale;
         if (rot.HasValue) box.transform.rotation = rot.Value;
