@@ -158,7 +158,7 @@ public static class MesaStageBaker
             "cenário ficou intocado. Salve a cena (Ctrl+S).", "OK");
     }
 
-    static GameObject FindStage()
+    public static GameObject FindStage()
     {
         foreach (Transform t in Object.FindObjectsByType<Transform>(
                      FindObjectsInactive.Include, FindObjectsSortMode.None))
@@ -170,8 +170,15 @@ public static class MesaStageBaker
     // Salva como asset todo material/textura criado em memória pelo código,
     // deduplicando os idênticos (os 12 vagalumes dividem 1 material; cada
     // caixa de madeira tem o seu por causa de cor/tiling)
-    static int PersistRuntimeAssets(GameObject stage)
+    public static int PersistRuntimeAssets(GameObject stage)
     {
+        // Garantido aqui também: quem chama pode ser o menu das peças avulsas,
+        // que não passa pelo caminho do bake completo
+        if (!AssetDatabase.IsValidFolder(RootFolder))
+            AssetDatabase.CreateFolder("Assets", "BakedMaps");
+        if (!AssetDatabase.IsValidFolder(BakeFolder))
+            AssetDatabase.CreateFolder(RootFolder, "MesaStage");
+
         Dictionary<string, Material> canonicos = new Dictionary<string, Material>();
         int salvos = 0;
 

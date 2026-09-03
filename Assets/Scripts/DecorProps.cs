@@ -323,6 +323,38 @@ public static class DecorProps
         return go;
     }
 
+    // Uma peça de cenário SOLTA, em pé, para ser largada na cena e posicionada
+    // à MÃO no editor: escala pela ALTURA pedida e apoia a BASE em basePos
+    // (é o pé que tem de encostar na mesa, não o centro).
+    //
+    // Aqui a orientação é palpite, não certeza como nas peças que o código
+    // posiciona sozinho: os FBX do Meshy costumam chegar em pé, então o padrão
+    // é não mexer. Só quando a peça vem claramente TOMBADA (altura abaixo de
+    // 40% do maior lado) é que entra o -90 no X — a mesma correção que o piso
+    // do tabuleiro já fazia. Se ainda assim vier torta, é um giro no Inspector:
+    // esta peça existe para ser ajustada à mão.
+    public static GameObject PlaceSceneryProp(Transform parent, string slug,
+        Vector3 basePos, float altura, float yRotation)
+    {
+        GameObject go = InstantiateScenery(parent, slug, "Peca_" + slug);
+        if (go == null) return null;
+
+        go.transform.rotation = Quaternion.identity;
+        Vector3 raw = BoundsOf(go).size;
+        float maior = Mathf.Max(raw.x, Mathf.Max(raw.y, raw.z));
+        Quaternion levantar = (maior > 0.0001f && raw.y < maior * 0.4f)
+            ? Quaternion.Euler(-90f, 0f, 0f) : Quaternion.identity;
+        go.transform.rotation = Quaternion.Euler(0f, yRotation, 0f) * levantar;
+
+        Bounds b = BoundsOf(go);
+        if (b.size.y > 0.0001f)
+            go.transform.localScale = go.transform.localScale * (altura / b.size.y);
+
+        b = BoundsOf(go);
+        go.transform.position += basePos - new Vector3(b.center.x, b.min.y, b.center.z);
+        return go;
+    }
+
     // Carrega e instancia uma peça PRÓPRIA de Resources/decor/cenario, já sem
     // colliders e com o material da peça (textura + normal map + pedra fosca)
     static GameObject InstantiateScenery(Transform parent, string slug, string name)
