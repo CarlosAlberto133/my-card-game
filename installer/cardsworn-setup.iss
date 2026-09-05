@@ -34,7 +34,7 @@ DisableDirPage=auto
 PrivilegesRequired=lowest
 OutputDir=.
 OutputBaseFilename=CardswornSetup
-SetupIconFile=icon.ico
+SetupIconFile={#LauncherSrc}\icon.ico
 UninstallDisplayIcon={app}\icon.ico
 UninstallDisplayName={#AppName}
 WizardStyle=modern
@@ -60,7 +60,7 @@ Type: files; Name: "{autoprograms}\Card Game.lnk"
 [Files]
 Source: "{#LauncherSrc}\Launcher.ps1";      DestDir: "{app}"; Flags: ignoreversion
 Source: "{#LauncherSrc}\Play Cardsworn.vbs"; DestDir: "{app}"; Flags: ignoreversion
-Source: "icon.ico";                          DestDir: "{app}"; Flags: ignoreversion
+Source: "{#LauncherSrc}\icon.ico";           DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 ; Atalho no Menu Iniciar

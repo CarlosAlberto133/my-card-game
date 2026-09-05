@@ -3,7 +3,10 @@
 # no site). Sem depender de nenhum asset externo.
 Add-Type -AssemblyName System.Drawing
 
-$outIco = Join-Path $PSScriptRoot "icon.ico"
+# Grava junto do launcher, e nao aqui: o Launcher.ps1 le o icone ao lado
+# de si mesmo em tempo de execucao, o zip avulso leva o mesmo arquivo e o
+# instalador copia dali. Uma copia so, sem risco de divergirem.
+$outIco = Join-Path (Split-Path $PSScriptRoot -Parent) "launcher\cardsworn-launcher\icon.ico"
 $sizes  = @(16, 24, 32, 48, 64, 128, 256)
 
 # Cores da marca (iguais ao site: gold #f5c451, tinta escura #1a1405)
