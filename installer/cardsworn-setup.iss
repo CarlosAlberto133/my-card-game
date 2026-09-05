@@ -10,7 +10,7 @@
 ; ============================================================
 
 #define AppName    "Cardsworn"
-#define AppVersion "1.0.1"
+#define AppVersion "1.0.2"
 #define AppExe     "Play Cardsworn.vbs"
 #define LauncherSrc "..\launcher\cardsworn-launcher"
 
@@ -26,7 +26,7 @@ AppId={{8F2C6A41-3B7D-4E9A-9C15-CARD0GAME0001}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher=Cardsworn
-AppPublisherURL=https://card-game-online.vercel.app
+AppPublisherURL=https://cardsworn.vercel.app
 DefaultDirName={autopf}\{#AppName}
 DisableProgramGroupPage=yes
 DisableDirPage=auto

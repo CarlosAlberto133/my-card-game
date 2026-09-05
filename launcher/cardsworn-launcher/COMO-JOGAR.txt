@@ -53,4 +53,4 @@ Tem um log do que aconteceu em:
 
 Reporte o bug (pode colar o log) em:
 
-   https://card-game-online.vercel.app/forum
+   https://cardsworn.vercel.app/forum
