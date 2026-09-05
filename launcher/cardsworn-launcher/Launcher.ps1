@@ -427,16 +427,32 @@ function Start-GoogleLogin {
 # Location (sem seguir o redirect) e pegamos o ultimo pedaco da URL = a tag.
 # Isso nao conta no limite de 60 req/hora da api.github.com.
 function Get-LatestTag {
+    # Seguimos os redirects NA MAO (um de cada vez) porque so nos interessa o
+    # que aponta para /releases/tag/. Se o repositorio tiver sido renomeado, o
+    # primeiro salto vai para o MESMO caminho no nome novo (.../releases/latest)
+    # e so o segundo chega na tag - lendo um salto so, o resultado seria a
+    # string "latest", que viraria uma URL de download invalida e um "sem
+    # conexao" sem explicacao. Tres saltos cobrem rename em cima de rename.
     $url = "https://github.com/$RepoOwner/$RepoName/releases/latest"
-    $req = [System.Net.HttpWebRequest]::Create($url)
-    $req.UserAgent        = "CardswornLauncher"
-    $req.Method           = "GET"
-    $req.AllowAutoRedirect = $false   # queremos LER o redirect, nao segui-lo
-    $req.Timeout          = 15000
-    $resp = $req.GetResponse()        # 302 nao lanca excecao (so 4xx/5xx lancam)
-    try { $loc = $resp.Headers["Location"] } finally { $resp.Close() }
-    if (-not $loc) { throw "releases/latest nao redirecionou (repo sem releases?)" }
-    return ($loc -split "/")[-1]       # .../releases/tag/v30  ->  v30
+    for ($salto = 0; $salto -lt 3; $salto++) {
+        $req = [System.Net.HttpWebRequest]::Create($url)
+        $req.UserAgent        = "CardswornLauncher"
+        $req.Method           = "GET"
+        $req.AllowAutoRedirect = $false   # queremos LER o redirect, nao segui-lo
+        $req.Timeout          = 15000
+        $resp = $req.GetResponse()        # 302 nao lanca excecao (so 4xx/5xx lancam)
+        try { $loc = $resp.Headers["Location"] } finally { $resp.Close() }
+        if (-not $loc) { throw "releases/latest nao redirecionou (repo sem releases?)" }
+
+        if ($loc -match "/releases/tag/") {
+            Write-Log "Tag lida em $($salto + 1) salto(s): $loc"
+            return ($loc -split "/")[-1]   # .../releases/tag/v38  ->  v38
+        }
+
+        Write-Log "Redirect intermediario (repo renomeado?): $loc"
+        $url = $loc
+    }
+    throw "Nao cheguei na tag depois de 3 redirects (ultimo: $url)"
 }
 
 # Tamanho do arquivo (para o progresso) via HEAD, seguindo o redirect ate o CDN
