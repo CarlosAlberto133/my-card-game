@@ -114,72 +114,513 @@ $script:authDeadline = $null
 # ============================================================
 #  Janela
 # ============================================================
+#  Layout em duas colunas, no estilo dos launchers de MMO: as
+#  novidades ocupam a area grande da esquerda e a coluna da
+#  direita concentra conta, status, progresso e o botao Jogar.
+#
+#  Continua sendo WinForms (e nao WPF) de proposito: o launcher
+#  e a UNICA peca que nao se auto-atualiza, entao uma reescrita
+#  para outro toolkit obrigaria todo mundo a reinstalar se algo
+#  desse errado. Aqui a pintura e feita na mao com GDI+ (o mesmo
+#  que o make-icon.ps1 ja usa), e as variaveis dos controles tem
+#  os MESMOS nomes de antes, entao nenhuma linha da logica de
+#  download, update ou login precisou mudar.
+# ============================================================
+
+# ---------- Paleta (identica a do site) ----------
+$C_Bg      = [System.Drawing.Color]::FromArgb(21, 16, 10)
+$C_Bg2     = [System.Drawing.Color]::FromArgb(36, 26, 16)
+$C_Panel   = [System.Drawing.Color]::FromArgb(31, 22, 13)
+$C_Line    = [System.Drawing.Color]::FromArgb(58, 46, 31)
+$C_Ink     = [System.Drawing.Color]::FromArgb(243, 232, 211)
+$C_Muted   = [System.Drawing.Color]::FromArgb(182, 160, 124)
+$C_Muted2  = [System.Drawing.Color]::FromArgb(138, 120, 92)
+$C_Gold    = [System.Drawing.Color]::FromArgb(245, 196, 81)
+$C_Gold2   = [System.Drawing.Color]::FromArgb(255, 216, 118)
+$C_GoldDk  = [System.Drawing.Color]::FromArgb(185, 138, 36)
+$C_Green   = [System.Drawing.Color]::FromArgb(79, 208, 160)
+$C_Red     = [System.Drawing.Color]::FromArgb(255, 91, 74)
+
+$F_Title   = New-Object System.Drawing.Font("Segoe UI", 21, [System.Drawing.FontStyle]::Bold)
+$F_H       = New-Object System.Drawing.Font("Segoe UI", 10.5, [System.Drawing.FontStyle]::Bold)
+$F_Body    = New-Object System.Drawing.Font("Segoe UI", 9)
+$F_Small   = New-Object System.Drawing.Font("Segoe UI", 8)
+$F_Btn     = New-Object System.Drawing.Font("Segoe UI", 13, [System.Drawing.FontStyle]::Bold)
+$F_Mono    = New-Object System.Drawing.Font("Consolas", 8)
+
+# Retangulo arredondado reaproveitado por todo mundo aqui
+function New-RoundPath([int]$x, [int]$y, [int]$w, [int]$h, [int]$r) {
+    $p = New-Object System.Drawing.Drawing2D.GraphicsPath
+    $d = $r * 2
+    if ($d -gt $w) { $d = $w }
+    if ($d -gt $h) { $d = $h }
+    $p.AddArc($x, $y, $d, $d, 180, 90)
+    $p.AddArc($x + $w - $d, $y, $d, $d, 270, 90)
+    $p.AddArc($x + $w - $d, $y + $h - $d, $d, $d, 0, 90)
+    $p.AddArc($x, $y + $h - $d, $d, $d, 90, 90)
+    $p.CloseFigure()
+    return $p
+}
+
+# ---------- Janela sem borda (a barra de titulo e desenhada aqui) ----------
 $form = New-Object System.Windows.Forms.Form
 $form.Text            = "Cardsworn"
-$form.Size            = New-Object System.Drawing.Size(440, 316)
+$form.ClientSize      = New-Object System.Drawing.Size(940, 588)
 $form.StartPosition   = "CenterScreen"
-$form.FormBorderStyle = "FixedSingle"
+$form.FormBorderStyle = "None"
 $form.MaximizeBox     = $false
-$form.BackColor       = [System.Drawing.Color]::FromArgb(18, 20, 34)   # azul-escuro espacial
+$form.BackColor       = $C_Bg
+# DoubleBuffered e protegida: sem isso a janela pisca ao redesenhar, e o
+# unico caminho pelo PowerShell e por reflexao
+try {
+    $form.GetType().GetProperty("DoubleBuffered",
+        [Reflection.BindingFlags]"Instance,NonPublic").SetValue($form, $true, $null)
+} catch { Write-Log "DoubleBuffered nao aplicado: $($_.Exception.Message)" }
 
-$title = New-Object System.Windows.Forms.Label
-$title.Text      = "CARDSWORN"
-$title.Font      = New-Object System.Drawing.Font("Segoe UI", 20, [System.Drawing.FontStyle]::Bold)
-$title.ForeColor = [System.Drawing.Color]::White
-$title.AutoSize  = $false
-$title.TextAlign = "MiddleCenter"
-$title.Size      = New-Object System.Drawing.Size(410, 45)
-$title.Location  = New-Object System.Drawing.Point(8, 15)
-$form.Controls.Add($title)
+# O icone do dado dourado. Sem ele a barra de tarefas mostra o icone do
+# PowerShell, que e quem de fato hospeda esta janela. O AppUserModelID
+# desgruda a janela do grupo "Windows PowerShell" na barra de tarefas -
+# e best-effort: se a P/Invoke falhar, o icone da janela ja resolve o
+# grosso e o launcher segue funcionando.
+$IconPath = Join-Path $PSScriptRoot "icon.ico"
+if (Test-Path $IconPath) {
+    try { $form.Icon = New-Object System.Drawing.Icon($IconPath) } catch {}
+}
+try {
+    Add-Type -Namespace Shell32 -Name Win -MemberDefinition @'
+[System.Runtime.InteropServices.DllImport("shell32.dll", SetLastError=true)]
+public static extern int SetCurrentProcessExplicitAppUserModelID(
+    [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPWStr)] string AppID);
+'@ -ErrorAction Stop
+    [void][Shell32.Win]::SetCurrentProcessExplicitAppUserModelID("Cardsworn.Launcher")
+} catch { Write-Log "AppUserModelID nao aplicado: $($_.Exception.Message)" }
 
-$status = New-Object System.Windows.Forms.Label
-$status.Text      = "Verificando atualizacoes..."
-$status.Font      = New-Object System.Drawing.Font("Segoe UI", 9)
-$status.ForeColor = [System.Drawing.Color]::FromArgb(180, 190, 220)
-$status.AutoSize  = $false
-$status.TextAlign = "MiddleCenter"
-$status.Size      = New-Object System.Drawing.Size(410, 22)
-$status.Location  = New-Object System.Drawing.Point(8, 68)
-$form.Controls.Add($status)
+# Fundo: degrade quente de cima para baixo, como a mesa a luz de vela
+$form.add_Paint({
+    param($s, $e)
+    $r = New-Object System.Drawing.Rectangle(0, 0, $s.ClientSize.Width, $s.ClientSize.Height)
+    $b = New-Object System.Drawing.Drawing2D.LinearGradientBrush($r, $C_Bg2, $C_Bg, 90)
+    $e.Graphics.FillRectangle($b, $r)
+    $b.Dispose()
+    # Fio dourado separando a barra de titulo
+    $pen = New-Object System.Drawing.Pen($C_Line, 1)
+    $e.Graphics.DrawLine($pen, 0, 44, $s.ClientSize.Width, 44)
+    $e.Graphics.DrawRectangle($pen, 0, 0, $s.ClientSize.Width - 1, $s.ClientSize.Height - 1)
+    $pen.Dispose()
+})
 
-$bar = New-Object System.Windows.Forms.ProgressBar
-$bar.Size     = New-Object System.Drawing.Size(390, 18)
-$bar.Location = New-Object System.Drawing.Point(20, 96)
-$bar.Minimum  = 0
-$bar.Maximum  = 100
-$form.Controls.Add($bar)
+# ---------- Barra de titulo propria (arrastar + minimizar + fechar) ----------
+$bar_top = New-Object System.Windows.Forms.Panel
+$bar_top.Size      = New-Object System.Drawing.Size(940, 44)
+$bar_top.Location  = New-Object System.Drawing.Point(0, 0)
+$bar_top.BackColor = [System.Drawing.Color]::Transparent
+$form.Controls.Add($bar_top)
 
-$playBtn = New-Object System.Windows.Forms.Button
-$playBtn.Text      = "Jogar"
-$playBtn.Font      = New-Object System.Drawing.Font("Segoe UI", 12, [System.Drawing.FontStyle]::Bold)
-$playBtn.Size      = New-Object System.Drawing.Size(390, 42)
-$playBtn.Location  = New-Object System.Drawing.Point(20, 126)
-$playBtn.FlatStyle = "Flat"
-$playBtn.BackColor = [System.Drawing.Color]::FromArgb(70, 110, 220)
-$playBtn.ForeColor = [System.Drawing.Color]::White
-$playBtn.Enabled   = $false
-$form.Controls.Add($playBtn)
+$bar_top.add_Paint({
+    param($s, $e)
+    $g = $e.Graphics
+    $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    # Dado dourado em miniatura
+    $p = New-RoundPath 16 12 20 20 6
+    $rr = New-Object System.Drawing.Rectangle(16, 12, 20, 20)
+    $br = New-Object System.Drawing.Drawing2D.LinearGradientBrush($rr, $C_Gold2, $C_GoldDk, 90)
+    $g.FillPath($br, $p); $br.Dispose(); $p.Dispose()
+    $ink = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(26, 20, 5))
+    foreach ($pt in @(@(21,17), @(29,17), @(25,21), @(21,25), @(29,25))) {
+        $g.FillEllipse($ink, $pt[0], $pt[1], 3.2, 3.2)
+    }
+    $ink.Dispose()
+    # CARD + SWORN, o segundo em dourado (igual ao logo do site)
+    $fb = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
+    $w1 = $g.MeasureString("CARD", $fb).Width
+    $g.DrawString("CARD", $fb, (New-Object System.Drawing.SolidBrush($C_Ink)), 46, 13)
+    $g.DrawString("SWORN", $fb, (New-Object System.Drawing.SolidBrush($C_Gold)), (46 + $w1 - 4), 13)
+    $fb.Dispose()
+})
 
-# ---------- Área de login (Google) ----------
+# Arrastar a janela pela barra (a janela nao tem moldura do Windows)
+$script:dragging = $false
+$script:dragOff  = New-Object System.Drawing.Point(0, 0)
+$bar_top.add_MouseDown({ param($s,$e) if ($e.Button -eq "Left") { $script:dragging = $true; $script:dragOff = $e.Location } })
+$bar_top.add_MouseUp({   $script:dragging = $false })
+$bar_top.add_MouseMove({
+    param($s, $e)
+    if ($script:dragging) {
+        $form.Location = New-Object System.Drawing.Point(
+            ($form.Location.X + $e.X - $script:dragOff.X),
+            ($form.Location.Y + $e.Y - $script:dragOff.Y))
+    }
+})
+
+function New-TitleButton([string]$glifo, [int]$x, [scriptblock]$acao, [System.Drawing.Color]$hover) {
+    $b = New-Object System.Windows.Forms.Label
+    $b.Text      = $glifo
+    $b.Font      = New-Object System.Drawing.Font("Segoe UI", 11)
+    $b.ForeColor = $C_Muted
+    $b.Size      = New-Object System.Drawing.Size(40, 44)
+    $b.Location  = New-Object System.Drawing.Point($x, 0)
+    $b.TextAlign = "MiddleCenter"
+    $b.add_MouseEnter({ param($s,$e) $s.ForeColor = $hover }.GetNewClosure())
+    $b.add_MouseLeave({ param($s,$e) $s.ForeColor = $C_Muted }.GetNewClosure())
+    $b.add_Click($acao)
+    $bar_top.Controls.Add($b)
+    return $b
+}
+[void](New-TitleButton "-" 856 { $form.WindowState = "Minimized" } $C_Ink)
+[void](New-TitleButton "X" 896 { $form.Close() } $C_Red)
+
+# ---------- Coluna esquerda: novidades ----------
+$newsHead = New-Object System.Windows.Forms.Label
+$newsHead.Text      = "NOVIDADES"
+$newsHead.Font      = New-Object System.Drawing.Font("Consolas", 9, [System.Drawing.FontStyle]::Bold)
+$newsHead.ForeColor = $C_Muted2
+$newsHead.AutoSize  = $false
+$newsHead.Size      = New-Object System.Drawing.Size(300, 20)
+$newsHead.Location  = New-Object System.Drawing.Point(28, 62)
+$newsHead.BackColor = [System.Drawing.Color]::Transparent
+$form.Controls.Add($newsHead)
+
+$newsBox = New-Object System.Windows.Forms.Panel
+$newsBox.Size       = New-Object System.Drawing.Size(568, 424)
+$newsBox.Location   = New-Object System.Drawing.Point(24, 88)
+$newsBox.BackColor  = [System.Drawing.Color]::Transparent
+$newsBox.AutoScroll = $false
+$form.Controls.Add($newsBox)
+
+$verTudo = New-Object System.Windows.Forms.Label
+$verTudo.Text      = "Ver todas as novidades no forum  >"
+$verTudo.Font      = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+$verTudo.ForeColor = $C_Gold
+$verTudo.AutoSize  = $false
+$verTudo.Size      = New-Object System.Drawing.Size(300, 22)
+$verTudo.Location  = New-Object System.Drawing.Point(28, 524)
+$verTudo.BackColor = [System.Drawing.Color]::Transparent
+$verTudo.Cursor    = "Hand"
+$verTudo.add_Click({ Start-Process "https://cardsworn.vercel.app/forum" })
+$verTudo.add_MouseEnter({ param($s,$e) $s.ForeColor = $C_Gold2 })
+$verTudo.add_MouseLeave({ param($s,$e) $s.ForeColor = $C_Gold })
+$form.Controls.Add($verTudo)
+
+# ---------- Coluna direita ----------
+$RX = 624          # x da coluna
+$RW = 292          # largura util
+
+$brand = New-Object System.Windows.Forms.Label
+$brand.Text      = "CARDSWORN"
+$brand.Font      = $F_Title
+$brand.ForeColor = $C_Gold
+$brand.AutoSize  = $false
+$brand.Size      = New-Object System.Drawing.Size($RW, 34)
+$brand.Location  = New-Object System.Drawing.Point($RX, 74)
+$brand.TextAlign = "MiddleCenter"
+$brand.BackColor = [System.Drawing.Color]::Transparent
+$form.Controls.Add($brand)
+
+$tagline = New-Object System.Windows.Forms.Label
+$tagline.Text      = "duelos de cartas na mesa de RPG"
+$tagline.Font      = $F_Small
+$tagline.ForeColor = $C_Muted2
+$tagline.AutoSize  = $false
+$tagline.Size      = New-Object System.Drawing.Size($RW, 18)
+$tagline.Location  = New-Object System.Drawing.Point($RX, 108)
+$tagline.TextAlign = "MiddleCenter"
+$tagline.BackColor = [System.Drawing.Color]::Transparent
+$form.Controls.Add($tagline)
+
+# --- Cartao da conta ---
+$acctCard = New-Object System.Windows.Forms.Panel
+$acctCard.Size      = New-Object System.Drawing.Size($RW, 96)
+$acctCard.Location  = New-Object System.Drawing.Point($RX, 146)
+$acctCard.BackColor = [System.Drawing.Color]::Transparent
+$form.Controls.Add($acctCard)
+$acctCard.add_Paint({
+    param($s, $e)
+    $e.Graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $p = New-RoundPath 0 0 ($s.Width - 1) ($s.Height - 1) 12
+    $e.Graphics.FillPath((New-Object System.Drawing.SolidBrush($C_Panel)), $p)
+    $e.Graphics.DrawPath((New-Object System.Drawing.Pen($C_Line, 1)), $p)
+    $p.Dispose()
+})
+
 $userLabel = New-Object System.Windows.Forms.Label
 $userLabel.Text      = "Voce nao esta logado. Entre para salvar suas partidas!"
-$userLabel.Font      = New-Object System.Drawing.Font("Segoe UI", 9)
-$userLabel.ForeColor = [System.Drawing.Color]::FromArgb(180, 190, 220)
+$userLabel.Font      = $F_Body
+$userLabel.ForeColor = $C_Muted
 $userLabel.AutoSize  = $false
 $userLabel.TextAlign = "MiddleCenter"
-$userLabel.Size      = New-Object System.Drawing.Size(410, 22)
-$userLabel.Location  = New-Object System.Drawing.Point(8, 182)
-$form.Controls.Add($userLabel)
+$userLabel.Size      = New-Object System.Drawing.Size(($RW - 24), 34)
+$userLabel.Location  = New-Object System.Drawing.Point(12, 10)
+$userLabel.BackColor = [System.Drawing.Color]::Transparent
+$acctCard.Controls.Add($userLabel)
 
 $authBtn = New-Object System.Windows.Forms.Button
 $authBtn.Text      = "Entrar com Google"
-$authBtn.Font      = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
-$authBtn.Size      = New-Object System.Drawing.Size(390, 36)
-$authBtn.Location  = New-Object System.Drawing.Point(20, 210)
+$authBtn.Font      = New-Object System.Drawing.Font("Segoe UI", 9.5, [System.Drawing.FontStyle]::Bold)
+$authBtn.Size      = New-Object System.Drawing.Size(($RW - 32), 32)
+$authBtn.Location  = New-Object System.Drawing.Point(16, 50)
 $authBtn.FlatStyle = "Flat"
 $authBtn.BackColor = [System.Drawing.Color]::White
 $authBtn.ForeColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
-$form.Controls.Add($authBtn)
+$authBtn.FlatAppearance.BorderSize = 0
+$authBtn.Cursor    = "Hand"
+$acctCard.Controls.Add($authBtn)
+$authBtn.Region = New-Object System.Drawing.Region((New-RoundPath 0 0 $authBtn.Width $authBtn.Height 9))
+
+# --- Atalhos ---
+function New-LinkBotao([string]$texto, [int]$y, [string]$url) {
+    $b = New-Object System.Windows.Forms.Button
+    $b.Text      = $texto
+    $b.Font      = New-Object System.Drawing.Font("Segoe UI", 9.5)
+    $b.Size      = New-Object System.Drawing.Size($RW, 34)
+    $b.Location  = New-Object System.Drawing.Point($RX, $y)
+    $b.FlatStyle = "Flat"
+    # Sem borda: a Region arredondada corta 1px de contorno e o resultado
+    # vira um risco embaixo do texto. O fundo do painel ja separa do fundo.
+    $b.BackColor = $C_Panel
+    $b.ForeColor = $C_Muted
+    $b.FlatAppearance.BorderSize = 0
+    $b.TextAlign = "MiddleLeft"
+    $b.Padding   = New-Object System.Windows.Forms.Padding(14, 0, 0, 0)
+    $b.Cursor    = "Hand"
+    $b.add_Click({ Start-Process $url }.GetNewClosure())
+    $b.add_MouseEnter({ param($s,$e) $s.ForeColor = $C_Ink }.GetNewClosure())
+    $b.add_MouseLeave({ param($s,$e) $s.ForeColor = $C_Muted }.GetNewClosure())
+    $form.Controls.Add($b)
+    $b.Region = New-Object System.Drawing.Region((New-RoundPath 0 0 $b.Width $b.Height 9))
+    return $b
+}
+[void](New-LinkBotao "Site do jogo"        262 "https://cardsworn.vercel.app")
+[void](New-LinkBotao "Novidades e bugs"    304 "https://cardsworn.vercel.app/forum")
+[void](New-LinkBotao "Reportar um problema" 346 "https://cardsworn.vercel.app/forum")
+
+# Onde o jogo mora, para quem quiser apagar na mao
+$pathLabel = New-Object System.Windows.Forms.Label
+$pathLabel.Text      = "Instalado em %LOCALAPPDATA%\Cardsworn"
+$pathLabel.Font      = $F_Mono
+$pathLabel.ForeColor = [System.Drawing.Color]::FromArgb(104, 90, 68)
+$pathLabel.AutoSize  = $false
+$pathLabel.TextAlign = "MiddleLeft"
+$pathLabel.Size      = New-Object System.Drawing.Size($RW, 18)
+$pathLabel.Location  = New-Object System.Drawing.Point($RX, 390)
+$pathLabel.BackColor = [System.Drawing.Color]::Transparent
+$form.Controls.Add($pathLabel)
+
+# --- Status + barra de progresso ---
+$status = New-Object System.Windows.Forms.Label
+$status.Text      = "Verificando atualizacoes..."
+$status.Font      = $F_Body
+$status.ForeColor = $C_Muted
+$status.AutoSize  = $false
+$status.TextAlign = "MiddleLeft"
+$status.Size      = New-Object System.Drawing.Size($RW, 22)
+$status.Location  = New-Object System.Drawing.Point($RX, 424)
+$status.BackColor = [System.Drawing.Color]::Transparent
+$form.Controls.Add($status)
+
+# Barra dourada desenhada na mao. O ProgressBar do Windows nao aceita cor
+# (ele segue o tema do sistema), entao aqui e um Panel pintado: guarda o
+# valor no .Tag e Set-Progress redesenha.
+$bar = New-Object System.Windows.Forms.Panel
+$bar.Size      = New-Object System.Drawing.Size($RW, 10)
+$bar.Location  = New-Object System.Drawing.Point($RX, 450)
+$bar.BackColor = [System.Drawing.Color]::Transparent
+$bar.Tag       = 0
+$form.Controls.Add($bar)
+$bar.add_Paint({
+    param($s, $e)
+    $g = $e.Graphics
+    $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $trilho = New-RoundPath 0 0 ($s.Width - 1) ($s.Height - 1) 5
+    $g.FillPath((New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(46, 35, 22))), $trilho)
+    $trilho.Dispose()
+    $pct = [int]$s.Tag
+    if ($pct -gt 0) {
+        $w = [int](($s.Width - 1) * $pct / 100)
+        if ($w -lt 10) { $w = 10 }
+        $cheio = New-RoundPath 0 0 $w ($s.Height - 1) 5
+        $rr = New-Object System.Drawing.Rectangle(0, 0, $w, $s.Height)
+        $br = New-Object System.Drawing.Drawing2D.LinearGradientBrush($rr, $C_Gold2, $C_GoldDk, 0)
+        $g.FillPath($br, $cheio); $br.Dispose(); $cheio.Dispose()
+    }
+})
+
+function Set-Progress([int]$pct) {
+    if ($pct -lt 0)   { $pct = 0 }
+    if ($pct -gt 100) { $pct = 100 }
+    $bar.Tag = $pct
+    $bar.Invalidate()
+    $bar.Update()
+}
+
+# --- Botao Jogar ---
+$playBtn = New-Object System.Windows.Forms.Button
+$playBtn.Text      = "JOGAR"
+$playBtn.Font      = $F_Btn
+$playBtn.Size      = New-Object System.Drawing.Size($RW, 52)
+$playBtn.Location  = New-Object System.Drawing.Point($RX, 474)
+$playBtn.FlatStyle = "Flat"
+$playBtn.BackColor = $C_Gold
+$playBtn.ForeColor = [System.Drawing.Color]::FromArgb(26, 20, 5)
+$playBtn.FlatAppearance.BorderSize = 0
+$playBtn.Enabled   = $false
+$playBtn.Cursor    = "Hand"
+$form.Controls.Add($playBtn)
+$playBtn.Region = New-Object System.Drawing.Region((New-RoundPath 0 0 $playBtn.Width $playBtn.Height 12))
+# Enabled=false no WinForms deixa o texto cinza-claro ilegivel sobre o ouro:
+# repinta o botao conforme o estado
+$playBtn.add_EnabledChanged({
+    param($s, $e)
+    if ($s.Enabled) {
+        $s.BackColor = $C_Gold
+        $s.ForeColor = [System.Drawing.Color]::FromArgb(26, 20, 5)
+    } else {
+        $s.BackColor = [System.Drawing.Color]::FromArgb(58, 46, 31)
+        $s.ForeColor = $C_Muted2
+    }
+})
+$playBtn.BackColor = [System.Drawing.Color]::FromArgb(58, 46, 31)
+$playBtn.ForeColor = $C_Muted2
+
+$verLabel = New-Object System.Windows.Forms.Label
+$verLabel.Text      = ""
+$verLabel.Font      = $F_Mono
+$verLabel.ForeColor = $C_Muted2
+$verLabel.AutoSize  = $false
+$verLabel.TextAlign = "MiddleRight"
+$verLabel.Size      = New-Object System.Drawing.Size($RW, 18)
+$verLabel.Location  = New-Object System.Drawing.Point($RX, 536)
+$verLabel.BackColor = [System.Drawing.Color]::Transparent
+$form.Controls.Add($verLabel)
+
+# ---------- Novidades: leitura da mesma tabela que o forum usa ----------
+# O forum do site le `posts` no Supabase; aqui vai a mesma consulta pela API
+# REST, so que limitada aos 6 mais recentes. Se falhar (offline, Supabase
+# fora), o launcher mostra um aviso discreto e continua funcionando - a
+# noticia e enfeite, o que importa e o botao Jogar.
+function Get-Noticias {
+    $url = "$SupabaseUrl/rest/v1/posts?select=category,title,body,version,created_at" +
+           "&order=created_at.desc&limit=6"
+    $req = [System.Net.HttpWebRequest]::Create($url)
+    $req.UserAgent = "CardswornLauncher"
+    $req.Method    = "GET"
+    $req.Timeout   = 10000
+    $req.Headers.Add("apikey", $SupabaseKey)
+    $req.Headers.Add("Authorization", "Bearer $SupabaseKey")
+    $resp = $req.GetResponse()
+    try {
+        $sr = New-Object System.IO.StreamReader($resp.GetResponseStream())
+        $txt = $sr.ReadToEnd(); $sr.Close()
+    } finally { $resp.Close() }
+    return ($txt | ConvertFrom-Json)
+}
+
+function Add-CartaoNoticia($post, [int]$y) {
+    $card = New-Object System.Windows.Forms.Panel
+    $card.Size      = New-Object System.Drawing.Size(536, 96)
+    $card.Location  = New-Object System.Drawing.Point(4, $y)
+    $card.BackColor = [System.Drawing.Color]::Transparent
+    $card.Tag       = $post
+    $newsBox.Controls.Add($card)
+
+    $card.add_Paint({
+        param($s, $e)
+        $g = $e.Graphics
+        $g.SmoothingMode     = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+        $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::ClearTypeGridFit
+        $p = New-RoundPath 0 0 ($s.Width - 1) ($s.Height - 1) 12
+        $g.FillPath((New-Object System.Drawing.SolidBrush($C_Panel)), $p)
+        $g.DrawPath((New-Object System.Drawing.Pen($C_Line, 1)), $p)
+        $p.Dispose()
+
+        $po = $s.Tag
+        $ehBug = ($po.category -eq "bug")
+        $cor   = if ($ehBug) { $C_Red } else { $C_Gold }
+        $rot   = if ($ehBug) { "BUG" } else { "ATUALIZACAO" }
+
+        # Selo da categoria
+        $fSelo = New-Object System.Drawing.Font("Consolas", 7.5, [System.Drawing.FontStyle]::Bold)
+        $wSelo = [int]$g.MeasureString($rot, $fSelo).Width + 16
+        $selo  = New-RoundPath 16 14 $wSelo 18 9
+        $g.FillPath((New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(38, $cor.R, $cor.G, $cor.B))), $selo)
+        $g.DrawPath((New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(110, $cor.R, $cor.G, $cor.B), 1)), $selo)
+        $g.DrawString($rot, $fSelo, (New-Object System.Drawing.SolidBrush($cor)), 24, 17)
+        $selo.Dispose(); $fSelo.Dispose()
+
+        # Versao e data, alinhadas a direita
+        $dir = ""
+        if ($po.version) { $dir = "$($po.version)   " }
+        if ($po.created_at) {
+            try { $dir += ([datetime]$po.created_at).ToString("dd/MM/yyyy") } catch {}
+        }
+        $fD = New-Object System.Drawing.Font("Consolas", 7.5)
+        $wD = $g.MeasureString($dir, $fD).Width
+        $g.DrawString($dir, $fD, (New-Object System.Drawing.SolidBrush($C_Muted2)), ($s.Width - 16 - $wD), 17)
+        $fD.Dispose()
+
+        # Titulo
+        $fT = New-Object System.Drawing.Font("Segoe UI", 11, [System.Drawing.FontStyle]::Bold)
+        $rT = New-Object System.Drawing.RectangleF(16, 38, ($s.Width - 32), 22)
+        $sf = New-Object System.Drawing.StringFormat
+        $sf.Trimming = [System.Drawing.StringTrimming]::EllipsisCharacter
+        $sf.FormatFlags = [System.Drawing.StringFormatFlags]::NoWrap
+        $g.DrawString([string]$po.title, $fT, (New-Object System.Drawing.SolidBrush($C_Ink)), $rT, $sf)
+        $fT.Dispose()
+
+        # Resumo do corpo: 2 linhas, sem marcacao
+        $corpo = [string]$po.body
+        $corpo = $corpo -replace '<[^>]+>', ' ' -replace '[#*_`>]', ' '
+        $corpo = $corpo -replace '[^\u0020-\u007E\u00C0-\u00FF]', ' ' -replace '\s+', ' '
+        $corpo = $corpo.Trim()
+        $fB = New-Object System.Drawing.Font("Segoe UI", 8.5)
+        $rB = New-Object System.Drawing.RectangleF(16, 60, ($s.Width - 32), 30)
+        $sf2 = New-Object System.Drawing.StringFormat
+        $sf2.Trimming = [System.Drawing.StringTrimming]::EllipsisWord
+        $g.DrawString($corpo, $fB, (New-Object System.Drawing.SolidBrush($C_Muted)), $rB, $sf2)
+        $fB.Dispose()
+    })
+
+    # Clicar no cartao abre o forum no navegador
+    $abrir = { Start-Process "https://cardsworn.vercel.app/forum" }
+    $card.add_Click($abrir)
+    $card.Cursor = "Hand"
+    return $card
+}
+
+function Carregar-Noticias {
+    $newsBox.Controls.Clear()
+    try {
+        $posts = Get-Noticias
+        if (-not $posts -or $posts.Count -eq 0) {
+            $vazio = New-Object System.Windows.Forms.Label
+            $vazio.Text      = "Ainda nao ha novidades publicadas."
+            $vazio.Font      = $F_Body
+            $vazio.ForeColor = $C_Muted2
+            $vazio.AutoSize  = $false
+            $vazio.Size      = New-Object System.Drawing.Size(500, 24)
+            $vazio.Location  = New-Object System.Drawing.Point(6, 6)
+            $vazio.BackColor = [System.Drawing.Color]::Transparent
+            $newsBox.Controls.Add($vazio)
+            return
+        }
+        $y = 0
+        foreach ($p in ($posts | Select-Object -First 4)) {
+            [void](Add-CartaoNoticia $p $y)
+            $y += 106
+        }
+        Write-Log "Novidades carregadas: $($posts.Count)"
+    } catch {
+        Write-Log "Novidades indisponiveis: $($_.Exception.Message)"
+        $erro = New-Object System.Windows.Forms.Label
+        $erro.Text      = "Nao consegui carregar as novidades agora."
+        $erro.Font      = $F_Body
+        $erro.ForeColor = $C_Muted2
+        $erro.AutoSize  = $false
+        $erro.Size      = New-Object System.Drawing.Size(500, 24)
+        $erro.Location  = New-Object System.Drawing.Point(6, 6)
+        $erro.BackColor = [System.Drawing.Color]::Transparent
+        $newsBox.Controls.Add($erro)
+    }
+}
 
 # ============================================================
 #  Funcoes
@@ -191,7 +632,7 @@ function Set-Status([string]$text) {
 
 function Set-Ready([string]$text) {
     Set-Status $text
-    $bar.Value       = 100
+    Set-Progress 100
     $playBtn.Enabled = $true
 }
 
@@ -254,7 +695,7 @@ function Start-Download {
             $item = Get-Item $ZipTemp -ErrorAction SilentlyContinue
             if ($item) {
                 $pct = [Math]::Max(0, [Math]::Min(100, [int](100 * $item.Length / $script:assetSize)))
-                $bar.Value = $pct
+                Set-Progress $pct
             }
         }
 
@@ -480,6 +921,9 @@ function Check-Updates {
         if (Test-Path $VersionFile) { $installed = (Get-Content $VersionFile -Raw).Trim() }
         Write-Log "Instalado: '$installed' | Mais novo: '$($script:latestTag)'"
 
+        $verLabel.Text = if ($installed) { "instalada $installed  |  nova $($script:latestTag)" }
+                        else { "nova $($script:latestTag)" }
+
         if ($installed -ne $script:latestTag -or -not (Get-GameExe)) {
             Start-Download
         } else {
@@ -521,7 +965,12 @@ $authBtn.add_Click({
     }
 })
 
-$form.add_Shown({ $form.Activate(); Update-AuthUI; Check-Updates })
+$form.add_Shown({
+    $form.Activate()
+    Update-AuthUI
+    Carregar-Noticias
+    Check-Updates
+})
 
 [System.Windows.Forms.Application]::EnableVisualStyles()
 [void]$form.ShowDialog()
