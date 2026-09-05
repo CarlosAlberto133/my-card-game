@@ -200,8 +200,7 @@ function Get-GameExe {
     if (-not (Test-Path $GameDir)) { return $null }
     $exe = Get-ChildItem -Path $GameDir -Recurse -Filter *.exe -ErrorAction SilentlyContinue |
            Where-Object { $_.Name -notlike "UnityCrashHandler*" } |
-           Sort-Object { if ($_.Name -ieq "Cardsworn.exe" -or
-                             $_.Name -ieq "card-game.exe") { 0 } else { 1 } } |
+           Sort-Object { if ($_.Name -ieq "Cardsworn.exe") { 0 } else { 1 } } |
            Select-Object -First 1
     if ($exe) { return $exe.FullName } else { return $null }
 }
