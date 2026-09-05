@@ -9,7 +9,7 @@ using UnityEngine;
 //
 // COMO USAR:
 // 1. Abra a SampleScene (fora do Play mode) e use o menu:
-//    Card Game → Mesa de RPG: assar cenário na cena (MesaStage)
+//    Cardsworn → Mesa de RPG: assar cenário na cena (MesaStage)
 // 2. Aparece o objeto "MesaStage" na Hierarchy com TUDO dentro — mesa, pernas,
 //    chão da taverna, moldura, árvores, tochas, dados, livros, estandartes,
 //    heróis, vagalumes. Edite à vontade: mova, gire, apague, duplique,
@@ -34,7 +34,7 @@ public static class MesaStageBaker
     // daí em diante a variação é edição manual mesmo
     const int BakeSeed = 12345;
 
-    [MenuItem("Card Game/Mesa de RPG: assar cenário na cena (MesaStage)")]
+    [MenuItem("Cardsworn/Mesa de RPG: assar cenário na cena (MesaStage)")]
     public static void Bake()
     {
         if (Application.isPlaying)
@@ -91,7 +91,7 @@ public static class MesaStageBaker
     // Troca SÓ o tampo dentro de um MesaStage já assado: as tábuas novas
     // entram e o resto do cenário (moldura, tochas, dados, tudo o que foi
     // movido à mão) fica exatamente como está. Re-assar tudo apagaria isso.
-    [MenuItem("Card Game/Mesa de RPG: refazer só o TAMPO com as tábuas")]
+    [MenuItem("Cardsworn/Mesa de RPG: refazer só o TAMPO com as tábuas")]
     public static void RebakeTableTop()
     {
         if (Application.isPlaying)

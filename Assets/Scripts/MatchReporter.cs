@@ -59,7 +59,7 @@ public class MatchReporter : MonoBehaviour
     }
 
     static string Dir => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CardGame");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Cardsworn");
     static string SessionPath => Path.Combine(Dir, "session.json");
     static string PendingPath => Path.Combine(Dir, "pending_match.json");
 

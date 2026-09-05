@@ -1,4 +1,6 @@
-' Abre o launcher do Card Game sem mostrar a janela preta do PowerShell.
+' Abre o launcher do Cardsworn sem mostrar a janela preta do PowerShell.
+' O NOME DESTE ARQUIVO nao muda: os atalhos que ja estao na Area de
+' Trabalho dos jogadores apontam para ele.
 ' Basta dar dois cliques neste arquivo.
 Dim fso, folder, ps1, shell
 Set fso = CreateObject("Scripting.FileSystemObject")

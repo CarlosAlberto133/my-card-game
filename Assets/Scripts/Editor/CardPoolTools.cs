@@ -5,12 +5,12 @@ using System.Collections.Generic;
 using System.Linq;
 
 // Ferramentas de Editor para o CardPool.
-// Menu: "Card Game" na barra de topo do Unity.
+// Menu: "Cardsworn" na barra de topo do Unity.
 public static class CardPoolTools
 {
     private const string CardsFolder = "Assets/cards";
 
-    [MenuItem("Card Game/Preencher CardPool com todas as cartas")]
+    [MenuItem("Cardsworn/Preencher CardPool com todas as cartas")]
     public static void FillCardPool()
     {
         CardPool pool = Object.FindObjectOfType<CardPool>();

@@ -9,7 +9,7 @@ using UnityEngine;
 public static class DecorProps
 {
     // Apaga um Object tanto em jogo quanto no EDITOR — o "assar cenário" do
-    // menu Card Game roda estes montadores fora do Play mode, onde Destroy()
+    // menu Cardsworn roda estes montadores fora do Play mode, onde Destroy()
     // é proibido (só DestroyImmediate funciona)
     public static void Kill(Object o)
     {

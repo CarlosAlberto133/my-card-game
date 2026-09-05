@@ -1,4 +1,4 @@
-<title>Card Game — Novidades & Bugs</title>
+<title>Cardsworn — Novidades & Bugs</title>
 <style>
   :root {
     --bg:#15100a; --bg-2:#1f160d; --bg-3:#2a1d11;
@@ -151,7 +151,7 @@
   <div class="nav-inner">
   <a class="brand" href="/" style="text-decoration:none;color:inherit">
     <svg class="glyph" viewBox="0 0 24 24"><rect x="3.2" y="3.2" width="17.6" height="17.6" rx="4.4" fill="#f5c451"/><circle cx="8" cy="8" r="1.7" fill="#1a1405"/><circle cx="16" cy="8" r="1.7" fill="#1a1405"/><circle cx="12" cy="12" r="1.7" fill="#1a1405"/><circle cx="8" cy="16" r="1.7" fill="#1a1405"/><circle cx="16" cy="16" r="1.7" fill="#1a1405"/></svg>
-    CARD<b>GAME</b>
+    CARD<b>SWORN</b>
   </a>
   <div class="nav-right">
     <a href="/">← Início</a>
@@ -195,8 +195,8 @@
 
 <footer>
   <div class="wrap foot">
-    <span>Card Game · Alpha · devlog</span>
-    <a href="https://github.com/CarlosAlberto133/card-game-releases/releases" target="_blank" rel="noopener">Releases no GitHub →</a>
+    <span>Cardsworn · Alpha · devlog</span>
+    <a href="https://github.com/CarlosAlberto133/cardsworn-releases/releases" target="_blank" rel="noopener">Releases no GitHub →</a>
   </div>
 </footer>
 
@@ -726,7 +726,7 @@ document.querySelectorAll('.tab').forEach((t) => (t.onclick = () => {
 }));
 $('reportBtn').onclick = (e) => {
   e.preventDefault();
-  const subject = encodeURIComponent('[Card Game] Reporte de bug');
+  const subject = encodeURIComponent('[Cardsworn] Reporte de bug');
   const body = encodeURIComponent('Descreva o bug:\n\n\nO que você estava fazendo quando aconteceu:\n\n\nSeu nome no jogo (opcional):\n');
   window.location.href = 'mailto:' + REPORT_EMAIL + '?subject=' + subject + '&body=' + body;
 };

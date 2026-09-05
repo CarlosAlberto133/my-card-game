@@ -1,0 +1,56 @@
+============================================================
+ CARDSWORN - LAUNCHER
+============================================================
+
+COMO JOGAR
+----------
+1) Extraia esta pasta em qualquer lugar do seu PC
+   (Documentos, Area de Trabalho, um pendrive... tanto faz).
+
+2) De dois cliques em:   Play Cardsworn.vbs
+
+3) O launcher abre, baixa a versao mais nova do jogo e
+   libera o botao "Jogar".
+
+Da proxima vez e so abrir o mesmo arquivo de novo: ele
+confere se saiu versao nova antes de te deixar jogar.
+
+
+"O WINDOWS BLOQUEOU"
+--------------------
+Na primeira vez o Windows pode dizer que nao reconhece o
+arquivo. Clique em "Mais informacoes" e depois em "Executar
+mesmo assim".
+
+Isso acontece porque o launcher nao tem assinatura digital
+paga (custa algumas centenas de dolares por ano) - nao tem
+nada a ver com o arquivo ser perigoso.
+
+
+ONDE O JOGO FICA
+----------------
+O jogo NAO fica nesta pasta - ela so tem o launcher. O jogo
+em si e baixado para:
+
+   %LOCALAPPDATA%\Cardsworn
+
+(Cole esse caminho na barra do Explorador para abrir.)
+Para remover tudo, apague essa pasta e esta aqui.
+
+
+ENTRAR COM O GOOGLE
+-------------------
+O botao de login e opcional. Ele serve para suas partidas e
+estatisticas ficarem salvas na sua conta - da para jogar sem
+entrar, so nao fica registrado.
+
+
+DEU PROBLEMA?
+-------------
+Tem um log do que aconteceu em:
+
+   %LOCALAPPDATA%\Cardsworn\launcher.log
+
+Reporte o bug (pode colar o log) em:
+
+   https://card-game-online.vercel.app/forum

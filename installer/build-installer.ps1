@@ -20,9 +20,9 @@ if (-not $iscc) {
     exit 1
 }
 
-& $iscc (Join-Path $here "card-game-setup.iss")
+& $iscc (Join-Path $here "cardsworn-setup.iss")
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "`nPronto: $(Join-Path $here 'CardGameSetup.exe')" -ForegroundColor Green
+    Write-Host "`nPronto: $(Join-Path $here 'CardswornSetup.exe')" -ForegroundColor Green
 } else {
     Write-Host "Falha na compilacao (codigo $LASTEXITCODE)." -ForegroundColor Red
     exit $LASTEXITCODE

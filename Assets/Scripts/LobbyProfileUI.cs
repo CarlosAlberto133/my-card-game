@@ -261,7 +261,7 @@ public static class LobbyProfileUI
         MakeDiamond(sign.transform, new Vector2(0f, 64f), 26f, Gold);
         MakeDiamond(sign.transform, new Vector2(0f, 64f), 14f, new Color(0.35f, 0.80f, 0.45f));
 
-        TMP_Text title = MakeText(sign.transform, "GameTitle", "CARD GAME", 54, Gold,
+        TMP_Text title = MakeText(sign.transform, "GameTitle", "CARDSWORN", 54, Gold,
             TextAlignmentOptions.Center, new Vector2(0f, 14f), new Vector2(660f, 64f));
         title.fontStyle = FontStyles.Bold;
         title.characterSpacing = 14f;

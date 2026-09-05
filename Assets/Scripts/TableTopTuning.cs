@@ -15,7 +15,7 @@ using UnityEngine;
 // ⚠️ Com o MesaStage assado na cena, o código NÃO monta o cenário — então
 // estes sliders não têm o que remontar. Para calibrar: apague (ou desative) o
 // MesaStage, acerte os números aqui, e depois use o menu
-// "Card Game → Mesa de RPG: refazer só o TAMPO com as tábuas".
+// "Cardsworn → Mesa de RPG: refazer só o TAMPO com as tábuas".
 //
 // Puramente visual — nenhum efeito no lockstep.
 // ════════════════════════════════════════════════════════════════════════════

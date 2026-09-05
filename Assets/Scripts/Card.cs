@@ -1,6 +1,6 @@
 using UnityEngine;
 
-[CreateAssetMenu(fileName = "New Card", menuName = "Card Game/Card")]
+[CreateAssetMenu(fileName = "New Card", menuName = "Cardsworn/Card")]
 public class Card : ScriptableObject
 {
     [Header("Informações Básicas")]

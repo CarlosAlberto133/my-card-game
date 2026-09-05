@@ -1,9 +1,14 @@
 # ============================================================
-#  Card Game - Launcher  (v3)
+#  Cardsworn - Launcher  (v4)
+#
+#  v4: o jogo se chamava "Card Game" ate set/2026. Como todo mundo
+#  reinstalou na virada do nome, nada aqui responde mais pelo nome
+#  antigo - o repo, o zip e a pasta de instalacao mudaram todos de uma
+#  vez. A unica heranca e a limpeza da pasta velha, la embaixo.
 #  Baixa automaticamente a versao mais nova publicada no
 #  GitHub Releases e abre o jogo.
 #
-#  v2: o jogo agora e instalado em %LOCALAPPDATA%\CardGame
+#  v2: o jogo agora e instalado em %LOCALAPPDATA%\Cardsworn
 #  (fora do OneDrive/Desktop sincronizado, que travava a
 #  extracao), download mais robusto e log em launcher.log.
 #
@@ -15,10 +20,15 @@
 #  tem esse limite, e monta a URL de download pela convencao.
 # ============================================================
 
-# ---------- CONFIGURACAO (edite se mudar o repositorio) ----------
+# ---------- CONFIGURACAO ----------
+#  Cuidado ao mexer nestas tres linhas: este launcher NAO se auto-atualiza.
+#  Quem instalou tem uma copia deste arquivo gravada no PC, entao mudar o
+#  repo ou o nome do zip derruba a atualizacao de todos de uma vez - so
+#  volta quem reinstalar pelo site. Foi exatamente o que aconteceu na
+#  virada do nome, e por isso a virada exigiu que todos reinstalassem.
 $RepoOwner = "CarlosAlberto133"        # seu usuario do GitHub
-$RepoName  = "card-game-releases"      # repositorio PUBLICO so para as builds
-$AssetName = "card-game.zip"           # nome do .zip que voce sobe em cada release
+$RepoName  = "cardsworn-releases"      # repositorio PUBLICO so para as builds
+$AssetName = "cardsworn.zip"           # nome do .zip que voce sobe em cada release
 
 # Login com Google (Supabase) — a sessao vai para session.json e o JOGO a usa
 # para salvar as partidas/logs na conta do jogador
@@ -36,7 +46,7 @@ Add-Type -AssemblyName System.Drawing
 # ---------- Caminhos ----------
 # O jogo mora SEMPRE em LocalAppData: pasta local, rapida e fora de
 # qualquer sincronizacao (OneDrive etc.). O launcher pode ficar onde quiser.
-$InstallRoot = Join-Path $env:LOCALAPPDATA "CardGame"
+$InstallRoot = Join-Path $env:LOCALAPPDATA "Cardsworn"
 $GameDir     = Join-Path $InstallRoot "game"
 $VersionFile = Join-Path $InstallRoot "installed.txt"
 $ZipTemp     = Join-Path $InstallRoot "update.zip"
@@ -51,9 +61,9 @@ function Write-Log([string]$msg) {
 Write-Log "----- Launcher iniciado -----"
 
 # ---------- Evita duas instancias abertas ao mesmo tempo ----------
-$mutex = New-Object System.Threading.Mutex($false, "CardGameLauncherMutex")
+$mutex = New-Object System.Threading.Mutex($false, "CardswornLauncherMutex")
 if (-not $mutex.WaitOne(0, $false)) {
-    [System.Windows.Forms.MessageBox]::Show("O launcher do Card Game ja esta aberto.", "Card Game") | Out-Null
+    [System.Windows.Forms.MessageBox]::Show("O launcher do Cardsworn ja esta aberto.", "Cardsworn") | Out-Null
     exit
 }
 
@@ -63,6 +73,26 @@ foreach ($legacy in @((Join-Path $OldRoot "game"), (Join-Path $OldRoot "installe
     if (Test-Path $legacy) {
         try { Remove-Item $legacy -Recurse -Force -ErrorAction Stop; Write-Log "Removido legado: $legacy" } catch {}
     }
+}
+
+# ---------- Recolhe a instalacao do tempo do nome "Card Game" ----------
+# O jogo morava em %LOCALAPPDATA%\CardGame. Sem isto, a pasta antiga (com
+# a build inteira dentro) ficaria esquecida no PC de todo mundo para
+# sempre. O session.json e trazido junto para o jogador nao ter que
+# entrar com o Google de novo.
+$LegacyRoot = Join-Path $env:LOCALAPPDATA "CardGame"
+if (Test-Path $LegacyRoot) {
+    $legacySession = Join-Path $LegacyRoot "session.json"
+    if ((Test-Path $legacySession) -and -not (Test-Path $SessionFile)) {
+        try {
+            Copy-Item $legacySession $SessionFile -Force -ErrorAction Stop
+            Write-Log "Login herdado da instalacao antiga"
+        } catch { Write-Log "Nao consegui herdar o login: $($_.Exception.Message)" }
+    }
+    try {
+        Remove-Item $LegacyRoot -Recurse -Force -ErrorAction Stop
+        Write-Log "Pasta antiga removida: $LegacyRoot"
+    } catch { Write-Log "Pasta antiga resistiu: $($_.Exception.Message)" }
 }
 
 # ---------- Estado ----------
@@ -85,7 +115,7 @@ $script:authDeadline = $null
 #  Janela
 # ============================================================
 $form = New-Object System.Windows.Forms.Form
-$form.Text            = "Card Game"
+$form.Text            = "Cardsworn"
 $form.Size            = New-Object System.Drawing.Size(440, 316)
 $form.StartPosition   = "CenterScreen"
 $form.FormBorderStyle = "FixedSingle"
@@ -93,7 +123,7 @@ $form.MaximizeBox     = $false
 $form.BackColor       = [System.Drawing.Color]::FromArgb(18, 20, 34)   # azul-escuro espacial
 
 $title = New-Object System.Windows.Forms.Label
-$title.Text      = "CARD GAME"
+$title.Text      = "CARDSWORN"
 $title.Font      = New-Object System.Drawing.Font("Segoe UI", 20, [System.Drawing.FontStyle]::Bold)
 $title.ForeColor = [System.Drawing.Color]::White
 $title.AutoSize  = $false
@@ -170,7 +200,8 @@ function Get-GameExe {
     if (-not (Test-Path $GameDir)) { return $null }
     $exe = Get-ChildItem -Path $GameDir -Recurse -Filter *.exe -ErrorAction SilentlyContinue |
            Where-Object { $_.Name -notlike "UnityCrashHandler*" } |
-           Sort-Object { if ($_.Name -ieq "card-game.exe") { 0 } else { 1 } } |
+           Sort-Object { if ($_.Name -ieq "Cardsworn.exe" -or
+                             $_.Name -ieq "card-game.exe") { 0 } else { 1 } } |
            Select-Object -First 1
     if ($exe) { return $exe.FullName } else { return $null }
 }
@@ -212,7 +243,7 @@ function Start-Download {
     Remove-Item $ZipTemp -Force -ErrorAction SilentlyContinue
 
     $script:webClient = New-Object System.Net.WebClient
-    $script:webClient.Headers.Add("User-Agent", "CardGameLauncher")
+    $script:webClient.Headers.Add("User-Agent", "CardswornLauncher")
     $script:dlTask = $script:webClient.DownloadFileTaskAsync($script:assetUrl, $ZipTemp)
 
     $script:installDone = $false
@@ -398,7 +429,7 @@ function Start-GoogleLogin {
 function Get-LatestTag {
     $url = "https://github.com/$RepoOwner/$RepoName/releases/latest"
     $req = [System.Net.HttpWebRequest]::Create($url)
-    $req.UserAgent        = "CardGameLauncher"
+    $req.UserAgent        = "CardswornLauncher"
     $req.Method           = "GET"
     $req.AllowAutoRedirect = $false   # queremos LER o redirect, nao segui-lo
     $req.Timeout          = 15000
@@ -412,7 +443,7 @@ function Get-LatestTag {
 function Get-RemoteSize([string]$url) {
     try {
         $req = [System.Net.HttpWebRequest]::Create($url)
-        $req.UserAgent        = "CardGameLauncher"
+        $req.UserAgent        = "CardswornLauncher"
         $req.Method           = "HEAD"
         $req.AllowAutoRedirect = $true
         $req.Timeout          = 15000

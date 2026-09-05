@@ -1,5 +1,5 @@
 ============================================================
- CARD GAME - LAUNCHER  (guia rapido)
+ CARDSWORN - LAUNCHER  (guia rapido)
 ============================================================
 
 O QUE ISSO FAZ
@@ -16,7 +16,7 @@ pronto - o launcher dele pega sozinho.
 
 1) Crie um repositorio PUBLICO no GitHub so para as builds:
    - Entre em https://github.com/new
-   - Nome do repositorio:  card-game-releases
+   - Nome do repositorio:  cardsworn-releases
    - Marque "Public"  (importante: precisa ser publico para o
      download funcionar sem senha)
    - Clique em "Create repository"
@@ -29,7 +29,7 @@ pronto - o launcher dele pega sozinho.
    (zip pelo WhatsApp/Drive/o que preferir). Ele guarda essa
    pasta no PC dele. Nunca mais precisa reenviar.
 
-   Ele joga clicando duas vezes em:  "Play Card Game.vbs"
+   Ele joga clicando duas vezes em:  "Play Cardsworn.vbs"
 
    (Na primeira vez o Windows pode perguntar se confia no
    arquivo - so mandar "Executar mesmo assim". Isso acontece
@@ -41,21 +41,21 @@ pronto - o launcher dele pega sozinho.
 ============================================================
 
 1) No Unity: File > Build Settings > Build.
-   Escolha uma pasta e gere a build (o card-game.exe + a
-   pasta card-game_Data etc.).
+   Escolha uma pasta e gere a build (o Cardsworn.exe + a
+   pasta Cardsworn_Data etc.).
 
 2) Compacte o CONTEUDO dessa pasta de build num zip chamado
-   exatamente:  card-game.zip
+   exatamente:  cardsworn.zip
    (selecione os arquivos da build -> botao direito ->
     "Enviar para" -> "Pasta compactada" -> renomeie para
-    card-game.zip)
+    cardsworn.zip)
 
 3) Publique no GitHub:
-   - Va em https://github.com/CarlosAlberto133/card-game-releases/releases/new
+   - Va em https://github.com/CarlosAlberto133/cardsworn-releases/releases/new
    - Em "Choose a tag" escreva uma versao nova e clique em
      "Create new tag". Use v1, depois v2, v3... (o launcher
      compara essa tag para saber que mudou).
-   - Arraste o card-game.zip para a area de anexos.
+   - Arraste o cardsworn.zip para a area de anexos.
    - Clique em "Publish release".
 
 4) Pronto. Da proxima vez que seu amigo abrir o launcher, ele
@@ -67,7 +67,7 @@ pronto - o launcher dele pega sozinho.
 ============================================================
 - Sempre use uma TAG diferente a cada release (v1, v2, v3...).
   Se repetir a tag, o launcher acha que nada mudou.
-- O nome do zip tem que ser sempre  card-game.zip
+- O nome do zip tem que ser sempre  cardsworn.zip
 - O launcher em si (esta pasta) so muda se EU alterar o
   codigo dele. O JOGO atualiza sozinho; o launcher nao. Se um
   dia mexermos no launcher, ai voce reenvia a pasta uma vez.

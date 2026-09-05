@@ -76,7 +76,7 @@ public static class TabletopEnvironment
     public const float TorchReach = 1.00f;
 
     // ── Cenário "ASSADO" na cena (MesaStage) ─────────────────────────────
-    // O menu do editor "Card Game → Mesa de RPG: assar cenário" transforma
+    // O menu do editor "Cardsworn → Mesa de RPG: assar cenário" transforma
     // este cenário gerado por código em objetos DE VERDADE na cena, dentro de
     // um GameObject chamado MesaStage — para o Carlos editar tudo à mão no
     // editor (mover, girar, apagar, acrescentar). Com um MesaStage na cena,

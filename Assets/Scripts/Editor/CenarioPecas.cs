@@ -16,8 +16,8 @@ using UnityEngine;
 // escalar, duplicar. Salve a cena (Ctrl+S).
 //
 // COMO USAR:
-//   Card Game → Cenário: adicionar peça → (escolha)
-//   Card Game → Cenário: adicionar luz  → (escolha)
+//   Cardsworn → Cenário: adicionar peça → (escolha)
+//   Cardsworn → Cenário: adicionar luz  → (escolha)
 //
 // Elas entram DENTRO do MesaStage quando ele existe, para acender e apagar
 // junto com o resto do cenário. Sem MesaStage, ficam soltas na cena.
@@ -65,31 +65,31 @@ public static class CenarioPecas
     // deitada (a anterior nascia em pé e ele girava), então a troca é direta.
     const string FundoLajota = "laje-ardosia";
 
-    [MenuItem("Card Game/Cenário: adicionar peça/Tenda azul (pavilhão)")]
+    [MenuItem("Cardsworn/Cenário: adicionar peça/Tenda azul (pavilhão)")]
     public static void AddTenda() { Meshy("tenda", "Tenda", 34f); }
 
-    [MenuItem("Card Game/Cenário: adicionar peça/Tenda vermelha (comando)")]
+    [MenuItem("Cardsworn/Cenário: adicionar peça/Tenda vermelha (comando)")]
     public static void AddTendaVermelha() { Meshy("tenda-vermelha", "TendaVermelha", 34f); }
 
-    [MenuItem("Card Game/Cenário: adicionar peça/Baú do tesouro")]
+    [MenuItem("Cardsworn/Cenário: adicionar peça/Baú do tesouro")]
     public static void AddBau() { Meshy("bau", "Bau", 6f); }
 
-    [MenuItem("Card Game/Cenário: adicionar peça/Baú de relíquia (safira)")]
+    [MenuItem("Cardsworn/Cenário: adicionar peça/Baú de relíquia (safira)")]
     public static void AddBauAzul() { Meshy("bau-azul", "BauAzul", 6f); }
 
-    [MenuItem("Card Game/Cenário: adicionar peça/Jardineira de pedra")]
+    [MenuItem("Cardsworn/Cenário: adicionar peça/Jardineira de pedra")]
     public static void AddJardineira() { Meshy("jardineira", "Jardineira", 8f); }
 
-    [MenuItem("Card Game/Cenário: adicionar peça/Barril com bonsai")]
+    [MenuItem("Cardsworn/Cenário: adicionar peça/Barril com bonsai")]
     public static void AddBarril() { Meshy("barril-bonsai", "Barril", 9f); }
 
-    [MenuItem("Card Game/Cenário: adicionar peça/Estandarte dourado")]
+    [MenuItem("Cardsworn/Cenário: adicionar peça/Estandarte dourado")]
     public static void AddEstandarte() { Meshy("estandarte", "Estandarte", 22f); }
 
-    [MenuItem("Card Game/Cenário: adicionar peça/Estandarte azul")]
+    [MenuItem("Cardsworn/Cenário: adicionar peça/Estandarte azul")]
     public static void AddEstandarteAzul() { Meshy("estandarte-azul", "EstandarteAzul", 22f); }
 
-    [MenuItem("Card Game/Cenário: adicionar peça/Estandarte vermelho")]
+    [MenuItem("Cardsworn/Cenário: adicionar peça/Estandarte vermelho")]
     public static void AddEstandarteVermelho() { Meshy("estandarte-vermelho", "EstandarteVermelho", 22f); }
 
     // ── Fundo do tabuleiro ──────────────────────────────────
@@ -130,7 +130,7 @@ public static class CenarioPecas
 
     // O fundo que já está na cena tem material próprio (assado pelo MesaStage),
     // então mudar FundoCor no código não mexe nele. Este menu aplica no lugar.
-    [MenuItem("Card Game/Cenário: cor do fundo do tabuleiro")]
+    [MenuItem("Cardsworn/Cenário: cor do fundo do tabuleiro")]
     public static void CorDoFundo()
     {
         if (Bloqueado()) return;
@@ -171,7 +171,7 @@ public static class CenarioPecas
             "OK");
     }
 
-    [MenuItem("Card Game/Cenário: adicionar fundo do tabuleiro")]
+    [MenuItem("Cardsworn/Cenário: adicionar fundo do tabuleiro")]
     public static void AddFundo()
     {
         if (Bloqueado()) return;
@@ -231,7 +231,7 @@ public static class CenarioPecas
     // O chão já está assado dentro do MesaStage; trocar o código não mexe no que
     // está na cena. Este menu refaz o material dele no lugar, com o que estiver
     // em TabletopEnvironment.GroundSlug — serve para qualquer troca de chão.
-    [MenuItem("Card Game/Cenário: refazer o chão")]
+    [MenuItem("Cardsworn/Cenário: refazer o chão")]
     public static void RefazerChao()
     {
         if (Bloqueado()) return;
@@ -318,31 +318,31 @@ public static class CenarioPecas
     // ~25× maior aqui. Regra de bolso: intensidade ÷ 36 = o quanto a luz
     // entrega a UMA CASA de distância.
 
-    [MenuItem("Card Game/Cenário: adicionar luz/Tocha de chão (acesa)")]
+    [MenuItem("Cardsworn/Cenário: adicionar luz/Tocha de chão (acesa)")]
     public static void AddTocha()
     {
         Acesa("torch_lit", "Tocha", 7.5f, 7.0f, 1.10f, 1, 0.45f, 90f, 70f);
     }
 
-    [MenuItem("Card Game/Cenário: adicionar luz/Tocha de parede (acesa)")]
+    [MenuItem("Cardsworn/Cenário: adicionar luz/Tocha de parede (acesa)")]
     public static void AddTochaParede()
     {
         Acesa("torch_mounted", "TochaParede", 6.0f, 5.4f, 1.00f, 1, 0.45f, 70f, 60f);
     }
 
-    [MenuItem("Card Game/Cenário: adicionar luz/Vela (acesa)")]
+    [MenuItem("Cardsworn/Cenário: adicionar luz/Vela (acesa)")]
     public static void AddVela()
     {
         Acesa("candle_lit", "Vela", 2.2f, 2.1f, 0.32f, 1, 0.45f, 12f, 20f);
     }
 
-    [MenuItem("Card Game/Cenário: adicionar luz/Candelabro de 3 velas (aceso)")]
+    [MenuItem("Cardsworn/Cenário: adicionar luz/Candelabro de 3 velas (aceso)")]
     public static void AddCandelabro()
     {
         Acesa("candle_triple", "Candelabro", 3.0f, 2.9f, 0.30f, 3, 0.45f, 28f, 32f);
     }
 
-    [MenuItem("Card Game/Cenário: adicionar luz/Lanterna KayKit (acesa)")]
+    [MenuItem("Cardsworn/Cenário: adicionar luz/Lanterna KayKit (acesa)")]
     public static void AddLanterna()
     {
         Acesa("lantern", "Lanterna", 4.0f, 2.4f, 0.45f, 1, 0.45f, 50f, 45f);
@@ -353,7 +353,7 @@ public static class CenarioPecas
     // proporção diferente. A peça é medida DEPOIS de colocada e o fogo entra
     // numa FRAÇÃO da altura real dela.
 
-    [MenuItem("Card Game/Cenário: adicionar luz/Fogueira em braseiro (acesa)")]
+    [MenuItem("Cardsworn/Cenário: adicionar luz/Fogueira em braseiro (acesa)")]
     public static void AddFogueira()
     {
         // Braseiro: a lenha arde numa bacia larga no topo, então são três
@@ -362,14 +362,14 @@ public static class CenarioPecas
         AcesaMeshy("fogueira", "Fogueira", 9f, 0.86f, 1.70f, 3, 0.30f, 170f, 110f);
     }
 
-    [MenuItem("Card Game/Cenário: adicionar luz/Lamparina (acesa)")]
+    [MenuItem("Cardsworn/Cenário: adicionar luz/Lamparina (acesa)")]
     public static void AddLamparina()
     {
         // Lamparina: o pavio fica DENTRO do vidro, mais ou menos na metade
         AcesaMeshy("lamparina", "Lamparina", 7f, 0.55f, 0.50f, 1, 0f, 60f, 55f);
     }
 
-    [MenuItem("Card Game/Cenário: adicionar luz/Cristal aceso (para a borda)")]
+    [MenuItem("Cardsworn/Cenário: adicionar luz/Cristal aceso (para a borda)")]
     public static void AddCristal()
     {
         if (Bloqueado()) return;
@@ -436,7 +436,7 @@ public static class CenarioPecas
     // genérica. Acima, presume-se que foi você quem escolheu.
     const float MaisFracaCerta = 12f;
 
-    [MenuItem("Card Game/Cenário: consertar luzes e chamas da cena")]
+    [MenuItem("Cardsworn/Cenário: consertar luzes e chamas da cena")]
     public static void RecalibrarLuzes()
     {
         if (Bloqueado()) return;
@@ -552,7 +552,7 @@ public static class CenarioPecas
     //  • envelope SEM MODELO — clicar na tocha na Scene view selecionava só a
     //    malha, Delete apagava só ela, e ficava um "Tocha" invisível com chama e
     //    luz (resolvido daqui em diante pelo LightPiece/[SelectionBase]).
-    [MenuItem("Card Game/Cenário: remover luzes sem peça")]
+    [MenuItem("Cardsworn/Cenário: remover luzes sem peça")]
     public static void RemoverLuzesSoltas()
     {
         if (Bloqueado()) return;
