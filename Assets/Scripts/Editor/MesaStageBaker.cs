@@ -203,9 +203,15 @@ public static class MesaStageBaker
 
                 SaveTextures(m); // textura procedural (madeira) primeiro
 
-                string nome = "mat-" + Sanitize(r.gameObject.name) + "-" + salvos;
-                m.name = nome;
-                AssetDatabase.CreateAsset(m, BakeFolder + "/" + nome + ".mat");
+                // ⚠️ GenerateUniqueAssetPath é OBRIGATÓRIO aqui. O contador
+                // "salvos" reinicia a cada chamada, então duas peças avulsas do
+                // mesmo tipo (duas tochas, por exemplo) geram o MESMO nome — e
+                // CreateAsset APAGA o arquivo que já existe antes de criar o novo.
+                // A peça antiga ficava sem material e virava magenta na cena.
+                string caminho = AssetDatabase.GenerateUniqueAssetPath(
+                    BakeFolder + "/mat-" + Sanitize(r.gameObject.name) + "-" + salvos + ".mat");
+                m.name = System.IO.Path.GetFileNameWithoutExtension(caminho);
+                AssetDatabase.CreateAsset(m, caminho);
                 canonicos[chave] = m;
                 salvos++;
             }
@@ -240,7 +246,8 @@ public static class MesaStageBaker
             if (tex == null || EditorUtility.IsPersistent(tex)) continue;
             string nome = "tex-" + Sanitize(tex.name == "" ? "gerada" : tex.name)
                         + "-" + Mathf.Abs(tex.GetInstanceID());
-            AssetDatabase.CreateAsset(tex, BakeFolder + "/" + nome + ".asset");
+            AssetDatabase.CreateAsset(tex, AssetDatabase.GenerateUniqueAssetPath(
+                BakeFolder + "/" + nome + ".asset"));
         }
     }
 

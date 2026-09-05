@@ -99,7 +99,7 @@ public static class ForestEnvironment
                 DecorProps.Place(root.transform, "torch_lit", basePos, 7.5f, Vector3.up,
                     center - basePos);
                 FlickerLight.Attach(root.transform, basePos + Vector3.up * 7f,
-                    new Color(1f, 0.62f, 0.25f), 2.3f, 24f);
+                    new Color(1f, 0.62f, 0.25f), 90f, 70f);
             }
 
         // ── Estandartes nas cores dos jogadores (AZUL P1 -z, VERMELHO P2 +z) ──

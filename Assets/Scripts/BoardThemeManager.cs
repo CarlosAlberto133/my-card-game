@@ -163,6 +163,10 @@ public class BoardThemeManager : MonoBehaviour
     // mapas que usam pedra (Mesa de RPG, Floresta e Teste). O arquivo mora em
     // Resources/decor/cenario/<slug>.fbx com <slug>_tex.png ao lado.
     // null = volta para o KayKit, sem mais nenhuma mudança.
+    //
+    // É UMA PEÇA POR CASA. NÃO confundir com o FUNDO do tabuleiro (a laje sob
+    // a moldura) — esse é outro objeto, montado pelo menu "Cenário: adicionar
+    // fundo do tabuleiro". Não trocar este nome por causa de fundo.
     public const string CustomStoneTile = "piso-tabuleiro";
 
     // Liga/desliga o cenário montado à mão. Procura INCLUSIVE objetos

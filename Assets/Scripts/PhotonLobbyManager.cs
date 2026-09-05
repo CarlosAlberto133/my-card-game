@@ -31,12 +31,30 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
     private bool loadingGame = false;
     private bool retriedCreate = false;
 
+    // Salas que o servidor JA recusou nesta sessão de lobby.
+    //
+    // A lista de salas do Photon é um cache no cliente, e ele mente: a cada
+    // atualização o PUN joga fora a entrada antiga e monta um RoomInfo novo com
+    // o que veio no pacote (NetworkingPeer.cs, EventCode.GameListUpdate), e os
+    // padrões de RoomInfo são IsOpen=true e MaxPlayers=0. Uma sala fechada pode
+    // reaparecer "aberta" e com contagem velha. Quando o servidor responde
+    // "cheia"/"fechada", ISSO é a verdade — anotamos e sumimos com a linha.
+    private readonly System.Collections.Generic.HashSet<string> salasRecusadas =
+        new System.Collections.Generic.HashSet<string>();
+
+    // Qual sala o jogador clicou por último (o callback de falha do PUN não diz)
+    private string ultimaSalaTentada;
+
     private enum State { Idle, Browsing, HostWaiting, GuestWaiting }
     private State state = State.Idle;
     private bool startingBotMode = false;
     private Button quitButtonRef;
     private Button botButtonRef;
     private Button howToButtonRef;
+    private Button quickButtonRef;
+
+    // Partida Rápida em andamento: o sorteio foi pedido e ainda não voltou
+    private bool procurandoPartida = false;
 
     void Start()
     {
@@ -85,6 +103,7 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         CreateQuitButton();
         CreateBotTrainingButton();
         CreateHowToPlayButton();
+        CreateQuickMatchButton();
 
         // Constrói os popups (ficam ocultos até serem usados)
         Canvas canvas = createRoomButton != null
@@ -147,6 +166,7 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         bool ready = PhotonNetwork.insideLobby;
         if (createRoomButton != null) createRoomButton.interactable = ready;
         if (joinRoomButton != null) joinRoomButton.interactable = ready;
+        if (quickButtonRef != null) quickButtonRef.interactable = ready;
     }
 
     // Botão "Fechar Jogo" clonado do Create Room para manter o mesmo visual
@@ -225,8 +245,12 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         if (createRoomButton == null) return;
 
         RectTransform baseRt = createRoomButton.GetComponent<RectTransform>();
-        Vector2 btnSize = new Vector2(350f, 60f);
-        float gap = 76f;
+        // Com 6 botões a tabuleta cresce para BAIXO (o topo dela não se mexe: o
+        // centro desce meio "gap" e a altura sobe um "gap" inteiro). Com os 76/60
+        // de antes o rodapé do painel encostava na borda de baixo da tela de
+        // referência (1080) — daí o aperto.
+        Vector2 btnSize = new Vector2(350f, 56f);
+        float gap = 68f;
 
         // Posição fixa no centro-baixo do quadro (independente da cena)
         baseRt.anchorMin = new Vector2(0.5f, 0.5f);
@@ -242,9 +266,9 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         brt.anchorMin = baseRt.anchorMin;
         brt.anchorMax = baseRt.anchorMax;
         brt.pivot = baseRt.pivot;
-        // 5 botões (Criar / Procurar / Treinar / Como Jogar / Fechar)
-        brt.anchoredPosition = basePos + new Vector2(0f, -gap * 2f);
-        brt.sizeDelta = new Vector2(btnSize.x + 58f, gap * 4f + btnSize.y + 58f);
+        // 6 botões (Rápida / Criar / Procurar / Treinar / Como Jogar / Fechar)
+        brt.anchoredPosition = basePos + new Vector2(0f, -gap * 2.5f);
+        brt.sizeDelta = new Vector2(btnSize.x + 58f, gap * 5f + btnSize.y + 58f);
         Image boardImg = board.GetComponent<Image>();
         LobbySprites.MakeRounded(boardImg, new Color(0.055f, 0.040f, 0.028f, 0.94f));
         boardImg.raycastTarget = false;
@@ -254,11 +278,14 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         MakeMenuDiamond(board.transform, new Vector2(0f, brt.sizeDelta.y / 2f), 16f);
         MakeMenuDiamond(board.transform, new Vector2(0f, -brt.sizeDelta.y / 2f), 16f);
 
-        StyleMenuButton(createRoomButton, "Criar Sala", true, basePos, btnSize, baseRt);
-        StyleMenuButton(joinRoomButton, "Procurar Salas", false, basePos + new Vector2(0f, -gap), btnSize, baseRt);
-        StyleMenuButton(botButtonRef, "Treinar vs Bot", false, basePos + new Vector2(0f, -gap * 2f), btnSize, baseRt);
-        StyleMenuButton(howToButtonRef, "Como Jogar", false, basePos + new Vector2(0f, -gap * 3f), btnSize, baseRt);
-        StyleMenuButton(quitButtonRef, "Fechar Jogo", false, basePos + new Vector2(0f, -gap * 4f), btnSize, baseRt);
+        // "Partida Rápida" é o botão dourado (o caminho recomendado): o sorteio
+        // é decidido no servidor e não depende da lista, que pode estar defasada
+        StyleMenuButton(quickButtonRef, "Partida Rápida", true, basePos, btnSize, baseRt);
+        StyleMenuButton(createRoomButton, "Criar Sala", false, basePos + new Vector2(0f, -gap), btnSize, baseRt);
+        StyleMenuButton(joinRoomButton, "Procurar Salas", false, basePos + new Vector2(0f, -gap * 2f), btnSize, baseRt);
+        StyleMenuButton(botButtonRef, "Treinar vs Bot", false, basePos + new Vector2(0f, -gap * 3f), btnSize, baseRt);
+        StyleMenuButton(howToButtonRef, "Como Jogar", false, basePos + new Vector2(0f, -gap * 4f), btnSize, baseRt);
+        StyleMenuButton(quitButtonRef, "Fechar Jogo", false, basePos + new Vector2(0f, -gap * 5f), btnSize, baseRt);
     }
 
     // Losango dourado decorativo (quadrado arredondado girado 45°)
@@ -346,6 +373,37 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
     // coluna dele: 2 posições abaixo (-232), logo após o "Fechar Jogo" (-116).
     // NÃO usar a posição do Join como referência: dependendo do layout da cena,
     // "join - 116" cai em cima do Create Room e esconde o botão.
+    void CreateQuickMatchButton()
+    {
+        Button source = createRoomButton != null ? createRoomButton : joinRoomButton;
+        if (source == null) return;
+
+        GameObject clone = Instantiate(source.gameObject, source.transform.parent);
+        clone.name = "QuickMatchButton";
+
+        RectTransform sourceRt = source.GetComponent<RectTransform>();
+        RectTransform cloneRt = clone.GetComponent<RectTransform>();
+        cloneRt.anchoredPosition = sourceRt.anchoredPosition + new Vector2(0f, -348f);
+        clone.transform.SetSiblingIndex(source.transform.GetSiblingIndex() + 1);
+
+        TMP_Text tmpLabel = clone.GetComponentInChildren<TMP_Text>();
+        if (tmpLabel != null)
+        {
+            tmpLabel.text = "Partida Rápida";
+        }
+        else
+        {
+            Text legacyLabel = clone.GetComponentInChildren<Text>();
+            if (legacyLabel != null) legacyLabel.text = "Partida Rápida";
+        }
+
+        Button quickButton = clone.GetComponent<Button>();
+        quickButton.interactable = false;   // liberado quando entrar no lobby
+        quickButton.onClick.RemoveAllListeners();
+        quickButton.onClick.AddListener(QuickMatch);
+        quickButtonRef = quickButton;
+    }
+
     void CreateBotTrainingButton()
     {
         Button source = createRoomButton != null ? createRoomButton : joinRoomButton;
@@ -432,6 +490,54 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         LoadGameScene();
     }
 
+    // ================== PARTIDA RÁPIDA ==================
+    //
+    // Matchmaking do SERVIDOR. A diferença para "Procurar Salas" não é de
+    // conforto, é de confiabilidade: a lista de salas é um cache no cliente e
+    // pode mentir (ver OnPhotonJoinRoomFailed), enquanto o sorteio é resolvido
+    // no servidor, de forma atômica — não existe sala fantasma para clicar.
+    //
+    // Os dois modos convivem: quem quer jogar com um amigo específico ainda cria
+    // a sala e passa o nome. Este caminho não toca em nada do outro; depois do
+    // OnJoinedRoom o fluxo é exatamente o mesmo (anfitrião espera, convidado
+    // aguarda o início) e nenhum RPC novo entra em cena.
+    void QuickMatch()
+    {
+        if (!PhotonNetwork.insideLobby)
+        {
+            ui.Toast("Ainda conectando ao servidor, aguarde...");
+            return;
+        }
+
+        PhotonNetwork.playerName = PlayerNick.Get();
+        procurandoPartida = true;
+        ui.Toast("Procurando uma partida...");
+        Debug.Log("[Lobby] Partida Rápida: pedindo sorteio ao servidor.");
+        PhotonNetwork.JoinRandomRoom();
+    }
+
+    // Sorteio sem resultado (ninguém esperando): vira anfitrião e espera.
+    //
+    // Callback PRÓPRIO do JoinRandomRoom — não se mistura com
+    // OnPhotonJoinRoomFailed, então nada aqui alimenta a lista de salas
+    // recusadas. E o PUN mantém o cliente no lobby quando o sorteio falha
+    // ("staying on master server"), por isso o CreateRoom() abaixo passa direto
+    // pela própria guarda de insideLobby.
+    void OnPhotonRandomJoinFailed(object[] codeAndMsg)
+    {
+        if (!procurandoPartida) return;   // não é nosso
+        procurandoPartida = false;
+
+        int codigo = 0;
+        if (codeAndMsg != null && codeAndMsg.Length > 0 && codeAndMsg[0] != null)
+            codigo = System.Convert.ToInt32(codeAndMsg[0]);
+
+        Debug.Log("[Lobby] Partida Rápida: nenhuma sala aberta (código " + codigo +
+                  "). Criando uma e esperando oponente.");
+        ui.Toast("Ninguém esperando — criei uma sala para você.");
+        CreateRoom();
+    }
+
     // ================== CRIAR SALA ==================
 
     void CreateRoom()
@@ -487,23 +593,77 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
 
     void RefreshRoomList()
     {
-        RoomInfo[] rooms = PhotonNetwork.GetRoomList();
-        Debug.Log($"[Lobby] Salas na lista: {rooms.Length}");
-        ui.PopulateRoomList(rooms, JoinSpecificRoom);
+        // GetRoomList() devolve o ARRAY INTERNO do PUN (networkingPeer.mGameListCopy),
+        // não uma cópia — ordenar no lugar mexeria na estrutura dele. Copiamos.
+        RoomInfo[] bruto = PhotonNetwork.GetRoomList();
+        System.Collections.Generic.List<RoomInfo> salas =
+            new System.Collections.Generic.List<RoomInfo>();
+        if (bruto != null)
+        {
+            foreach (RoomInfo r in bruto)
+            {
+                if (r == null || string.IsNullOrEmpty(r.Name)) continue;
+                if (salasRecusadas.Contains(r.Name)) continue;   // fantasma conhecido
+                salas.Add(r);
+            }
+        }
+
+        // A ordem que o PUN entrega vem de um Dictionary (mGameList) — sem ordem
+        // definida, e ela MUDA quando entra ou sai sala. As linhas pulavam de
+        // lugar debaixo do cursor, e como duas salas são visualmente iguais
+        // ("Sala #123   1/2 jogadores") dá para clicar na errada sem perceber.
+        // Por nome, a posição é estável.
+        salas.Sort(delegate(RoomInfo a, RoomInfo b)
+        {
+            return string.Compare(a.Name, b.Name, System.StringComparison.Ordinal);
+        });
+
+        Debug.Log("[Lobby] Salas na lista: " + salas.Count +
+                  " (cache do Photon tinha " + (bruto != null ? bruto.Length : 0) +
+                  ", " + salasRecusadas.Count + " recusada(s) escondida(s))");
+        ui.PopulateRoomList(salas.ToArray(), JoinSpecificRoom);
     }
 
     void JoinSpecificRoom(string roomName)
     {
         Debug.Log($"[Lobby] Entrando na sala: {roomName}");
+        ultimaSalaTentada = roomName;   // o callback de falha não diz qual era
         ui.Toast("Entrando na sala...");
         PhotonNetwork.playerName = PlayerNick.Get();
         PhotonNetwork.JoinRoom(roomName);
     }
 
+    // O PUN entrega o motivo em codeAndMsg (código do servidor + texto). Antes
+    // isso era jogado fora e todo mundo via a mesma frase genérica — por isso um
+    // teste com 4 pessoas (04/set/2026) ficou sem diagnóstico: ninguém sabia que
+    // o servidor estava respondendo "cheia" para uma sala que a lista mostrava
+    // como livre.
     void OnPhotonJoinRoomFailed(object[] codeAndMsg)
     {
-        Debug.LogWarning("[Lobby] Falha ao entrar na sala.");
-        ui.Toast("Não foi possível entrar (a sala pode ter acabado de fechar).");
+        int codigo = 0;
+        string detalhe = "";
+        if (codeAndMsg != null && codeAndMsg.Length > 0 && codeAndMsg[0] != null)
+            codigo = System.Convert.ToInt32(codeAndMsg[0]);   // vem como short
+        if (codeAndMsg != null && codeAndMsg.Length > 1 && codeAndMsg[1] != null)
+            detalhe = codeAndMsg[1].ToString();
+
+        Debug.LogWarning("[Lobby] Falha ao entrar em '" + ultimaSalaTentada +
+                         "': código " + codigo + " — " + detalhe);
+
+        string aviso;
+        if (codigo == ErrorCode.GameFull || codigo == ErrorCode.GameClosed)
+            aviso = "Essa partida já começou. Escolha outra sala.";
+        else if (codigo == ErrorCode.GameDoesNotExist)
+            aviso = "Essa sala não existe mais.";
+        else
+            aviso = "Não foi possível entrar na sala. Tente outra.";
+
+        // O servidor acabou de dizer a verdade sobre esta sala: tira ela da tela
+        // para o jogador não insistir no mesmo fantasma
+        if (!string.IsNullOrEmpty(ultimaSalaTentada))
+            salasRecusadas.Add(ultimaSalaTentada);
+
+        ui.Toast(aviso);
         if (state == State.Browsing) RefreshRoomList();
     }
 
@@ -512,6 +672,10 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
     void OnJoinedLobby()
     {
         Debug.Log("[Lobby] Entrou no lobby do Photon.");
+        // Conexão nova = lista nova. Também evita que um nome recusado fique
+        // banido para sempre: são só 900 nomes possíveis ("Sala #100".."#999"),
+        // então uma sala nova pode acabar reaproveitando o nome de uma morta.
+        salasRecusadas.Clear();
         UpdateMainButtons();
         if (state == State.Idle) ui.Toast("");
         if (state == State.Browsing) RefreshRoomList();
@@ -529,6 +693,7 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         // (nada de popup de anfitrião/espera)
         if (BotMode.Enabled) return;
 
+        procurandoPartida = false;
         string roomName = PhotonNetwork.room != null ? PhotonNetwork.room.Name : "Sala";
         Debug.Log($"[Lobby] Entrou na sala: {roomName} (master: {PhotonNetwork.isMasterClient})");
         ui.Toast("");
@@ -552,7 +717,10 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
     {
         Debug.Log($"[Lobby] Jogador entrou na sala: {newPlayer.ID}");
         if (state == State.HostWaiting)
+        {
             ui.SetHostStatus(PhotonNetwork.room.PlayerCount >= 2);
+            AtualizarVisibilidadeDaSala();
+        }
     }
 
     void OnPhotonPlayerDisconnected(PhotonPlayer otherPlayer)
@@ -561,8 +729,44 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
         if (state == State.HostWaiting)
         {
             ui.SetHostStatus(PhotonNetwork.room.PlayerCount >= 2);
+            AtualizarVisibilidadeDaSala();   // vagou: volta para a lista
             ui.Toast("O jogador 2 saiu da sala.");
         }
+    }
+
+    // A sala some da lista assim que ENCHE — não na hora de "Iniciar Partida".
+    //
+    // POR QUE ISSO IMPORTA (bug de 04/set/2026, teste com 4 pessoas):
+    // antes, IsOpen/IsVisible só viravam false dentro de StartMatch(), na MESMA
+    // linha do tempo do SceneManager.LoadScene. Depois disso ninguém mais mexe
+    // nessa sala — o lobby foi descarregado. Se o aviso não vingasse ali, a sala
+    // ficava listada pelo resto da partida: cinco minutos depois ela ainda
+    // aparecia para os outros, com a contagem de jogadores desatualizada, com
+    // cara de sala livre. Quem clicava levava "sala cheia" e não entendia nada.
+    //
+    // Aqui o aviso sai com o cliente parado no lobby, muito antes de qualquer
+    // troca de cena, e o servidor tem todo o tempo do mundo para propagá-lo.
+    void AtualizarVisibilidadeDaSala()
+    {
+        // Só o anfitrião mexe, para os dois clientes não mandarem o mesmo aviso
+        if (!PhotonNetwork.isMasterClient || PhotonNetwork.room == null) return;
+
+        // MaxPlayers 0 significa "sem limite" no Photon. Se por qualquer motivo a
+        // sala vier assim, "cheia" daria sempre true e a sala do anfitrião
+        // sumiria da lista para sempre — inclusive depois do convidado sair.
+        int limite = PhotonNetwork.room.MaxPlayers;
+        if (limite <= 0) limite = 2;   // aqui toda sala é de 2 (ver CreateRoom)
+
+        bool cheia = PhotonNetwork.room.PlayerCount >= limite;
+
+        // Idempotente de graça: os setters do PUN (Room.cs) só falam com o
+        // servidor quando o valor MUDA, então repetir a chamada não custa nada
+        PhotonNetwork.room.IsOpen = !cheia;
+        PhotonNetwork.room.IsVisible = !cheia;
+
+        Debug.Log("[Lobby] Sala '" + PhotonNetwork.room.Name + "' " +
+                  (cheia ? "cheia: escondida e fechada." : "com vaga: visível na lista.") +
+                  " (" + PhotonNetwork.room.PlayerCount + "/" + limite + ")");
     }
 
     // Se o anfitrião sair, o convidado não deve herdar a sala: volta para o lobby
@@ -579,6 +783,7 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
     void LeaveRoom()
     {
         state = State.Idle;
+        procurandoPartida = false;
         ui.HideAll();
         if (PhotonNetwork.inRoom) PhotonNetwork.LeaveRoom();
         UpdateMainButtons(); // reabilitados quando OnJoinedLobby disparar de novo
@@ -609,7 +814,12 @@ public class PhotonLobbyManager : UnityEngine.MonoBehaviour
 
         Debug.Log("[Lobby] Iniciando a partida!");
 
-        // Tranca a sala: ninguém mais entra e ela some da lista
+        // Rede de segurança. O trabalho de verdade já foi feito em
+        // AtualizarVisibilidadeDaSala() quando o jogador 2 entrou — e foi feito
+        // lá de propósito, porque AQUI estamos a um passo do LoadScene e este
+        // aviso pode não ter tempo de ir embora. Se por algum motivo a sala
+        // ainda estiver aberta, os setters mandam agora; se já estiver fechada,
+        // não custa nada (o PUN só fala com o servidor quando o valor muda).
         PhotonNetwork.room.IsOpen = false;
         PhotonNetwork.room.IsVisible = false;
 

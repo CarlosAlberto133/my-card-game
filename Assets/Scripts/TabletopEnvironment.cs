@@ -46,6 +46,35 @@ public static class TabletopEnvironment
     public const float PlankThickness = 1.5f;     // espessura da tábua
     public const float PlankOverlap = 0.15f;      // sobra lateral: sem fresta
 
+    // ── Iluminação da taverna ──────────────────────────────────────────────
+    // O ambiente vinha do skybox procedural padrão: um azul de dia claro
+    // lavando a mesa inteira e comendo o contraste das tochas. Aqui vira um
+    // gradiente escuro e quente, o "sol" cai para luz de sala, e a névoa NA
+    // COR DO FUNDO faz as bordas derreterem no escuro em vez de acabarem num
+    // corte seco — é por isso que ela usa a mesma TavernDark da câmera.
+    //
+    // Por código, como o fundo da câmera: vale também com o MesaStage assado
+    // e o build não fica dependendo do Lighting salvo na cena.
+    public static readonly Color TavernDark = new Color(0.080f, 0.055f, 0.040f);
+    public static readonly Color AmbientSky = new Color(0.340f, 0.292f, 0.250f);
+    public static readonly Color AmbientEquator = new Color(0.260f, 0.220f, 0.188f);
+    public static readonly Color AmbientGround = new Color(0.160f, 0.132f, 0.110f);
+    public static readonly Color SunColor = new Color(1.00f, 0.93f, 0.80f);
+    public const float SunIntensity = 1.60f;   // era 2 (branca): sol de meio-dia
+    public const float FogDensity = 0.0032f;
+    // ⚠️ ESCALA DAS LUZES. Uma casa do tabuleiro tem 6 unidades e a tocha tem
+    // 7.5 de altura — ou seja, este mundo é ~5× maior que metros. A atenuação
+    // de um point light é 1/d² em unidades de mundo, então intensidade que
+    // funciona numa cena "1 unidade = 1 metro" precisa ser multiplicada por
+    // ~25 aqui. Foi por isso que as tochas de 2.3 não iluminavam NADA: a 6
+    // unidades (uma casa) elas entregavam 2.3/36 = 0.06, menos que o ambiente.
+    // Se for criar luz nova, pense em quanto quer A UMA CASA DE DISTÂNCIA e
+    // multiplique por 36.
+    //
+    // Estes dois são só tempero: os valores de fábrica já estão certos.
+    public const float TorchBoost = 1.00f;
+    public const float TorchReach = 1.00f;
+
     // ── Cenário "ASSADO" na cena (MesaStage) ─────────────────────────────
     // O menu do editor "Card Game → Mesa de RPG: assar cenário" transforma
     // este cenário gerado por código em objetos DE VERDADE na cena, dentro de
@@ -84,6 +113,7 @@ public static class TabletopEnvironment
 
     public static void Clear()
     {
+        RestoreLighting();
         GameObject baked = FindBakedStage();
         if (baked != null) baked.SetActive(false);
         if (root != null)
@@ -323,8 +353,19 @@ public static class TabletopEnvironment
         if (baked != null)
         {
             baked.SetActive(true);
+
+            // Chamas sem material e luzes sem FlickerLight (componente que
+            // morreu ao recarregar a cena) são refeitas AQUI, antes da luz, porque
+            // este é o único ponto garantido de rodar — ver o aviso em FlameLook.cs
+            int chamas = FlameLook.HealAll();
+            int luzes = FlickerLight.HealAll();
+
             PaintBackground();
-            Debug.Log("[Tabletop] Cenário 'MesaStage' (assado na cena, editável) ativado.");
+            ApplyLighting();
+            Debug.Log("[Tabletop] Cenário 'MesaStage' (assado na cena, editável) ativado" +
+                (chamas + luzes > 0
+                    ? " — curadas " + chamas + " chama(s) e " + luzes + " luz(es)."
+                    : "."));
             return;
         }
 
@@ -333,6 +374,7 @@ public static class TabletopEnvironment
         System.Random rng = new System.Random(seed * 7 + 3);
 
         PaintBackground();
+        ApplyLighting();
 
         // Instance é null fora do Play mode — o assador do editor também
         // chama este Build, então procuramos o objeto da cena de qualquer forma
@@ -366,11 +408,14 @@ public static class TabletopEnvironment
         MakeBox("TableBrace", center + new Vector3(0f, -38f, 35f),
             new Vector3(92f, 5f, 4f), legWood, GetWoodTexture());
 
-        // Chão: tábuas escuras a perder de vista (o marrom quente do fundo faz
-        // as bordas sumirem na penumbra da taverna, sem horizonte duro)
+        // Chão: grama e terra a perder de vista. É UM plano de 700 com a textura
+        // repetida — não lajota por lajota: a peca do Meshy tem 5 mil vértices e
+        // ladrilhar 700×700 sairiam milhares de malhas para um chão que quase
+        // sempre está na penumbra.
         GameObject floor = MakeBox("TavernFloor", center + new Vector3(0f, -46.6f, 0f),
-            new Vector3(700f, 3f, 700f), new Color(0.30f, 0.20f, 0.12f), GetWoodTexture());
-        SetTextureTiling(floor, 24f, 24f);
+            new Vector3(700f, 3f, 700f), GroundTint, GetGroundTexture());
+        SetGroundNormal(floor);
+        SetTextureTiling(floor, GroundTiles, GroundTiles);
 
         // ── Moldura do campo ──────────────────────────────────────────────
         // Extraída para BuildFrame() para poder ser remontada AO VIVO pelos
@@ -456,8 +501,10 @@ public static class TabletopEnvironment
             Vector3 basePos = center + new Vector3(t.x, top, t.y);
             DecorProps.Place(root.transform, "torch_lit", basePos, 7.5f, upW,
                 center - basePos);
-            FlickerLight.Attach(root.transform, basePos + upW * 7f,
-                new Color(1f, 0.62f, 0.25f), 2.3f, 24f);
+            // Sem luz aqui, de propósito: as fontes de luz da Mesa são as que o
+            // Carlos adiciona e posiciona pelo menu (Cenário: adicionar luz).
+            // Luz criada por código vira objeto solto que sobrevive à peça ser
+            // apagada — foram as "luzinhas espalhadas" de 04/set/2026.
         }
 
         // Estandartes nas cores dos jogadores: AZUL no lado do P1 (-z),
@@ -494,8 +541,6 @@ public static class TabletopEnvironment
             center + new Vector3(-37f, top, -14f), 5f, upW, Vector3.right);
         DecorProps.Place(root.transform, "candle_triple",
             center + new Vector3(-29f, top, -35f), 2.6f, upW, Vector3.right);
-        FlickerLight.Attach(root.transform, center + new Vector3(-29f, top + 3f, -35f),
-            new Color(1f, 0.6f, 0.2f), 1.4f, 18f);
 
         // ── Aventureiros do KayKit assistindo da beirada ESQUERDA ─────────
         // (perto do tesouro; miniaturas viradas para o tabuleiro)
@@ -537,6 +582,124 @@ public static class TabletopEnvironment
         }
     }
 
+    // ── Iluminação ───────────────────────────────────────────────────────
+    // O que a cena tinha ANTES de a Mesa mexer, para o Clear() devolver tudo.
+    // Sem isto, trocar de temática num reinício (Mesa → Floresta) levaria o
+    // ambiente escuro da taverna junto e a floresta amanheceria de noite.
+    static bool lightingSaved;
+    static UnityEngine.Rendering.AmbientMode savedAmbientMode;
+    static Color savedSky, savedEquator, savedGround;
+    static bool savedFog;
+    static Color savedFogColor;
+    static FogMode savedFogMode;
+    static float savedFogDensity;
+    static Light sun;
+    static float savedSunIntensity;
+    static Color savedSunColor;
+
+    // Remonta SÓ a iluminação (chamado pelo LightingTuning quando os sliders
+    // mudam em Play mode)
+    public static void RebuildLighting() { ApplyLighting(); }
+
+    static void ApplyLighting()
+    {
+        LightingTuning tune = LightingTuning.Ativa;
+
+        if (!lightingSaved)
+        {
+            savedAmbientMode = RenderSettings.ambientMode;
+            savedSky = RenderSettings.ambientSkyColor;
+            savedEquator = RenderSettings.ambientEquatorColor;
+            savedGround = RenderSettings.ambientGroundColor;
+            savedFog = RenderSettings.fog;
+            savedFogColor = RenderSettings.fogColor;
+            savedFogMode = RenderSettings.fogMode;
+            savedFogDensity = RenderSettings.fogDensity;
+            lightingSaved = true;
+        }
+
+        // Ambiente: gradiente (Trilight) escuro e quente no lugar do skybox
+        if (tune == null || tune.ambienteEscuro)
+        {
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = tune != null ? tune.corAlto : AmbientSky;
+            RenderSettings.ambientEquatorColor = tune != null ? tune.corMeio : AmbientEquator;
+            RenderSettings.ambientGroundColor = tune != null ? tune.corChao : AmbientGround;
+
+            // OBRIGATÓRIO. Mexer nas cores de ambiente em runtime NÃO tem efeito
+            // nenhum sem isto: a Unity só recalcula a sonda de ambiente quando
+            // mandam. Sem esta linha o ambiente ficava o azul de dia claro de
+            // origem enquanto a direcional (que aplica na hora) caía — dava a
+            // impressão de "nada mudou, só apagou".
+            DynamicGI.UpdateEnvironment();
+        }
+
+        // Névoa na cor do fundo: a mesa deixa de terminar num corte seco
+        bool comNevoa = tune == null || tune.nevoa;
+        RenderSettings.fog = comNevoa;
+        if (comNevoa)
+        {
+            RenderSettings.fogMode = FogMode.ExponentialSquared;
+            RenderSettings.fogColor = tune != null ? tune.corNevoa : TavernDark;
+            RenderSettings.fogDensity = tune != null ? tune.densidadeNevoa : FogDensity;
+        }
+
+        // A direcional deixa de ser sol e vira a luz da sala
+        if (sun == null) sun = AchaSol();
+        if (sun != null)
+        {
+            if (savedSunIntensity <= 0f)
+            {
+                savedSunIntensity = sun.intensity;
+                savedSunColor = sun.color;
+            }
+            sun.intensity = tune != null ? tune.luzPrincipal : SunIntensity;
+            sun.color = tune != null ? tune.corLuzPrincipal : SunColor;
+        }
+
+        FlickerLight.RebaseAll(tune != null ? tune.tochas : TorchBoost,
+                               tune != null ? tune.alcanceTochas : TorchReach);
+
+        Debug.Log("[Tabletop] Iluminação aplicada — sol " +
+            (sun != null ? sun.intensity.ToString("0.00") : "(não achei a direcional!)") +
+            ", névoa " + (RenderSettings.fog ? RenderSettings.fogDensity.ToString("0.0000") : "off") +
+            ", tochas ×" + (tune != null ? tune.tochas : TorchBoost).ToString("0.00") +
+            (tune != null ? " (LightingTuning na cena)" : " (padrões do código)"));
+    }
+
+    static void RestoreLighting()
+    {
+        if (!lightingSaved) return;
+
+        RenderSettings.ambientMode = savedAmbientMode;
+        RenderSettings.ambientSkyColor = savedSky;
+        RenderSettings.ambientEquatorColor = savedEquator;
+        RenderSettings.ambientGroundColor = savedGround;
+        DynamicGI.UpdateEnvironment();   // mesma regra na volta
+        RenderSettings.fog = savedFog;
+        RenderSettings.fogColor = savedFogColor;
+        RenderSettings.fogMode = savedFogMode;
+        RenderSettings.fogDensity = savedFogDensity;
+
+        if (sun != null && savedSunIntensity > 0f)
+        {
+            sun.intensity = savedSunIntensity;
+            sun.color = savedSunColor;
+        }
+        savedSunIntensity = 0f;
+
+        FlickerLight.RebaseAll(1f, 1f);
+        lightingSaved = false;
+    }
+
+    static Light AchaSol()
+    {
+        foreach (Light l in Object.FindObjectsByType<Light>(
+                     FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            if (l != null && l.type == LightType.Directional) return l;
+        return null;
+    }
+
     // Fundo: taverna escura e quente (contraste com o azul do espaço). É a
     // única coisa que continua por código mesmo com o MesaStage assado —
     // fundo de câmera não dá para guardar num GameObject da cena.
@@ -547,7 +710,7 @@ public static class TabletopEnvironment
         if (cam != null)
         {
             cam.clearFlags = CameraClearFlags.SolidColor;
-            cam.backgroundColor = new Color(0.080f, 0.055f, 0.040f);
+            cam.backgroundColor = TavernDark;
         }
     }
 
@@ -619,6 +782,80 @@ public static class TabletopEnvironment
             mat.SetTexture("_BaseMap", tex);
         }
         r.material = mat;
+    }
+
+    // ── Chão da taverna ──────────────────────────────────────
+
+    // Calçada de pedra irregular, do Medieval Village MegaKit (a mesma família
+    // de material das construções). Diferente das peças do Meshy, esta já NASCE
+    // sem emenda — é uma textura de superfície feita para repetir, não um atlas
+    // de UV de uma malha — então não precisa do tratamento "-liso" que a grama
+    // precisou. (A grama continua instalada como chao-grama-liso, caso volte.)
+    public const string GroundSlug = "chao-pedra";
+
+    // 700 ÷ 50 = 14 por repetição — com ~8 pedras na largura da textura, cada
+    // pedra fica com ~1.7 (uma casa tem 6). Mais repetições = pedra miúda;
+    // menos = pedra grande demais e o desenho começa a se repetir à vista.
+    public const float GroundTiles = 50f;
+
+    // Perto do neutro de propósito: a cor vem da textura, e um pouco abaixo de
+    // 1 para o chão não ficar mais claro que o tampo da mesa na penumbra. Quem
+    // pinta a pedra é a luz alaranjada das tochas.
+    public static readonly Color GroundTint = new Color(0.80f, 0.77f, 0.72f);
+
+    static Texture2D groundTex;
+    static Texture2D groundNrm;
+
+    static Texture2D GetGroundTexture()
+    {
+        if (groundTex == null)
+        {
+            groundTex = Resources.Load<Texture2D>("decor/cenario/" + GroundSlug + "_tex");
+            Repetivel(groundTex);
+        }
+        // Sem a peca instalada, o chão volta às tábuas em vez de ficar branco
+        return groundTex != null ? groundTex : GetWoodTexture();
+    }
+
+    // Trava contra o bug de 04/set/2026: as texturas do chão foram instaladas com
+    // .meta clonado do piso-tabuleiro, que é uma LAJOTA — e lajota vem em Clamp
+    // (usa o próprio atlas em 0..1, onde Clamp até ajuda). Numa textura repetida
+    // 50× num plano de 700, Clamp NÃO repete: estica o pixel da borda pela área
+    // inteira e o chão vira UMA COR CHAPADA, sem desenho nenhum. Levou duas
+    // trocas de textura até alguém perceber que o problema nunca foi a arte.
+    static void Repetivel(Texture2D tex)
+    {
+        if (tex != null && tex.wrapMode != TextureWrapMode.Repeat)
+        {
+            Debug.LogWarning("[Tabletop] '" + tex.name + "' estava em " + tex.wrapMode +
+                             "; chão precisa de Repeat. Corrigido em runtime — " +
+                             "arrume o Wrap Mode no .meta para valer no build.");
+            tex.wrapMode = TextureWrapMode.Repeat;
+        }
+    }
+
+    // Relevo do chão: é o normal map que faz a grama pegar a luz das tochas em
+    // vez de virar um adesivo chapado. Vai separado porque MakeBox/FinishDecor
+    // só sabem de cor + textura.
+    static void SetGroundNormal(GameObject go)
+    {
+        if (groundNrm == null)
+        {
+            groundNrm = Resources.Load<Texture2D>("decor/cenario/" + GroundSlug + "_normal");
+            Repetivel(groundNrm);
+        }
+        if (groundNrm == null) return;
+
+        Renderer r = go != null ? go.GetComponent<Renderer>() : null;
+        if (r == null || r.sharedMaterial == null) return;
+        if (!r.sharedMaterial.HasProperty("_BumpMap")) return;
+
+        r.sharedMaterial.SetTexture("_BumpMap", groundNrm);
+        r.sharedMaterial.SetTextureScale("_BumpMap", new Vector2(GroundTiles, GroundTiles));
+        r.sharedMaterial.EnableKeyword("_NORMALMAP");
+        // Terra é fosca: o 0.5 padrão do URP Lit deixa o chão encerado
+        if (r.sharedMaterial.HasProperty("_Smoothness"))
+            r.sharedMaterial.SetFloat("_Smoothness", 0.10f);
     }
 
     // Textura de madeira procedural em TÁBUAS (512px, com mipmaps): cada faixa

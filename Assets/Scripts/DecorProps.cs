@@ -355,6 +355,187 @@ public static class DecorProps
         return go;
     }
 
+    // ── Fogo e brilho ────────────────────────────────────────────────────
+
+    // Pontinho macio (branco no meio, transparente na borda). Sem ele a
+    // partícula é um quadrado. Gerado, como todo o resto do cenário.
+    static Texture2D softDot;
+
+    // UM material para TODAS as chamas. Antes cada chama criava o seu, o que
+    // enchia a pasta do bake de cópias idênticas e multiplicava a chance de
+    // dois assets brigarem pelo mesmo nome. Compartilhado, depois que o
+    // primeiro vira arquivo os próximos já o encontram salvo e nem tentam.
+    static Material flameMat;
+
+    // Exposto para o menu de reparo do editor: uma chama que perdeu o material
+    // (o bug de nomes repetidos do assador, corrigido em 04/set/2026) volta a
+    // arder recebendo este mesmo material de novo.
+    public static Material FlameMaterial()
+    {
+        if (flameMat == null)
+        {
+            Shader shader = Shader.Find("Sprites/Default")
+                         ?? Shader.Find("Universal Render Pipeline/Unlit");
+            if (shader == null) return null;
+            flameMat = new Material(shader);
+            flameMat.name = "Chama";
+            flameMat.mainTexture = SoftDot();
+        }
+        return flameMat;
+    }
+
+    public static Texture2D SoftDot()
+    {
+        if (softDot != null) return softDot;
+
+        const int n = 64;
+        softDot = new Texture2D(n, n, TextureFormat.RGBA32, false);
+        softDot.name = "SoftDot";
+        softDot.wrapMode = TextureWrapMode.Clamp;
+        for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                float dx = (x + 0.5f) / n - 0.5f;
+                float dy = (y + 0.5f) / n - 0.5f;
+                float d = Mathf.Sqrt(dx * dx + dy * dy) * 2f;
+                float a = Mathf.Clamp01(1f - d);
+                softDot.SetPixel(x, y, new Color(1f, 1f, 1f, a * a));
+            }
+        softDot.Apply();
+        return softDot;
+    }
+
+    // CHAMA viva para tocha, vela e candelabro. O fogo não vem no FBX: o
+    // modelo é madeira parada, quem faz "arder" é este sistema de partículas
+    // mais a luz que tremula (FlickerLight). Mesmo molde do "CardPoof" em
+    // CardAnimator — montado na mão, sem pack, porque assim vira texto no
+    // git em vez de mais binário no build.
+    //
+    // 100% visual e desenhado por cliente: aqui UnityEngine.Random seria até
+    // permitido (a proibição do lockstep vale só para o que vira estado de
+    // jogo), mas nem precisamos dele — a partícula já sorteia sozinha.
+    public static ParticleSystem Flame(Transform parent, Vector3 pos,
+        float tamanho, Color quente, Color fria)
+    {
+        GameObject go = new GameObject("Chama");
+        go.transform.SetParent(parent, false);
+        go.transform.position = pos;
+        // O cone do shape aponta para o +Z local; deitando -90 no X ele sobe
+        go.transform.rotation = Quaternion.Euler(-90f, 0f, 0f);
+
+        float esc = Mathf.Max(tamanho, 0.05f);
+
+        ParticleSystem ps = go.AddComponent<ParticleSystem>();
+        ps.Stop();
+
+        var main = ps.main;
+        main.loop = true;
+        main.playOnAwake = true;      // sem isto a chama assada na cena nasce parada
+        main.duration = 1f;
+        main.startLifetime = new ParticleSystem.MinMaxCurve(0.22f, 0.45f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(esc * 1.1f, esc * 2.0f);
+        main.startSize = new ParticleSystem.MinMaxCurve(esc * 0.75f, esc * 1.30f);
+        main.startColor = new ParticleSystem.MinMaxGradient(quente);
+        main.maxParticles = 40;
+        main.gravityModifier = -0.04f;   // puxa para CIMA
+        // Mundo: a chama fica onde está em vez de escorregar junto se a peça
+        // for movida no editor
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+
+        var emission = ps.emission;
+        emission.enabled = true;
+        emission.rateOverTime = 26f;
+
+        var shape = ps.shape;
+        shape.shapeType = ParticleSystemShapeType.Cone;
+        shape.angle = 11f;
+        shape.radius = esc * 0.22f;
+
+        // Quente embaixo, escura e transparente em cima: é esse caminho de cor
+        // que o olho lê como fogo, mais do que o formato
+        var col = ps.colorOverLifetime;
+        col.enabled = true;
+        Gradient g = new Gradient();
+        g.SetKeys(
+            new[] { new GradientColorKey(quente, 0f), new GradientColorKey(fria, 1f) },
+            new[] { new GradientAlphaKey(0.95f, 0f), new GradientAlphaKey(0.55f, 0.45f),
+                    new GradientAlphaKey(0f, 1f) });
+        col.color = new ParticleSystem.MinMaxGradient(g);
+
+        // Afina na ponta
+        var siz = ps.sizeOverLifetime;
+        siz.enabled = true;
+        siz.size = new ParticleSystem.MinMaxCurve(1f,
+            AnimationCurve.EaseInOut(0f, 1f, 1f, 0.12f));
+
+        ParticleSystemRenderer r = ps.GetComponent<ParticleSystemRenderer>();
+        if (r != null)
+        {
+            // Sprites/Default está em Always Included Shaders — seguro no build.
+            // sharedMaterial, não material: ".material" clonaria uma cópia por
+            // chama e desfaria justamente o compartilhamento.
+            Material mat = FlameMaterial();
+            if (mat != null) r.sharedMaterial = mat;
+        }
+
+        // A rede de segurança de verdade: o material da chama volta sozinho
+        // toda vez que a cena carrega, sem depender de arquivo nenhum
+        if (go.GetComponent<FlameLook>() == null) go.AddComponent<FlameLook>();
+
+        ps.Play();
+        return ps;
+    }
+
+    // CRISTAL ACESO. O diamante da peça de canto é pedra do MESMO material que
+    // o resto do bloco (uma malha, uma textura) — pôr emissão no material
+    // acenderia a mureta inteira. Então o brilho vem de fora: uma bolinha Unlit
+    // com a cor multiplicada ALÉM DE 1, que é o que ultrapassa o threshold do
+    // bloom e vira brilho de verdade, mais uma luz para a pedra em volta pegar
+    // a cor. Sem bloom ligado, isto é só uma bola clara.
+    public static GameObject GlowGem(Transform parent, Vector3 pos, float raio,
+        Color cor, float forca)
+    {
+        GameObject go = new GameObject("Cristal");
+        go.transform.SetParent(parent, false);
+        go.transform.position = pos;
+        go.AddComponent<LightPiece>();   // clicar na bolinha seleciona a peça toda
+
+        GameObject bola = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        bola.name = "Brilho";
+        bola.transform.SetParent(go.transform, false);
+        bola.transform.localScale = Vector3.one * raio * 2f;
+        Kill(bola.GetComponent<Collider>());   // nunca rouba clique
+
+        Renderer r = bola.GetComponent<Renderer>();
+        Shader sh = Shader.Find("Universal Render Pipeline/Unlit")
+                 ?? Shader.Find("Sprites/Default");
+        if (r != null && sh != null)
+        {
+            Material mat = new Material(sh);
+            Color hdr = cor * forca;
+            mat.color = hdr;
+            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", hdr);
+            r.sharedMaterial = mat;
+        }
+
+        GameObject luz = new GameObject("LuzCristal");
+        luz.transform.SetParent(go.transform, false);
+        Light l = luz.AddComponent<Light>();
+        l.type = LightType.Point;
+        l.color = cor;
+        // Mesma régua das tochas (ver ESCALA DAS LUZES em TabletopEnvironment):
+        // 1/d² em unidades de mundo, e uma casa tem 6
+        l.intensity = 22f;
+        l.range = raio * 90f;
+
+        // Respiração lenta, não tremulação de fogo — e fora do rebase das tochas
+        FlickerLight f = luz.AddComponent<FlickerLight>();
+        f.amplitude = 0.14f;
+        f.velocidade = 0.8f;
+        f.eTocha = false;
+        return go;
+    }
+
     // Carrega e instancia uma peça PRÓPRIA de Resources/decor/cenario, já sem
     // colliders e com o material da peça (textura + normal map + pedra fosca)
     static GameObject InstantiateScenery(Transform parent, string slug, string name)
@@ -778,49 +959,5 @@ public static class DecorProps
     {
         Vector3 e = b.extents;
         return 2f * (Mathf.Abs(e.x * axis.x) + Mathf.Abs(e.y * axis.y) + Mathf.Abs(e.z * axis.z));
-    }
-}
-
-// Luz pontual com tremulação de fogo (tochas/velas). Usa PerlinNoise com
-// Time.time — puramente visual, nada de UnityEngine.Random (lockstep intocado).
-public class FlickerLight : MonoBehaviour
-{
-    Light lt;
-    float baseIntensity;
-    float seedOffset;
-
-    // Os campos privados NÃO são serializados: num FlickerLight "assado" na
-    // cena (MesaStage), eles chegam zerados ao carregar — reconstruímos aqui
-    // a partir do próprio Light (a intensidade dele é serializada normal)
-    void Awake()
-    {
-        if (lt == null) lt = GetComponent<Light>();
-        if (lt != null && baseIntensity <= 0f) baseIntensity = lt.intensity;
-        if (seedOffset == 0f)
-            seedOffset = transform.position.x * 3.7f + transform.position.z * 1.3f;
-    }
-
-    public static void Attach(Transform parent, Vector3 pos, Color color, float intensity, float range)
-    {
-        GameObject go = new GameObject("FlickerLight");
-        go.transform.SetParent(parent, false);
-        go.transform.position = pos;
-
-        Light l = go.AddComponent<Light>();
-        l.type = LightType.Point;
-        l.color = color;
-        l.intensity = intensity;
-        l.range = range;
-
-        FlickerLight f = go.AddComponent<FlickerLight>();
-        f.lt = l;
-        f.baseIntensity = intensity;
-        f.seedOffset = pos.x * 3.7f + pos.z * 1.3f;
-    }
-
-    void Update()
-    {
-        if (lt != null)
-            lt.intensity = baseIntensity * (0.82f + 0.36f * Mathf.PerlinNoise(Time.time * 5.5f, seedOffset));
     }
 }

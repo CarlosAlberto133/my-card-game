@@ -57,31 +57,54 @@ public class CardFigurePostprocessor : AssetPostprocessor
     //
     // O jeito certo é OLHAR o modelo antes: renderizar a malha do FBX e ver.
     // Só entra aqui quem estiver mesmo tombado.
-    static readonly HashSet<string> ModelosParaEndireitar = new HashSet<string>
+    // A rotação de cada um é EXPLÍCITA, e isso é de propósito.
+    //
+    // Antes, o código escolhia sozinho entre as quatro orientações possíveis,
+    // pontuando cada uma por "esbelto + base mais larga que o topo". O problema
+    // é que X-90 e X90 dão a MESMA caixa — uma é a outra de cabeça para baixo —,
+    // então quem desempatava era só "a base é mais larga que o topo". Qualquer
+    // personagem de chapéu largo ou braços abertos quebra essa regra.
+    //
+    // Auditoria de 05/set/2026 (render das 84 figuras + a nota reproduzida em
+    // Python): X-90 é a certa para os 13, mas a heurística só acertava em 9.
+    // Os quatro erros, e o que o jogador via:
+    //   conjurador  -> escolhia X90   = DE CABEÇA PARA BAIXO (o chapéu de mago
+    //                  é a parte mais larga; a nota do errado dava 2.52 x 1.60)
+    //   milagreira  -> escolhia X90   = DE CABEÇA PARA BAIXO (braços abertos)
+    //   flecha-fiel -> não girava    = DEITADA
+    //   hidra       -> escolhia Z-90  = DEITADA de lado
+    //
+    // Modelo novo aqui: renderizar antes (`python arte-ia/render_fbx.py <nome>
+    // --giros=x:-90,x:90`) e anotar a rotação que deixa ele de pé E encarando a
+    // câmera. NÃO voltar a adivinhar: a caixa não distingue "de pé" de "de
+    // cabeça para baixo", e nunca vai distinguir.
+    //
+    // (O Guarda-Costas já tinha ensinado a lição irmã: entrou nesta lista por
+    // medir Z=0.89 contra Y=0.63, mas o comprido era o ESCUDO dele — estava de
+    // pé, e o giro é que o derrubou.)
+    static readonly Dictionary<string, Vector3> ModelosParaEndireitar =
+        new Dictionary<string, Vector3>
     {
-        "abencoado",   // esse sim: exportado em Z-up, chega deitado de barriga
+        // Z-up: chegam deitados de barriga. X-90 põe de pé e de frente.
+        { "abencoado",   new Vector3(-90f, 0f, 0f) },
 
-        // Os três magos que vieram no formato pequeno do Meshy (FBX ~3 MB com
-        // textura em PNG separado) — mesmo exportador Z-up do abençoado.
-        // Conferido no render: X -90 põe os três de pé.
-        "conjurador",
-        "estilhaco",
-        "metamorfo",
+        // Os três magos do formato pequeno do Meshy (FBX ~3 MB + PNG separado)
+        { "conjurador",  new Vector3(-90f, 0f, 0f) },
+        { "estilhaco",   new Vector3(-90f, 0f, 0f) },
+        { "metamorfo",   new Vector3(-90f, 0f, 0f) },
 
-        // As três healers no mesmo formato pequeno do Meshy.
-        // Conferido no render (arte-ia/render_fbx.py): X -90 põe as três de pé.
-        "matriarca",
-        "milagreira",
-        "tesoureira",
+        // As três healers no mesmo formato pequeno
+        { "matriarca",   new Vector3(-90f, 0f, 0f) },
+        { "milagreira",  new Vector3(-90f, 0f, 0f) },
+        { "tesoureira",  new Vector3(-90f, 0f, 0f) },
 
-        // Seis arqueiras no mesmo formato pequeno do Meshy. As outras 15
-        // vieram grandes e já de pé — conferido no render, uma a uma.
-        "acrobata",
-        "batedora",
-        "flecha-fiel",
-        "hidra",
-        "miragem",
-        "zefiro",
+        // Seis arqueiras no mesmo formato pequeno (as outras 15 vieram de pé)
+        { "acrobata",    new Vector3(-90f, 0f, 0f) },
+        { "batedora",    new Vector3(-90f, 0f, 0f) },
+        { "flecha-fiel", new Vector3(-90f, 0f, 0f) },
+        { "hidra",       new Vector3(-90f, 0f, 0f) },
+        { "miragem",     new Vector3(-90f, 0f, 0f) },
+        { "zefiro",      new Vector3(-90f, 0f, 0f) },
     };
 
     // Unity reimporta os modelos desta pasta quando este número muda. Subir a
@@ -89,7 +112,10 @@ public class CardFigurePostprocessor : AssetPostprocessor
     // antigo em cache e a correção não aparece.
     public override uint GetVersion()
     {
-        return 5;
+        // 6 = rotação explícita por modelo no lugar da heurística (05/set/2026),
+        // que punha conjurador e milagreira de cabeça para baixo e deixava
+        // flecha-fiel e hidra deitadas.
+        return 6;
     }
 
     // Roda depois da importação: gira os VÉRTICES, não o transform. Assim o
@@ -100,88 +126,20 @@ public class CardFigurePostprocessor : AssetPostprocessor
         if (!NaPasta(assetPath)) return;
 
         string nome = Path.GetFileNameWithoutExtension(assetPath).ToLowerInvariant();
-        if (!ModelosParaEndireitar.Contains(nome)) return;
+        Vector3 euler;
+        if (!ModelosParaEndireitar.TryGetValue(nome, out euler)) return;
+
+        Quaternion q = Quaternion.Euler(euler);
+        int malhas = 0;
 
         foreach (MeshFilter mf in root.GetComponentsInChildren<MeshFilter>(true))
-            Endireitar(mf.sharedMesh, nome);
+            if (GirarMalha(mf.sharedMesh, q)) malhas++;
 
         foreach (SkinnedMeshRenderer sm in root.GetComponentsInChildren<SkinnedMeshRenderer>(true))
-            Endireitar(sm.sharedMesh, nome);
-    }
+            if (GirarMalha(sm.sharedMesh, q)) malhas++;
 
-    // As quatro orientações que podem deixar um modelo tombado de pé
-    static readonly Vector3[] Candidatos =
-    {
-        new Vector3(0f, 0f, 0f),        // já está certo
-        new Vector3(-90f, 0f, 0f),      // Z-up  -> Y-up
-        new Vector3(90f, 0f, 0f),       // Z-down -> Y-up
-        new Vector3(0f, 0f, 90f),       // X-up  -> Y-up
-        new Vector3(0f, 0f, -90f),      // X-down -> Y-up
-    };
-
-    static void Endireitar(Mesh m, string nome)
-    {
-        if (m == null) return;
-        Vector3[] orig = m.vertices;
-        if (orig == null || orig.Length < 30) return;
-
-        Vector3 melhor = Vector3.zero;
-        float melhorNota = float.NegativeInfinity;
-        string relato = "";
-
-        foreach (Vector3 euler in Candidatos)
-        {
-            Quaternion q = Quaternion.Euler(euler);
-            float nota = Nota(orig, q);
-            relato += $"  {euler} => {nota:F2}\n";
-            if (nota > melhorNota)
-            {
-                melhorNota = nota;
-                melhor = euler;
-            }
-        }
-
-        Debug.Log($"[CardFigure] '{nome}' notas de orientação:\n{relato}  escolhida: {melhor}");
-
-        if (melhor == Vector3.zero) return;
-        GirarMalha(m, Quaternion.Euler(melhor));
-    }
-
-    // Nota de "está de pé": alta quando o eixo Y é o mais comprido E a metade
-    // de baixo é mais larga que a de cima.
-    static float Nota(Vector3[] v, Quaternion q)
-    {
-        Vector3 min = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
-        Vector3 max = new Vector3(float.MinValue, float.MinValue, float.MinValue);
-        for (int i = 0; i < v.Length; i++)
-        {
-            Vector3 p = q * v[i];
-            min = Vector3.Min(min, p);
-            max = Vector3.Max(max, p);
-        }
-        Vector3 tam = max - min;
-        if (tam.y <= 0.0001f) return float.NegativeInfinity;
-
-        // 1) esbeltez: altura contra a maior das duas larguras
-        float esbeltez = tam.y / Mathf.Max(0.0001f, Mathf.Max(tam.x, tam.z));
-
-        // 2) base mais larga que o topo
-        float meio = (min.y + max.y) * 0.5f;
-        Vector2 baixoMin = new Vector2(float.MaxValue, float.MaxValue);
-        Vector2 baixoMax = new Vector2(float.MinValue, float.MinValue);
-        Vector2 cimaMin = baixoMin, cimaMax = baixoMax;
-        for (int i = 0; i < v.Length; i++)
-        {
-            Vector3 p = q * v[i];
-            Vector2 xz = new Vector2(p.x, p.z);
-            if (p.y < meio) { baixoMin = Vector2.Min(baixoMin, xz); baixoMax = Vector2.Max(baixoMax, xz); }
-            else            { cimaMin  = Vector2.Min(cimaMin,  xz); cimaMax  = Vector2.Max(cimaMax,  xz); }
-        }
-        float largBaixo = Mathf.Max(baixoMax.x - baixoMin.x, baixoMax.y - baixoMin.y);
-        float largCima  = Mathf.Max(cimaMax.x - cimaMin.x, cimaMax.y - cimaMin.y);
-        float baseFirme = largBaixo / Mathf.Max(0.0001f, largCima);
-
-        return esbeltez + baseFirme;
+        Debug.Log("[CardFigure] '" + nome + "' endireitado com " + euler +
+                  " (" + malhas + " malha(s)).");
     }
 
     static bool GirarMalha(Mesh m, Quaternion q)

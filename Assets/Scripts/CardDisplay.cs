@@ -2029,20 +2029,40 @@ public class CardDisplay : MonoBehaviour
     static readonly System.Collections.Generic.Dictionary<string, FigureTweak> figureTweaks =
         new System.Collections.Generic.Dictionary<string, FigureTweak>
     {
-        // Vinha de perfil, olhando para -X em vez de encarar o inimigo
-        { "escudeiro-arcano", new FigureTweak(0f, -90f, 0f, 1f) },
+        // ── GIRO ─────────────────────────────────────────────
+        //
+        // Vinha de perfil (encara +X). O valor era -90f e o boneco aparecia DE
+        // COSTAS — sinal trocado, e a razão é sutil: o render_fbx.py, que a
+        // gente usa para conferir, mostra o modelo cru, e o Unity INVERTE a mão
+        // do sistema ao importar FBX. Sob essa inversão um giro em X sobrevive
+        // igual (por isso o X-90 do abencoado sempre bateu) mas um giro em Y
+        // vira o OPOSTO. Então: giro em Y lido no render entra aqui com o SINAL
+        // TROCADO. Ele era o único da tabela com giro em Y — por isso era o
+        // único errado. (05/set/2026)
+        { "escudeiro-arcano", new FigureTweak(0f, 90f, 0f, 1f) },
 
-        // A bandeira ocupa a metade de cima da caixa, então a normalização por
-        // altura deixava só o corpo dele com metade do tamanho dos outros
-        { "porta-bandeira", new FigureTweak(0f, 0f, 0f, 1.5f) },
+        // ── ESCALA ──────────────────────────────────────────
+        //
+        // Depois de acertar TargetWorldHeight/MaxWorldFootprint (ver lá), estes
+        // são os que ainda ficam fora de ±15% da mediana. São todos o mesmo
+        // caso: adereço alto e FINO (mastro, arco erguido, cajado) que estica a
+        // caixa sem esticar o corpo — a normalização por altura então encolhe o
+        // personagem. Valores medidos, não chutados: multiplicador = mediana do
+        // corpo ÷ corpo deste modelo, com o corpo medido até o percentil 95 da
+        // altura (o que corta justamente o adereço fino).
+        { "porta-bandeira",   new FigureTweak(0f, 0f, 0f, 1.09f) },
+        { "lyra-a-certeira",  new FigureTweak(0f, 0f, 0f, 0.90f) },
+        { "perfuradora",      new FigureTweak(0f, 0f, 0f, 1.25f) },
+        { "centuriao",        new FigureTweak(0f, 0f, 0f, 1.19f) },
+        { "fe",               new FigureTweak(0f, 0f, 0f, 1.21f) },
+        { "flecha-fiel",      new FigureTweak(0f, 0f, 0f, 1.20f) },
+        { "sigilo",           new FigureTweak(0f, 0f, 0f, 1.15f) },
 
-        // Auditoria de 2026-08-26 (render_fbx + medição de fração do corpo):
-        // o arco erguido dela ocupa os 40% de cima da caixa — corpo ficava
-        // com ~60% do tamanho das outras figuras
-        { "lyra-a-certeira", new FigureTweak(0f, 0f, 0f, 1.5f) },
-
-        // Mira para cima com o arco acima da cabeça — mesmo caso, mais leve
-        { "perfuradora", new FigureTweak(0f, 0f, 0f, 1.25f) },
+        // NÃO adianta pôr tweak de escala em couracada, guarda-costas, hidra,
+        // milagreira nem tesoureira: esses cinco são LARGOS e a rede de pegada
+        // corta o aumento logo depois (ela re-mede DEPOIS do tweak). Ficam no
+        // pé da tabela de tamanho de propósito. Para crescerem, o caminho é
+        // subir o MaxWorldFootprint — e aí a base larga deles avança na carta.
     };
 
     static FigureTweak TweakFor(Card c)
@@ -2498,8 +2518,20 @@ public class CardDisplay : MonoBehaviour
         Bounds b = renderers[0].bounds;
         for (int i = 1; i < renderers.Length; i++) b.Encapsulate(renderers[i].bounds);
 
-        // Tiles têm 6 unidades — a figura precisa ter presença no tabuleiro
-        const float TargetWorldHeight = 4.5f;
+        // Tiles têm 6 unidades — a figura precisa ter presença no tabuleiro.
+        //
+        // 3.2 (era 4.5) porque estas duas constantes se CONTRADIZIAM: para um
+        // boneco típico chegar a 4.5 de altura a pegada dele teria que ser ~4.5,
+        // muito acima do teto de 2.8 — resultado, a rede de pegada cortava os
+        // 84 e quem mandava no tamanho era a LARGURA, não a altura. Como a
+        // largura varia 2.6× (base cênica, escudo, braços abertos), o tamanho
+        // na tela variava 2.55×: uns minúsculos, outros enormes.
+        //
+        // Com 3.2 + teto 4.0 a altura volta a mandar, a rede corta só 6 dos 84
+        // (volta a ser rede) e o espalhamento cai para 1.40× — com o tamanho
+        // MEDIANO igual ao de antes, então o conjunto não muda de escala, só
+        // para de ser desparelho. (Medido nas 84 figuras, 05/set/2026.)
+        const float TargetWorldHeight = 3.2f;
         if (b.size.y > 0.0001f)
         {
             float k = TargetWorldHeight / b.size.y;
@@ -2510,7 +2542,10 @@ public class CardDisplay : MonoBehaviour
         // pedestal/base larga ficavam com a pegada enorme e o pé passando por
         // cima da linha de status (bug relatado pelo Carlos). Se a pegada
         // estourar o limite, encolhe mais — na casa, quem manda é a base.
-        const float MaxWorldFootprint = 2.8f;
+        // Teto da pegada: rede de segurança para o pé não passar por cima da
+        // linha de status. 4.0 (era 2.8) — ver a nota do TargetWorldHeight:
+        // em 2.8 isto não era rede, era a regra, e cortava TODAS as figuras.
+        const float MaxWorldFootprint = 4.0f;
         b = renderers[0].bounds;
         for (int i = 1; i < renderers.Length; i++) b.Encapsulate(renderers[i].bounds);
         float pegada = Mathf.Max(b.size.x, b.size.z);
